@@ -14,6 +14,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.staticfiles.finders import find
+from django.core.exceptions import FieldDoesNotExist
 from django.templatetags.static import static, StaticNode
 from django.urls import NoReverseMatch, reverse
 from django.utils.formats import date_format
@@ -781,7 +782,18 @@ def render_ancestor_hierarchy(value):
     result = format_html('<ul class="nb-tree-hierarchy">')
     append_to_result = format_html("</ul>")
 
-    for ancestor in value.ancestors():
+    ancestors = value.ancestors()
+    # The loop below renders each ancestor's `location_type`; without selecting that alongside the ancestors
+    # themselves it costs one extra query per ancestor.
+    if hasattr(ancestors, "select_related"):
+        try:
+            ancestors.model._meta.get_field("location_type")
+        except (FieldDoesNotExist, AttributeError):
+            pass
+        else:
+            ancestors = ancestors.select_related("location_type")
+
+    for ancestor in ancestors:
         nestable_tag = format_html('<span title="nestable">↺</span>' if getattr(ancestor, "nestable", False) else "")
 
         if getattr(ancestor, "location_type", None):
