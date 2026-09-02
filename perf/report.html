@@ -304,16 +304,16 @@ ul.tight li { margin-bottom: 7px; }
 <div class="wrap">
 
 <header class="masthead">
-  <p class="eyebrow">Phase 1 · Measurement</p>
+  <p class="eyebrow">Round 2 · Large dataset</p>
   <h1>Nautobot Performance Baseline</h1>
   <p class="standfirst">A measured baseline of Nautobot core's read and write paths, and the ranked findings that come out of it. Every number here was produced by a reproducible harness against a fixed dataset.</p>
 
   <dl class="factbar">
     <div class="fact"><dt>Branch</dt><dd>next · 3.3.0a0</dd></div>
-    <div class="fact"><dt>Dataset</dt><dd>2,119 objects</dd></div>
+    <div class="fact"><dt>Dataset</dt><dd>24,091 objects</dd></div>
     <div class="fact"><dt>Read scenarios</dt><dd>38</dd></div>
     <div class="fact"><dt>Write operations</dt><dd>13</dd></div>
-    <div class="fact"><dt>Baseline queries</dt><dd>2,357</dd></div>
+    <div class="fact"><dt>Queries</dt><dd>2,235 &rarr; 1,302</dd></div>
   </dl>
 </header>
 
@@ -598,6 +598,71 @@ ul.tight li { margin-bottom: 7px; }
   </div>
   <div class="prose">
     <p>Query count is the cheap signal and it was actively misleading: the variant that looked three times better by queries was the one that regressed past the original baseline in wall time. Deeper Location trees make it worse, not better.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Round two, at scale</h2>
+  <hr class="sec-rule">
+  <div class="prose">
+    <p>Everything below was re-established against a 24,091-object dataset on a pristine tree, then measured with all accepted fixes applied. Nine changes are committed, each with its own hypothesis, method and numbers.</p>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <caption>Cumulative effect of all nine accepted fixes, against the clean large baseline.</caption>
+      <thead><tr><th>Scenario</th><th class="num">Queries</th><th class="num">In-process</th><th class="num">HTTP p95</th></tr></thead>
+      <tbody>
+        <tr class="emph"><td class="id">api.interface.depth1</td><td class="num">1,229 &rarr; 629</td><td class="num">1,512 &rarr; 396ms <span class="delta-good">&minus;74%</span></td><td class="num">6,797 &rarr; 1,753ms <span class="delta-good">&minus;74%</span></td></tr>
+        <tr><td class="id">api.interface.list</td><td class="num flat">23 &rarr; 23</td><td class="num">373 &rarr; 149ms <span class="delta-good">&minus;60%</span></td><td class="num">1,750 &rarr; 681ms <span class="delta-good">&minus;61%</span></td></tr>
+        <tr><td class="id">api.location.list</td><td class="num flat">9 &rarr; 9</td><td class="num">94 &rarr; 49ms <span class="delta-good">&minus;49%</span></td><td class="num">606 &rarr; 352ms <span class="delta-good">&minus;42%</span></td></tr>
+        <tr><td class="id">api.device.list.depth1</td><td class="num">112 &rarr; 11</td><td class="num">320 &rarr; 219ms <span class="delta-good">&minus;32%</span></td><td class="num">1,083 &rarr; 711ms <span class="delta-good">&minus;34%</span></td></tr>
+        <tr><td class="id">api.device.list</td><td class="num flat">8 &rarr; 8</td><td class="num">231 &rarr; 181ms <span class="delta-good">&minus;22%</span></td><td class="num">587 &rarr; 417ms <span class="delta-good">&minus;29%</span></td></tr>
+        <tr><td class="id">ui.device.detail</td><td class="num">108 &rarr; 55</td><td class="num flat">&mdash;</td><td class="num">466 &rarr; 372ms <span class="delta-good">&minus;20%</span></td></tr>
+        <tr><td class="id">ui.device.interfaces</td><td class="num">71 &rarr; 39</td><td class="num">148 &rarr; 113ms <span class="delta-good">&minus;19%</span></td><td class="num">1,070 &rarr; 897ms <span class="delta-good">&minus;16%</span></td></tr>
+        <tr><td class="id">ui.rack.detail</td><td class="num">99 &rarr; 66</td><td class="num flat">&mdash;</td><td class="num">398 &rarr; 331ms <span class="delta-good">&minus;17%</span></td></tr>
+        <tr class="emph"><td>All 38 scenarios</td><td class="num">2,235 &rarr; 1,302 <span class="delta-good">&minus;41.7%</span></td><td class="num flat">&mdash;</td><td class="num flat">&mdash;</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose">
+    <p>Write path: Redis config reads fell <strong>94%</strong> across every bulk operation (3,600 &rarr; 200 per 100 creates), with query counts down 12&ndash;13%.</p>
+  </div>
+
+  <h3>What the large dataset changed about the conclusions</h3>
+  <div class="prose">
+    <p><strong>Query counts are page-bounded, not dataset-bounded.</strong> At 11&times; the data the counts barely moved, which retroactively validates the small dataset as an instrument for finding N+1s.</p>
+    <p><strong>Two of my own conclusions were wrong and got corrected by measurement.</strong> I claimed the hierarchy endpoints scale with dataset size; page-size sensitivity testing showed that is true for exactly one of five, and the UI list endpoints are entirely fixed cost. And <code>ui.prefix.detail</code> appeared to regress 11% until three repeat runs produced 329 / 447 / 347ms on identical code.</p>
+  </div>
+
+  <h3>Query count ranked the fixes in the wrong order</h3>
+  <div class="callout">
+    <p class="lede">The single largest win removed zero queries.</p>
+    <p>Reusing nested serializers instead of rebuilding one per object is worth <strong>&minus;28.7%</strong> on its own and changes no SQL at all. On that same endpoint, a separately-measured change that removed 99 queries moved wall clock by <strong>+0.3%</strong>, and the rejected FK pre-warming removed 666 queries while running <strong>62% slower</strong>.</p>
+    <p>SQL execution is roughly 182ms of a 745ms request there, and 4.6&ndash;22.5% of wall clock on detail pages. Query count is the cheap, deterministic signal &mdash; it is not the objective.</p>
+  </div>
+
+  <h3>Three instruments, because each fix class is invisible to the others</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Instrument</th><th>Catches</th><th>Blind to</th></tr></thead>
+      <tbody>
+        <tr><td>SQL query count</td><td>N+1s, missing prefetch</td><td>Python and Redis work</td></tr>
+        <tr><td>Redis backend reads</td><td>config and cache round-trip storms</td><td>SQL and pure CPU</td></tr>
+        <tr><td>Wall clock</td><td>everything</td><td>nothing &mdash; but needs 3+ alternating rounds to trust</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose">
+    <p>The Redis counter exists because one endpoint was making <strong>1,938 Redis round-trips against 977 SQL queries</strong> &mdash; twice as many cache calls as database calls, entirely invisible to SQL-shaped tooling. Two rounds of alternating A/B were not enough twice over: a 2ms "regression" and an 11% "regression" both dissolved on a third round.</p>
+  </div>
+</section>
+
+<section>
+  <h2>The next order of magnitude</h2>
+  <hr class="sec-rule">
+  <div class="prose">
+    <p>Profiling detail pages puts <code>core/context_processors.py:59 nav_menu</code> at <strong>40ms per request</strong> against 24ms for all SQL combined, driven by <strong>12,320 <code>has_one_or_more_perms</code> calls per request</strong>. That is app code, within scope, and worth more than every detail-page query fix in this report put together. It is the obvious next target.</p>
+    <p>Also outstanding: roughly 67 more <code>TemplateColumn</code> call sites across other table modules, each a one-token change that extends the per-cell compilation fix; and two row-scaling N+1s (<code>PowerFeed.utilization</code>, the prefix hierarchy column) that memoization cannot help and that grow linearly with row count.</p>
   </div>
 </section>
 
