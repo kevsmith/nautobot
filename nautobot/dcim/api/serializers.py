@@ -166,10 +166,20 @@ class PathEndpointModelSerializerMixin(ValidatedModelSerializer):
     connected_endpoint = serializers.SerializerMethodField(read_only=True)
     connected_endpoint_reachable = serializers.SerializerMethodField(read_only=True)
 
+    @staticmethod
+    def _first_cable_path(obj):
+        """Return `obj.cable_paths.first()`, memoized on the instance.
+
+        All three fields below need the same CablePath; without this the identical query runs three times per object.
+        """
+        if not hasattr(obj, "_first_cable_path_cache"):
+            obj._first_cable_path_cache = obj.cable_paths.first()
+        return obj._first_cable_path_cache
+
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_connected_endpoint_type(self, obj):
         with contextlib.suppress(CablePath.DoesNotExist):
-            path_obj = obj.cable_paths.first()
+            path_obj = self._first_cable_path(obj)
             if path_obj is not None and path_obj.destination is not None:
                 return f"{path_obj.destination._meta.app_label}.{path_obj.destination._meta.model_name}"
         return None
@@ -187,7 +197,7 @@ class PathEndpointModelSerializerMixin(ValidatedModelSerializer):
         Return the appropriate serializer for the type of connected object.
         """
         with contextlib.suppress(CablePath.DoesNotExist):
-            path_obj = obj.cable_paths.first()
+            path_obj = self._first_cable_path(obj)
             if path_obj is not None and path_obj.destination is not None:
                 depth = get_nested_serializer_depth(self)
                 return return_nested_serializer_data_based_on_depth(
@@ -198,7 +208,7 @@ class PathEndpointModelSerializerMixin(ValidatedModelSerializer):
     @extend_schema_field(serializers.BooleanField(allow_null=True))
     def get_connected_endpoint_reachable(self, obj):
         with contextlib.suppress(CablePath.DoesNotExist):
-            path_obj = obj.cable_paths.first()
+            path_obj = self._first_cable_path(obj)
             if path_obj is not None:
                 return path_obj.is_active
         return None
