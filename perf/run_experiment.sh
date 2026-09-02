@@ -15,6 +15,17 @@ cd "$ROOT"
 NAME="${1:?usage: run_experiment.sh <name> [--writes]}"
 WRITES="${2:-}"
 
+# --- provenance ------------------------------------------------------------
+# Record exactly which tree this measurement describes. A stray edit -- from a
+# concurrent process, an agent, or a forgotten experiment -- otherwise produces
+# a number that looks authoritative and is not attributable to anything.
+echo "== tree under test =="
+if git diff --quiet HEAD -- nautobot/; then
+  echo "  nautobot/: clean (== $(git rev-parse --short HEAD))"
+else
+  git diff --stat HEAD -- nautobot/ | sed 's/^/  /'
+fi
+
 # --- dataset drift check ---------------------------------------------------
 EXPECTED="231 743 272 234"
 ACTUAL=$(cat <<'PY' | perf/dc.sh exec -T nautobot nautobot-server shell 2>/dev/null | tail -1

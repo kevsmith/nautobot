@@ -1,0 +1,72 @@
+{
+  "api.cable.list": {
+    "median_ms": 56.71,
+    "p10_ms": 55.52,
+    "p90_ms": 167.93,
+    "reps": 15,
+    "status": 200
+  },
+  "api.device.list": {
+    "median_ms": 217.72,
+    "p10_ms": 210.93,
+    "p90_ms": 231.83,
+    "reps": 15,
+    "status": 200
+  },
+  "api.device.list.depth1": {
+    "median_ms": 301.24,
+    "p10_ms": 297.85,
+    "p90_ms": 416.73,
+    "reps": 15,
+    "status": 200
+  },
+  "api.interface.depth1": {
+    "median_ms": 1479.12,
+    "p10_ms": 1326.44,
+    "p90_ms": 1601.48,
+    "reps": 15,
+    "status": 200
+  },
+  "api.interface.list": {
+    "median_ms": 357.9,
+    "p10_ms": 340.73,
+    "p90_ms": 474.88,
+    "reps": 15,
+    "status": 200
+  },
+  "api.ipaddress.list": {
+    "median_ms": 41.33,
+    "p10_ms": 39.67,
+    "p90_ms": 44.98,
+    "reps": 15,
+    "status": 200
+  },
+  "api.location.list": {
+    "median_ms": 28.72,
+    "p10_ms": 27.2,
+    "p90_ms": 29.01,
+    "reps": 15,
+    "status": 200
+  },
+  "api.prefix.list": {
+    "median_ms": 35.21,
+    "p10_ms": 33.79,
+    "p90_ms": 37.92,
+    "reps": 15,
+    "status": 200
+  },
+  "ui.device.list": {
+    "median_ms": 65.45,
+    "p10_ms": 49.55,
+    "p90_ms": 87.55,
+    "reps": 15,
+    "status": 200
+  },
+  "ui.interface.list": {
+    "median_ms": 64.24,
+    "p10_ms": 52.97,
+    "p90_ms": 74.33,
+    "reps": 15,
+    "status": 200
+  }
+}
