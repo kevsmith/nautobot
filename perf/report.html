@@ -534,6 +534,74 @@ ul.tight li { margin-bottom: 7px; }
 </section>
 
 <section>
+  <h2>Cumulative result</h2>
+  <hr class="sec-rule">
+  <div class="prose">
+    <p>All accepted changes applied together, measured against the original committed baseline on the same dataset and the same machine. Query counts are deterministic; wall-clock figures are medians.</p>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <caption>Read path. Queries are exact and repeatable; in-process timing is the median of 15 repetitions; p95 is over HTTP at concurrency 4.</caption>
+      <thead><tr><th>Scenario</th><th class="num">Queries</th><th class="num">In-process</th><th class="num">HTTP p95</th></tr></thead>
+      <tbody>
+        <tr><td class="id">api.interface.depth1</td><td class="num">1,332 &rarr; 1,101 <span class="delta-good">&minus;17%</span></td><td class="num">1,479 &rarr; 975ms <span class="delta-good">&minus;34%</span></td><td class="num">6,829 &rarr; 4,161ms <span class="delta-good">&minus;39%</span></td></tr>
+        <tr><td class="id">api.interface.list</td><td class="num flat">23 &rarr; 23</td><td class="num">358 &rarr; 227ms <span class="delta-good">&minus;37%</span></td><td class="num">1,805 &rarr; 1,135ms <span class="delta-good">&minus;37%</span></td></tr>
+        <tr><td class="id">api.device.list.depth1</td><td class="num">112 &rarr; 11 <span class="delta-good">&minus;90%</span></td><td class="num">301 &rarr; 237ms <span class="delta-good">&minus;22%</span></td><td class="num">1,125 &rarr; 739ms <span class="delta-good">&minus;34%</span></td></tr>
+        <tr><td class="id">api.device.list.deep</td><td class="num flat">&mdash;</td><td class="num flat">&mdash;</td><td class="num">744 &rarr; 412ms <span class="delta-good">&minus;45%</span></td></tr>
+        <tr><td class="id">ui.device.interfaces</td><td class="num">74 &rarr; 42 <span class="delta-good">&minus;43%</span></td><td class="num flat">&mdash;</td><td class="num">1,016 &rarr; 909ms <span class="delta-good">&minus;11%</span></td></tr>
+        <tr><td class="id">ui.device.detail</td><td class="num">108 &rarr; 68 <span class="delta-good">&minus;37%</span></td><td class="num flat">&mdash;</td><td class="num flat">&mdash;</td></tr>
+        <tr><td class="id">ui.prefix.detail</td><td class="num">78 &rarr; 53 <span class="delta-good">&minus;32%</span></td><td class="num flat">&mdash;</td><td class="num flat">&mdash;</td></tr>
+        <tr><td class="id">ui.rack.detail</td><td class="num">99 &rarr; 77 <span class="delta-good">&minus;22%</span></td><td class="num flat">&mdash;</td><td class="num flat">&mdash;</td></tr>
+        <tr><td class="id">ui.device.list</td><td class="num flat">9 &rarr; 9</td><td class="num">65 &rarr; 49ms <span class="delta-good">&minus;25%</span></td><td class="num flat">&mdash;</td></tr>
+        <tr class="emph"><td>All 38 scenarios</td><td class="num">2,357 &rarr; 1,839 <span class="delta-good">&minus;22.0%</span></td><td class="num flat">&mdash;</td><td class="num flat">&mdash;</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <caption>Write path, deterministic query counts. Config reads are Redis round-trips through Constance.</caption>
+      <thead><tr><th>Operation</th><th class="num">Queries</th><th class="num">Change</th></tr></thead>
+      <tbody>
+        <tr><td class="id">bulk.create.x100.deferred</td><td class="num">1,507 &rarr; 1,107</td><td class="num delta-good">&minus;26.5%</td></tr>
+        <tr><td class="id">bulk.create.x100.loop</td><td class="num">1,604 &rarr; 1,204</td><td class="num delta-good">&minus;24.9%</td></tr>
+        <tr><td class="id">create.interfaces.x50</td><td class="num">804 &rarr; 604</td><td class="num delta-good">&minus;24.9%</td></tr>
+        <tr><td class="id">create.interface</td><td class="num">20 &rarr; 16</td><td class="num delta-good">&minus;20.0%</td></tr>
+        <tr><td class="id">bulk.update.x100.deferred</td><td class="num">1,826 &rarr; 1,593</td><td class="num delta-good">&minus;12.8%</td></tr>
+        <tr><td class="id">bulk.delete.x100</td><td class="num">2,473 &rarr; 2,238</td><td class="num delta-good">&minus;9.5%</td></tr>
+        <tr class="emph"><td>Redis config reads per 100 creates</td><td class="num">1,800 &rarr; 200</td><td class="num delta-good">&minus;89%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose">
+    <p>Part of the write-path gain comes from the read-path fixes: change logging serializes through the same API serializer, so prefetching nested natural keys reduced <code>bulk.create.loop</code> from 1,604 to 1,404 queries before any write-specific change was made.</p>
+    <p>The remaining <code>api.interface.depth1</code> cost is 1,101 queries — 150 GenericForeignKey destination fetches, 100 reverse one-to-one device-bay lookups on the nested Device serializer, and 77 cable paths. Those are addressable by the same mechanism and were not attempted here.</p>
+  </div>
+</section>
+
+<section>
+  <h2>A rejected fix worth recording</h2>
+  <hr class="sec-rule">
+  <div class="prose">
+    <p>One proposed change removed <strong>666 additional queries</strong> — cutting the total from 2,357 to 1,359, a 42% reduction — and made the endpoint it targeted <strong>62% slower</strong>.</p>
+    <p>It pre-warmed each object's natural-key foreign-key chain with a single <code>select_related()</code> instead of walking it hop by hop. Because Location's natural key is variadic on live tree depth, and <code>max_depth</code> is 4 in this dataset, that expands to eight prefixes and produces an <strong>8-join, 5,420-character query executed once per object</strong>, joining <code>dcim_location</code> to itself on <code>parent_id</code> at every ancestor level. PostgreSQL answers it quickly, but Django then materializes wide rows across eight tables and instantiates a model object for each — costing more than the handful of primary-key lookups it replaced. It also added a per-call inspection walk to every <code>natural_key()</code>, which slowed a depth-0 endpoint it was never meant to touch.</p>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <caption>api.interface.depth1, same dataset, same machine.</caption>
+      <thead><tr><th>Variant</th><th class="num">Queries</th><th class="num">Median</th></tr></thead>
+      <tbody>
+        <tr><td>Original baseline</td><td class="num">1,332</td><td class="num">1,479 ms</td></tr>
+        <tr><td>Accepted fixes</td><td class="num">1,101</td><td class="num delta-good">1,092 ms</td></tr>
+        <tr><td>Plus FK pre-warming</td><td class="num delta-good">435</td><td class="num delta-cost">1,767 ms</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose">
+    <p>Query count is the cheap signal and it was actively misleading: the variant that looked three times better by queries was the one that regressed past the original baseline in wall time. Deeper Location trees make it worse, not better.</p>
+  </div>
+</section>
+
+<section>
   <h2>Experiment ledger</h2>
   <hr class="sec-rule">
   <div class="prose">
@@ -546,36 +614,12 @@ ul.tight li { margin-bottom: 7px; }
         <tr><th>Finding</th><th>Change</th><th>Status</th><th class="num">Measured effect</th></tr>
       </thead>
       <tbody>
-        <tr>
-          <td class="id">F-03</td>
-          <td>Lazy natural-key fallback</td>
-          <td><span class="tag tag-verified">committed</span></td>
-          <td class="num delta-good">−25% api.interface.list</td>
-        </tr>
-        <tr>
-          <td class="id">F-01</td>
-          <td>Prefetch nested natural keys; warm FK chains; memoize cable path</td>
-          <td><span class="tag tag-proposed">queued</span></td>
-          <td class="num">−998 queries reported</td>
-        </tr>
-        <tr>
-          <td class="id">F-02</td>
-          <td>Memoize detail-page component tree across render passes</td>
-          <td><span class="tag tag-proposed">queued</span></td>
-          <td class="num">−186 queries reported</td>
-        </tr>
-        <tr>
-          <td class="id">F-04</td>
-          <td>Scope natural-key lookup cache to one serialization</td>
-          <td><span class="tag tag-proposed">queued</span></td>
-          <td class="num">+19.8% write path reported</td>
-        </tr>
-        <tr>
-          <td class="id">F-05</td>
-          <td>Stop double-serializing change records</td>
-          <td><span class="tag tag-scope">not pursued</span></td>
-          <td class="num flat">tier C</td>
-        </tr>
+        <tr><td class="id">F-03</td><td>Lazy natural-key fallback</td><td><span class="tag tag-verified">committed</span></td><td class="num delta-good">&minus;25% api.interface.list</td></tr>
+        <tr><td class="id">F-01</td><td>Prefetch nested natural keys; memoize cable path</td><td><span class="tag tag-verified">committed</span></td><td class="num delta-good">&minus;332 queries</td></tr>
+        <tr><td class="id">F-02</td><td>Memoize detail-page component tree</td><td><span class="tag tag-verified">committed</span></td><td class="num delta-good">&minus;186 queries</td></tr>
+        <tr><td class="id">F-04</td><td>Scope natural-key lookup cache to one serialization</td><td><span class="tag tag-verified">committed</span></td><td class="num delta-good">&minus;89% Redis reads</td></tr>
+        <tr><td class="id">F-05</td><td>Stop double-serializing change records</td><td><span class="tag tag-scope">tier C, breaks 13 tests</span></td><td class="num delta-good">&minus;200 queries / 100 writes</td></tr>
+        <tr><td class="id">&mdash;</td><td>Pre-warm natural-key FK chains</td><td><span class="tag tag-scope">rejected</span></td><td class="num delta-cost">&minus;666 queries, +62% slower</td></tr>
       </tbody>
     </table>
   </div>
