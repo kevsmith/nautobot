@@ -48,3 +48,10 @@ docs/assets/overrides/main.html
 
 # Playwright artifacts (--screenshot / --tracing)
 test-results/
+
+# perf harness
+perf/results/
+perf/dataset.yaml
+perf/endpoints.yml
+perf/snapshot.sql
+perf/results/.sessionid
