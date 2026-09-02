@@ -107,6 +107,20 @@ class QueryCollector:
             self.sql.append(sql)
 
 
+def _free_address():
+    """First prefix (by pk) with an unallocated host address, and that address."""
+    for p in Prefix.objects.order_by("pk").iterator():
+        size = p.prefix.size
+        if size < 4:
+            continue
+        taken = set(IPAddress.objects.filter(parent=p).values_list("host", flat=True))
+        for i in range(2, min(size - 1, 400)):
+            candidate = str(p.prefix[i])
+            if candidate not in taken:
+                return {"free_prefix": p, "free_host": candidate}
+    return {"free_prefix": None, "free_host": None}
+
+
 def fixtures():
     """Deterministically chosen prerequisite objects, picked once up front."""
     device = Device.objects.order_by("pk").first()
@@ -122,6 +136,7 @@ def fixtures():
         "iface_status": Status.objects.get_for_model(Interface).order_by("pk").first(),
         "ip_status": Status.objects.get_for_model(IPAddress).order_by("pk").first(),
         "prefix": Prefix.objects.order_by("pk").first(),
+        **_free_address(),
         "namespace": Namespace.objects.order_by("pk").first(),
     }
 
@@ -173,17 +188,11 @@ def op_create_tag(f):
 
 
 def op_create_ipaddress(f):
-    # The address must fall inside a prefix in the *same* namespace, and must
-    # not already be taken -- the seeded dataset fills the low host numbers.
-    p = f["prefix"]
-    taken = set(IPAddress.objects.filter(parent=p).values_list("host", flat=True))
-    host = next(
-        (str(p.prefix[i]) for i in range(2, min(p.prefix.size - 1, 250))
-         if str(p.prefix[i]) not in taken),
-        None,
-    )
-    if host is None:
-        raise RuntimeError("no free host address in the chosen prefix")
+    # The address must fall inside a prefix in the *same* namespace and must not
+    # already be taken. Larger datasets fill the low host numbers of the first
+    # prefixes entirely, so search prefixes for one with a free address rather
+    # than assuming the first one has room.
+    p, host = f["free_prefix"], f["free_host"]
     IPAddress(address=f"{host}/{p.prefix_length}", status=f["ip_status"],
               namespace=p.namespace).validated_save()
 
