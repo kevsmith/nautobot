@@ -479,8 +479,17 @@ class BaseModelSerializer(OptInFieldsMixin, NaturalKeyRepresentationMixin, seria
         }
     )
     def get_composite_key(self, instance):
+        # Do not pass the fallback as getattr()'s default: Python evaluates it
+        # eagerly, so natural_key() runs for every object even though
+        # BaseModel.composite_key always exists -- and then the property
+        # computes natural_key() a second time. Try the attribute first and
+        # only construct the fallback if it is genuinely absent.
         try:
-            return getattr(instance, "composite_key", construct_composite_key(instance.natural_key()))
+            return instance.composite_key
+        except (AttributeError, NotImplementedError):
+            pass
+        try:
+            return construct_composite_key(instance.natural_key())
         except (AttributeError, NotImplementedError):
             return "unknown"
 
@@ -491,8 +500,14 @@ class BaseModelSerializer(OptInFieldsMixin, NaturalKeyRepresentationMixin, seria
         }
     )
     def get_natural_slug(self, instance):
+        # See get_composite_key: the eager default made natural_key() run twice
+        # per object for no benefit.
         try:
-            return getattr(instance, "natural_slug", construct_natural_slug(instance.natural_key(), pk=instance.pk))
+            return instance.natural_slug
+        except (AttributeError, NotImplementedError):
+            pass
+        try:
+            return construct_natural_slug(instance.natural_key(), pk=instance.pk)
         except (AttributeError, NotImplementedError):
             return "unknown"
 
