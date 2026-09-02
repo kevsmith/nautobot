@@ -61,6 +61,8 @@ TARGETS = [
     "api.interface.list", "api.interface.depth1", "api.device.list",
     "api.device.list.depth1", "api.prefix.list", "api.ipaddress.list",
     "api.location.list", "api.cable.list", "ui.device.list", "ui.interface.list",
+    # Table-rendering heavy pages -- these are where per-cell template work shows up.
+    "ui.device.interfaces", "ui.device.detail", "ui.rack.detail", "ui.cable.list",
 ]
 
 
