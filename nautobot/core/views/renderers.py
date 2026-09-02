@@ -311,7 +311,11 @@ class NautobotHTMLRenderer(renderers.BrowsableAPIRenderer):
                 # If the view does not have a object_detail_content attribute, set it to None.
                 context["object_detail_content"] = None
 
-            context.update(common_detail_view_context(request, instance))
+            context.update(
+                common_detail_view_context(
+                    request, instance, object_detail_content=context.get("object_detail_content")
+                )
+            )
         if view.action == "list":
             # Construct valid actions for list view.
             valid_actions = self.validate_action_buttons(view, request)

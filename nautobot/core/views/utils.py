@@ -401,14 +401,31 @@ def view_changes_not_saved(request, view, current_saved_view):
     return False
 
 
-def common_detail_view_context(request, instance):
-    """Additional template context for object detail views, shared by both ObjectView and NautobotHTMLRenderer."""
+def common_detail_view_context(request, instance, object_detail_content=None):
+    """
+    Additional template context for object detail views, shared by both ObjectView and NautobotHTMLRenderer.
+
+    Args:
+        request (HttpRequest): The current request.
+        instance (Model): The object being viewed.
+        object_detail_content (ObjectDetailContent, optional): The view's UI-framework content definition, if any.
+            When provided, the legacy `associated_contacts_table` / `associated_dynamic_groups_table` /
+            `associated_object_metadata_table` context entries are skipped, as `generic/object_retrieve.html`
+            only consumes them on the non-UI-framework code path. Each of those tables is constructed *and
+            paginated* here, so building them for a UI-framework view is several wasted queries per page.
+    """
     context = {}
 
     created_by, last_updated_by = get_created_and_last_updated_usernames_for_model(instance)
     context["created_by"] = created_by
     context["last_updated_by"] = last_updated_by
     context["detail"] = True
+
+    if object_detail_content is not None:
+        context["associated_contacts_table"] = None
+        context["associated_dynamic_groups_table"] = None
+        context["associated_object_metadata_table"] = None
+        return context
 
     if getattr(instance, "is_contact_associable_model", False):
         paginate = {"paginator_class": EnhancedPaginator, "per_page": get_paginate_count(request)}
