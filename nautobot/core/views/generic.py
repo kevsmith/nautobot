@@ -136,7 +136,7 @@ class ObjectView(UIComponentsMixin, ObjectPermissionRequiredMixin, View):
             "verbose_name_plural": model._meta.verbose_name_plural,
             "object_detail_content": self.object_detail_content,
             "breadcrumbs": self.get_breadcrumbs(model, view_type=""),
-            **common_detail_view_context(request, instance, object_detail_content=self.object_detail_content),
+            **common_detail_view_context(request, instance),
             **self.get_extra_context(request, instance),
         }
 

@@ -42,14 +42,7 @@ class ChangeLoggedModel(models.Model):
             changed_object=self,
             object_repr=str(self)[:CHANGELOG_MAX_OBJECT_REPR],
             action=action,
-            # TIER C / EXPERIMENTAL -- see the commit message.
-            # object_data (v1) is a legacy snapshot that every current consumer reads only as a
-            # fallback when object_data_v2 is null, which never happens for a newly created record.
-            # Writing an empty dict instead of serializing the object a second time removes that
-            # duplicate work. The field is not nullable, so this is {} rather than None.
-            # This DOES change the REST and GraphQL payloads for ObjectChange and blanks the
-            # "Object Data" detail panel; it is not safe to ship without a deprecation cycle.
-            object_data={},
+            object_data=serialize_object(self, extra=object_data_extra, exclude=object_data_exclude),
             object_data_v2=serialize_object_v2(self),
             related_object=related_object,
         )

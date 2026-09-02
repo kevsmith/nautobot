@@ -47,3 +47,7 @@ perf/dataset.yaml
 perf/endpoints.yml
 perf/snapshot.sql
 perf/results/.sessionid
+perf/snapshot-large.sql
+perf/dataset-large.yaml
+perf/dataset-large.state.jsonl
+perf/results/urls-large.json

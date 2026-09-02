@@ -48,7 +48,7 @@ from nautobot.core.templatetags.helpers import (
 )
 from nautobot.core.ui.choices import LayoutChoices, SectionChoices
 from nautobot.core.ui.echarts import EChartsBase
-from nautobot.core.ui.utils import get_render_cache, render_component_template
+from nautobot.core.ui.utils import render_component_template
 from nautobot.core.utils.lookup import get_filterset_for_model, get_route_for_model, get_view_for_model
 from nautobot.core.utils.permissions import get_permission_for_model
 from nautobot.core.views.paginator import EnhancedPaginator, get_paginate_count
@@ -289,26 +289,6 @@ class Component:
         return {
             "component": self,
         }
-
-    def _cached_call(self, context, key, func):
-        """
-        Memoize the result of `func()` for this component, for the duration of the current HTTP request.
-
-        The detail-view templates walk the component tree several times per page render (tab labels,
-        table-config forms, tab contents), so without this the same queries are issued once per pass.
-        The cache is keyed on the identity of this component plus `key`; a strong reference to `self` is
-        retained alongside the value so the identity cannot be recycled while the entry is live.
-        """
-        cache = get_render_cache(context)
-        if cache is None:
-            return func()
-        cache_key = (id(self), key)
-        try:
-            return cache[cache_key][1]
-        except KeyError:
-            value = func()
-            cache[cache_key] = (self, value)
-            return value
 
 
 class Button(Component):
@@ -634,28 +614,20 @@ class Tab(Component):
         """
         return sorted((panel for panel in self.panels if panel.section == section), key=lambda panel: panel.weight)
 
-    def _should_render_cached(self, context: Context):
-        """Per-request memoized `should_render()`; see `Component._cached_call()`."""
-        return self._cached_call(context, "should_render", lambda: self.should_render(context))
-
-    def _render_label_cached(self, context: Context):
-        """Per-request memoized `render_label()`; see `Component._cached_call()`."""
-        return self._cached_call(context, "render_label", lambda: self.render_label(context))
-
     def render_label_wrapper(self, context: Context):
         """
         Render the tab's label (as opposed to its contents) and wrapping HTML elements.
 
         In most cases you should not need to override this method; override `render_label()` instead.
         """
-        if not self._should_render_cached(context):
+        if not self.should_render(context):
             return ""
 
         return render_component_template(
             self.label_wrapper_template_path,
             context,
             tab_id=self.tab_id,
-            label=self._render_label_cached(context),
+            label=self.render_label(context),
             **self.get_extra_context(context),
         )
 
@@ -671,7 +643,7 @@ class Tab(Component):
         """
         Only render a main-view Tab if the active request is for the main object view rather than a separate action.
         """
-        if not self._should_render_cached(context):
+        if not self.should_render(context):
             return False
 
         request = context["request"]
@@ -681,13 +653,13 @@ class Tab(Component):
     def render(self, context: Context):
         """Render the tab's contents (layout and panels) to HTML."""
         # Check should_render_content first as it's generally a cheaper calculation than should_render checking perms
-        if not self.should_render_content(context) or not self._should_render_cached(context):
+        if not self.should_render_content(context) or not self.should_render(context):
             return ""
 
         with context.update(
             {
                 "tab_id": self.tab_id,
-                "label": self._render_label_cached(context),
+                "label": self.render_label(context),
                 "include_plugin_content": self.tab_id == "main",
                 "include_timestamps_and_buttons": self.tab_id == "main",
                 "left_half_panels": self.panels_for_section(SectionChoices.LEFT_HALF),
@@ -757,11 +729,7 @@ class DistinctViewTab(Tab):
             return True
 
         try:
-            self.related_object_count = self._cached_call(
-                context,
-                "related_object_count",
-                lambda: getattr(obj, self.related_object_attribute).count(),
-            )
+            self.related_object_count = getattr(obj, self.related_object_attribute).count()
         except AttributeError:
             # Not a warning log, as there are cases where this is expected.
             logger.debug(
@@ -776,7 +744,7 @@ class DistinctViewTab(Tab):
         """
         A DistinctViewTab should only render its content if the view in question is active.
         """
-        if not self._should_render_cached(context):
+        if not self.should_render(context):
             return False
 
         with context.update(self.get_extra_context(context)):
@@ -832,16 +800,6 @@ class Panel(Component):
     section = SectionChoices.FULL_WIDTH
     template_path = "components/panel/panel.html"
 
-    def _get_extra_context_cached(self, context: Context):
-        """
-        Per-request memoized `get_extra_context()`; see `Component._cached_call()`.
-
-        Building a panel's extra context can be expensive -- for `ObjectsTablePanel` it constructs, filters and
-        paginates the panel's table -- and the detail-view template asks for it more than once per page render
-        (once via `{% render_table_config_forms %}` and once via `{% render_components %}`).
-        """
-        return self._cached_call(context, "get_extra_context", lambda: self.get_extra_context(context))
-
     def render(self, context: Context):
         """
         Render the panel as a whole.
@@ -861,7 +819,7 @@ class Panel(Component):
         if self.should_render_deferred(context):
             return render_component_template(self.placeholder_template_path, context, component=self)
 
-        with context.update(self._get_extra_context_cached(context)):
+        with context.update(self.get_extra_context(context)):
             return render_component_template(
                 self.template_path,
                 context,
@@ -1297,7 +1255,7 @@ class ObjectsTablePanel(Panel):
             return None
         if not self.show_table_config_button:
             return None
-        context = self._get_extra_context_cached(context)
+        context = self.get_extra_context(context)
         return table_config_form(context["body_content_table"])
 
     def render_table_config_form(self, context: Context):
@@ -1306,7 +1264,7 @@ class ObjectsTablePanel(Panel):
             return ""
         if not self.show_table_config_button:
             return ""
-        context = self._get_extra_context_cached(context)
+        context = self.get_extra_context(context)
         return render_to_string(
             "utilities/templatetags/table_config_form.html", table_config_form(context["body_content_table"])
         )
@@ -1406,14 +1364,9 @@ class ObjectsTablePanel(Panel):
             paginate = {"paginator_class": EnhancedPaginator, "per_page": per_page}
             RequestConfig(request, paginate).configure(body_content_table)
             try:
-                # django-tables2's paginator has already COUNTed the data source; don't COUNT it a second time.
-                total_count = body_content_table.paginator.count
-            except (AttributeError, TypeError):
-                try:
-                    total_count = body_content_table.data.data.count()
-                except TypeError:
-                    total_count = len(body_content_table.data.data)
-            more_queryset_count = max(total_count - per_page, 0)
+                more_queryset_count = max(body_content_table.data.data.count() - per_page, 0)
+            except TypeError:
+                more_queryset_count = max(len(body_content_table.data.data) - per_page, 0)
         elif self.max_display_count is not None:
             # If not paginating but a cap is desired, slice the table's data source.
             try:

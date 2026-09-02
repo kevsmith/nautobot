@@ -17,12 +17,7 @@ from nautobot.core.models.querysets import (
     LocationToLocationsQuerySetMixin,
     RestrictedQuerySet,
 )
-from nautobot.core.models.utils import (
-    cached_natural_key_field_lookups,
-    construct_composite_key,
-    construct_natural_slug,
-    deconstruct_composite_key,
-)
+from nautobot.core.models.utils import construct_composite_key, construct_natural_slug, deconstruct_composite_key
 from nautobot.core.utils.cache import construct_cache_key
 from nautobot.core.utils.lookup import get_route_for_model
 
@@ -38,9 +33,6 @@ __all__ = (
     "construct_natural_slug",
     "deconstruct_composite_key",
 )
-
-
-_UNSET = object()
 
 
 class BaseModel(models.Model):
@@ -271,7 +263,6 @@ class BaseModel(models.Model):
         return cls.natural_key_field_lookups
 
     @classproperty  # https://github.com/PyCQA/pylint-django/issues/240
-    @cached_natural_key_field_lookups
     def natural_key_field_lookups(cls):  # pylint: disable=no-self-argument
         """
         List of lookups (possibly including nested lookups for related models) that make up this model's natural key.
@@ -287,12 +278,11 @@ class BaseModel(models.Model):
         """
         if cls != cls._meta.concrete_model:
             return cls._meta.concrete_model.natural_key_field_lookups
-        # First, figure out which local fields comprise the natural key.
-        # Fetch once rather than hasattr() + attribute access: `natural_key_field_names` is itself a
-        # classproperty on several models, so testing and then reading it evaluates it twice.
-        natural_key_field_names = getattr(cls, "natural_key_field_names", _UNSET)
-        if natural_key_field_names is _UNSET:
-            natural_key_field_names = []
+        # First, figure out which local fields comprise the natural key:
+        natural_key_field_names = []
+        if hasattr(cls, "natural_key_field_names"):
+            natural_key_field_names = cls.natural_key_field_names
+        else:
             # Does this model have any new-style UniqueConstraints? If so, pick the first one
             for constraint in cls._meta.constraints:
                 if isinstance(constraint, models.UniqueConstraint):

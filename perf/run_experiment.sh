@@ -27,7 +27,13 @@ else
 fi
 
 # --- dataset drift check ---------------------------------------------------
-EXPECTED="231 743 272 234"
+# Expected object counts for the active dataset, recorded by
+# perf/record_expected_counts.sh. Override with PERF_EXPECTED for another tier.
+EXPECTED="${PERF_EXPECTED:-$(cat "$ROOT/perf/baselines/expected-counts.txt" 2>/dev/null || echo "")}"
+if [ -z "$EXPECTED" ]; then
+  echo "!! no expected counts recorded; run perf/record_expected_counts.sh first"
+  exit 3
+fi
 ACTUAL=$(cat <<'PY' | perf/dc.sh exec -T nautobot nautobot-server shell 2>/dev/null | tail -1
 from nautobot.dcim.models import Device, Interface, Cable
 from nautobot.ipam.models import IPAddress
@@ -52,6 +58,6 @@ fi
 
 echo "== verdict =="
 python3 perf/compare.py \
-  --baseline perf/baselines/tier1-baseline.json \
+  --baseline "${PERF_BASELINE:-perf/baselines/large-tier1-baseline.json}" \
   --current  "perf/results/tier1-${NAME}.json" \
   --json-out "perf/results/diff-${NAME}.json"
