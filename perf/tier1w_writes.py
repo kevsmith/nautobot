@@ -37,6 +37,7 @@ from nautobot.extras.context_managers import (  # noqa: E402
     web_request_context,
 )
 from nautobot.extras.models import ObjectChange, Role, Status, Tag  # noqa: E402
+import nautobot.core.utils.config as _config_mod  # noqa: E402
 from nautobot.ipam.models import IPAddress, Namespace, Prefix  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -47,6 +48,41 @@ PERF_USER = "perfbot"
 
 class Rollback(Exception):
     """Raised to unwind the measurement transaction."""
+
+
+class ConfigCallCounter:
+    """Count get_settings_or_config() calls, each of which reads Constance from Redis.
+
+    Some costs remove no SQL at all -- caching a classproperty that reads config, for instance.
+    Wall clock varies ~20% run to run on this box, which is the same order as the effect being
+    measured, so this counter provides the deterministic signal that query count provides for SQL.
+    """
+
+    def __init__(self):
+        self.count = 0
+        self._original = None
+
+    def __enter__(self):
+        self._original = _config_mod.get_settings_or_config
+
+        def counting(*args, **kwargs):
+            self.count += 1
+            return self._original(*args, **kwargs)
+
+        _config_mod.get_settings_or_config = counting
+        # Rebind the already-imported references in the hot modules.
+        for mod_name in ("nautobot.dcim.models.devices", "nautobot.dcim.models.locations"):
+            mod = sys.modules.get(mod_name)
+            if mod is not None and hasattr(mod, "get_settings_or_config"):
+                mod.get_settings_or_config = counting
+        return self
+
+    def __exit__(self, *exc):
+        _config_mod.get_settings_or_config = self._original
+        for mod_name in ("nautobot.dcim.models.devices", "nautobot.dcim.models.locations"):
+            mod = sys.modules.get(mod_name)
+            if mod is not None and hasattr(mod, "get_settings_or_config"):
+                mod.get_settings_or_config = self._original
 
 
 class QueryCollector:
@@ -234,7 +270,8 @@ def measure(user, name, fn, f):
     changes_before = ObjectChange.objects.count()
     error = None
     collector = QueryCollector()
-    with connection.execute_wrapper(collector):
+    config_counter = ConfigCallCounter()
+    with config_counter, connection.execute_wrapper(collector):
         start = time.perf_counter()
         try:
             with transaction.atomic():
@@ -259,6 +296,7 @@ def measure(user, name, fn, f):
         "query_count": len(queries),
         "db_ms": round(collector.total_seconds * 1000.0, 2),
         "duplicate_queries": sum(c - 1 for c in shapes.values() if c > 1),
+        "config_reads": config_counter.count,
         "object_changes": changes_after - changes_before,
         "worst_repeat_count": worst_count,
         "worst_repeat_sql": worst_shape[:400],
@@ -295,8 +333,8 @@ def main():
             rec["query_count_range"] = [min(qcounts), max(qcounts)]
         records.append(rec)
         flag = f"  <-- {rec['error']}" if rec["error"] else ""
-        print(f"{name:28s} q={rec['query_count']:<5} changes={rec['object_changes']:<3} "
-              f"{rec['wall_ms']}ms{flag}", file=sys.stderr)
+        print(f"{name:34s} q={rec['query_count']:<5} cfg={rec['config_reads']:<6} "
+              f"changes={rec['object_changes']:<3} {rec['wall_ms']}ms{flag}", file=sys.stderr)
 
     records.sort(key=lambda r: r["query_count"], reverse=True)
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
