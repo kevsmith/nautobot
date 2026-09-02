@@ -42,3 +42,8 @@ lcov.info
 
 # Avoid accidental commit of analytics template override generated via ./docs/insert-analytics.sh
 docs/assets/overrides/main.html
+perf/results/
+perf/dataset.yaml
+perf/endpoints.yml
+perf/snapshot.sql
+perf/results/.sessionid

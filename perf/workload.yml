@@ -1,0 +1,71 @@
+---
+# Nautobot performance workload.
+#
+# A hand-maintained, deliberately-chosen set of accesses -- not an auto-dump of
+# every URL the resolver knows about.
+#
+# Two properties make it repeatable:
+#   * Endpoints are named by Django *view name* and resolved with reverse(), so a
+#     renamed view fails loudly instead of silently rotting.
+#   * Objects are chosen by a deterministic *strategy* at run time, never by a
+#     baked-in PK, so the workload survives a reseed or a different dataset.
+#
+# pick strategies:
+#   first / last          -- order_by("pk").first() / .last()
+#   max_related:<name>    -- the object with the most <name>; worst case, and the
+#                            one most likely to expose per-row work
+version: 1
+
+scenarios:
+  # --- global -------------------------------------------------------------
+  - {id: ui.home,            view: "home",                     tags: [ui, dashboard]}
+  - {id: ui.search,          view: "search", query: {q: "sw"}, tags: [ui, search]}
+
+  # --- DCIM lists: the wide tables with many related columns --------------
+  - {id: ui.device.list,          view: "dcim:device_list",                              tags: [ui, list, core]}
+  - {id: ui.device.list.page100,  view: "dcim:device_list", query: {per_page: 100},      tags: [ui, list, pagination]}
+  - {id: ui.device.list.deep,     view: "dcim:device_list", query: {per_page: 50, page: 4}, tags: [ui, list, pagination]}
+  - {id: ui.device.list.filtered, view: "dcim:device_list", query: {status: "Active"},   tags: [ui, list, filter]}
+  - {id: ui.interface.list,       view: "dcim:interface_list", query: {per_page: 100},   tags: [ui, list, core]}
+  - {id: ui.cable.list,           view: "dcim:cable_list",                               tags: [ui, list]}
+  - {id: ui.rack.list,            view: "dcim:rack_list",                                tags: [ui, list]}
+  - {id: ui.location.list,        view: "dcim:location_list",                            tags: [ui, list, tree]}
+  - {id: ui.devicetype.list,      view: "dcim:devicetype_list",                          tags: [ui, list]}
+
+  # --- DCIM details: heavy per-object pages ------------------------------
+  - {id: ui.device.detail,        view: "dcim:device",   pick: {model: "dcim.Device", strategy: first},                        tags: [ui, detail, core]}
+  - {id: ui.device.detail.worst,  view: "dcim:device",   pick: {model: "dcim.Device", strategy: "max_related:interfaces"},     tags: [ui, detail, worstcase]}
+  - {id: ui.device.interfaces,    view: "dcim:device_interfaces", pick: {model: "dcim.Device", strategy: "max_related:interfaces"}, tags: [ui, tab, worstcase]}
+  - {id: ui.rack.detail,          view: "dcim:rack",     pick: {model: "dcim.Rack", strategy: "max_related:devices"},          tags: [ui, detail, elevation]}
+  - {id: ui.location.detail,      view: "dcim:location", pick: {model: "dcim.Location", strategy: "max_related:devices"},      tags: [ui, detail, stats]}
+
+  # --- IPAM: hierarchy computation is a known hot spot --------------------
+  - {id: ui.prefix.list,          view: "ipam:prefix_list",                              tags: [ui, list, tree]}
+  - {id: ui.prefix.list.page100,  view: "ipam:prefix_list", query: {per_page: 100},      tags: [ui, list, tree]}
+  - {id: ui.ipaddress.list,       view: "ipam:ipaddress_list", query: {per_page: 100},   tags: [ui, list]}
+  - {id: ui.vlan.list,            view: "ipam:vlan_list",                                tags: [ui, list]}
+  - {id: ui.prefix.detail,        view: "ipam:prefix", pick: {model: "ipam.Prefix", strategy: first}, tags: [ui, detail]}
+
+  # --- extras: the changelog grows without bound in real deployments ------
+  - {id: ui.objectchange.list,    view: "extras:objectchange_list",                      tags: [ui, list, changelog]}
+  - {id: ui.objectchange.detail,  view: "extras:objectchange", pick: {model: "extras.ObjectChange", strategy: last}, tags: [ui, detail, changelog]}
+  - {id: ui.status.list,          view: "extras:status_list",                            tags: [ui, list]}
+  - {id: ui.role.list,            view: "extras:role_list",                              tags: [ui, list]}
+  - {id: ui.tag.list,             view: "extras:tag_list",                               tags: [ui, list]}
+
+  # --- circuits ----------------------------------------------------------
+  - {id: ui.circuit.list,         view: "circuits:circuit_list",                         tags: [ui, list]}
+
+  # --- API: mirror the key reads; depth= drives nested serialization ------
+  - {id: api.device.list,         view: "dcim-api:device-list", query: {limit: 50},                tags: [api, list, core]}
+  - {id: api.device.list.depth1,  view: "dcim-api:device-list", query: {limit: 50, depth: 1},      tags: [api, list, nested]}
+  - {id: api.device.list.deep,    view: "dcim-api:device-list", query: {limit: 50, offset: 150},   tags: [api, list, pagination]}
+  - {id: api.interface.list,      view: "dcim-api:interface-list", query: {limit: 100},            tags: [api, list, core]}
+  - {id: api.interface.depth1,    view: "dcim-api:interface-list", query: {limit: 100, depth: 1},  tags: [api, list, nested]}
+  - {id: api.cable.list,          view: "dcim-api:cable-list", query: {limit: 100},                tags: [api, list]}
+  - {id: api.prefix.list,         view: "ipam-api:prefix-list", query: {limit: 100},               tags: [api, list, tree]}
+  - {id: api.ipaddress.list,      view: "ipam-api:ipaddress-list", query: {limit: 100},            tags: [api, list]}
+  - {id: api.location.list,       view: "dcim-api:location-list", query: {limit: 100},             tags: [api, list, tree]}
+  - {id: api.device.detail,       view: "dcim-api:device-detail", pick: {model: "dcim.Device", strategy: "max_related:interfaces"}, tags: [api, detail]}
+  - {id: api.device.detail.depth1, view: "dcim-api:device-detail", query: {depth: 1}, pick: {model: "dcim.Device", strategy: "max_related:interfaces"}, tags: [api, detail, nested]}
+  - {id: api.graphql.devices,     view: "graphql-api", method: POST, tags: [api, graphql], skip: true}

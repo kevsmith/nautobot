@@ -14,7 +14,9 @@ SECRET_KEY = os.getenv("NAUTOBOT_SECRET_KEY", "012345678901234567890123456789012
 #
 # Debugging defaults to True rather than False for the development environment
 #
-DEBUG = is_truthy(os.getenv("NAUTOBOT_DEBUG", "True"))
+# Perf environment: DEBUG off by default so we measure production-shaped code paths
+# (no debug toolbar, no SQL logging, template caching enabled).
+DEBUG = is_truthy(os.getenv("NAUTOBOT_DEBUG", "False"))
 
 
 # Django Debug Toolbar - enabled only when debugging
@@ -55,9 +57,9 @@ LOGGING["loggers"]["nautobot"]["level"] = LOG_LEVEL  # noqa: F405
 # Plugins
 #
 
-PLUGINS = [
-    "example_app",
-]
+# Perf environment: no Apps enabled, so every measurement and every fix is
+# attributable to Nautobot core.
+PLUGINS = []
 
 CORS_ALLOWED_ORIGINS = ["http://localhost:3000"]
 CORS_ALLOW_CREDENTIALS = True
