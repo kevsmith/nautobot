@@ -23,6 +23,7 @@ nautobot.setup(os.environ.get("NAUTOBOT_CONFIG", "/opt/nautobot/nautobot_config.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tier1_queries import get_perf_client  # noqa: E402
 import workload as workload_mod  # noqa: E402
+from tier1w_writes import ConfigCallCounter  # noqa: E402
 
 # The endpoints where serialization dominates; no point timing cheap ones.
 TARGETS = [
@@ -51,6 +52,14 @@ def main():
         url = sc["url"]
         for _ in range(3):  # warm caches before timing
             client.get(url)
+        # Redis/Constance reads are deterministic and load-independent, unlike wall
+        # clock. For fixes that remove config lookups rather than SQL, this is the
+        # signal that survives a busy machine.
+        counter = ConfigCallCounter()
+        with counter:
+            client.get(url)
+        config_reads = counter.count
+
         samples = []
         for _ in range(args.reps):
             start = time.perf_counter()
@@ -62,9 +71,10 @@ def main():
             "median_ms": round(statistics.median(samples), 2),
             "p10_ms": round(samples[max(0, len(samples) // 10)], 2),
             "p90_ms": round(samples[min(len(samples) - 1, 9 * len(samples) // 10)], 2),
+            "config_reads": config_reads,
             "reps": len(samples),
         }
-        print(f"{tid:28s} median={out[tid]['median_ms']:>9.2f}ms  "
+        print(f"{tid:28s} cfg={out[tid]['config_reads']:<6} median={out[tid]['median_ms']:>9.2f}ms  "
               f"(p10={out[tid]['p10_ms']:.0f} p90={out[tid]['p90_ms']:.0f})", file=sys.stderr)
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
