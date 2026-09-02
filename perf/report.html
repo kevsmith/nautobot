@@ -1,0 +1,600 @@
+<title>Nautobot Performance Baseline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600;700&display=swap">
+
+<style>
+:root {
+  --ground:        #FBFCFD;
+  --surface:       #F2F5F8;
+  --surface-sunk:  #E8EDF2;
+  --rule:          #D3DBE3;
+  --rule-soft:     #E3E9EF;
+  --ink:           #101821;
+  --ink-mid:       #48545F;
+  --ink-soft:      #6B7883;
+  --accent:        #1F5F8B;
+  --accent-soft:   #E2ECF3;
+  --good:          #14654A;
+  --good-soft:     #DFF0E8;
+  --cost:          #97331F;
+  --cost-soft:     #F7E4DF;
+  --warn:          #7C5510;
+
+  --f-display: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --f-body:    "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --f-mono:    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --measure: 68ch;
+  --wide: 1120px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:       #0C1116;
+    --surface:      #141C24;
+    --surface-sunk: #1B242E;
+    --rule:         #2A3641;
+    --rule-soft:    #202A34;
+    --ink:          #E4EBF1;
+    --ink-mid:      #A7B4C0;
+    --ink-soft:     #7F8D99;
+    --accent:       #6FB2DC;
+    --accent-soft:  #17303F;
+    --good:         #64C7A0;
+    --good-soft:    #10322A;
+    --cost:         #E3907A;
+    --cost-soft:    #341914;
+    --warn:         #D6A551;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:       #0C1116;
+  --surface:      #141C24;
+  --surface-sunk: #1B242E;
+  --rule:         #2A3641;
+  --rule-soft:    #202A34;
+  --ink:          #E4EBF1;
+  --ink-mid:      #A7B4C0;
+  --ink-soft:     #7F8D99;
+  --accent:       #6FB2DC;
+  --accent-soft:  #17303F;
+  --good:         #64C7A0;
+  --good-soft:    #10322A;
+  --cost:         #E3907A;
+  --cost-soft:    #341914;
+  --warn:         #D6A551;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: var(--wide);
+  margin: 0 auto;
+  padding: 0 28px 96px;
+}
+
+.prose { max-width: var(--measure); }
+
+/* ---- masthead ---- */
+.masthead {
+  border-bottom: 2px solid var(--ink);
+  padding: 56px 0 22px;
+  margin-bottom: 40px;
+}
+.eyebrow {
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 14px;
+}
+h1 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: clamp(2.1rem, 5vw, 3.1rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  margin: 0 0 16px;
+}
+.standfirst {
+  font-size: 1.12rem;
+  color: var(--ink-mid);
+  max-width: var(--measure);
+  margin: 0;
+}
+
+.factbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: 30px;
+  border-top: 1px solid var(--rule);
+}
+.fact {
+  flex: 1 1 150px;
+  padding: 14px 18px 14px 0;
+  border-right: 1px solid var(--rule-soft);
+}
+.fact:last-child { border-right: 0; }
+.fact dt {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 4px;
+}
+.fact dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- sections ---- */
+section { margin-top: 60px; }
+h2 {
+  font-family: var(--f-display);
+  font-size: 1.62rem;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  margin: 0 0 6px;
+  text-wrap: balance;
+}
+.sec-rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 0 0 22px;
+}
+h3 {
+  font-family: var(--f-body);
+  font-size: 1.02rem;
+  font-weight: 600;
+  margin: 32px 0 8px;
+}
+p { margin: 0 0 15px; }
+code {
+  font-family: var(--f-mono);
+  font-size: 0.855em;
+  background: var(--surface-sunk);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+strong { font-weight: 600; }
+
+/* ---- callout ---- */
+.callout {
+  background: var(--accent-soft);
+  border-top: 2px solid var(--accent);
+  padding: 22px 24px;
+  margin: 26px 0;
+}
+.callout p:last-child { margin-bottom: 0; }
+.callout .lede {
+  font-family: var(--f-display);
+  font-size: 1.16rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+/* ---- tables ---- */
+.tablewrap { overflow-x: auto; margin: 20px 0 8px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.885rem;
+  font-variant-numeric: tabular-nums;
+}
+thead th {
+  text-align: left;
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding: 0 14px 8px 0;
+  border-bottom: 1px solid var(--ink);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 8px 14px 8px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: baseline;
+}
+tbody tr:last-child td { border-bottom: 1px solid var(--rule); }
+td.num, th.num { text-align: right; padding-right: 18px; }
+td.id { font-family: var(--f-mono); font-size: 0.83rem; white-space: nowrap; }
+.delta-good { color: var(--good); font-weight: 600; }
+.delta-cost { color: var(--cost); font-weight: 600; }
+.flat { color: var(--ink-soft); }
+tr.emph td { background: var(--surface); font-weight: 600; }
+caption {
+  caption-side: bottom;
+  text-align: left;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  padding-top: 10px;
+}
+
+/* ---- findings ---- */
+.finding {
+  border-top: 1px solid var(--rule);
+  padding-top: 22px;
+  margin-top: 34px;
+}
+.finding-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.fid {
+  font-family: var(--f-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+.finding-head h3 {
+  margin: 0;
+  font-size: 1.16rem;
+  font-family: var(--f-display);
+  font-weight: 600;
+  flex: 1 1 320px;
+}
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: 1px solid var(--rule);
+  color: var(--ink-mid);
+  white-space: nowrap;
+}
+.tag-verified { background: var(--good-soft); border-color: transparent; color: var(--good); font-weight: 600; }
+.tag-proposed { background: var(--surface-sunk); border-color: transparent; color: var(--ink-mid); }
+.tag-scope    { background: var(--cost-soft); border-color: transparent; color: var(--cost); }
+
+.src {
+  font-family: var(--f-mono);
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  margin: 0 0 12px;
+}
+
+/* ---- footnote list ---- */
+ul.tight { margin: 0 0 16px; padding-left: 20px; }
+ul.tight li { margin-bottom: 7px; }
+
+.endnote {
+  margin-top: 64px;
+  border-top: 2px solid var(--ink);
+  padding-top: 18px;
+  font-size: 0.87rem;
+  color: var(--ink-soft);
+  max-width: var(--measure);
+}
+
+@media (max-width: 640px) {
+  .fact { flex-basis: 50%; border-right: 0; }
+  .wrap { padding: 0 18px 64px; }
+}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Phase 1 · Measurement</p>
+  <h1>Nautobot Performance Baseline</h1>
+  <p class="standfirst">A measured baseline of Nautobot core's read and write paths, and the ranked findings that come out of it. Every number here was produced by a reproducible harness against a fixed dataset.</p>
+
+  <dl class="factbar">
+    <div class="fact"><dt>Branch</dt><dd>next · 3.3.0a0</dd></div>
+    <div class="fact"><dt>Dataset</dt><dd>2,119 objects</dd></div>
+    <div class="fact"><dt>Read scenarios</dt><dd>38</dd></div>
+    <div class="fact"><dt>Write operations</dt><dd>13</dd></div>
+    <div class="fact"><dt>Baseline queries</dt><dd>2,357</dd></div>
+  </dl>
+</header>
+
+<section>
+  <h2>What was measured</h2>
+  <hr class="sec-rule">
+  <div class="prose">
+    <p>An isolated stack on port 8180 with <code>DEBUG=False</code>, no Apps enabled, and pinned CPU and memory, so results reflect production-shaped code paths and every finding is attributable to core. The dataset is databot's <code>enterprise-campus / small / seed 42</code>: 231 devices, 743 interfaces, 272 cables, 234 IP addresses, applied over REST in 93 seconds.</p>
+    <p>Three instruments, because the failure modes differ:</p>
+    <ul class="tight">
+      <li><strong>Query profiling</strong> drives each scenario through the Django test client and counts SQL. Deterministic — it repeated <strong>2,357 → 2,357</strong> across runs, which is what makes it usable as a regression gate.</li>
+      <li><strong>Write-path profiling</strong> runs each operation inside a real change context and a rolled-back transaction, so change logging and signals behave as they would for a live write.</li>
+      <li><strong>Wall-clock timing</strong>, in-process and over HTTP, because some costs remove no queries at all.</li>
+    </ul>
+    <p>The workload is hand-maintained rather than auto-generated. Endpoints are named by Django view name and resolved through <code>reverse()</code>, and objects are selected by strategy at run time — never a baked-in primary key — so the workload survives a reseed and fails loudly if a view is renamed.</p>
+  </div>
+
+  <div class="callout">
+    <p class="lede">The database is not the bottleneck.</p>
+    <p>Across the entire baseline run, PostgreSQL executed <strong>325,152 queries in 4.6 seconds total</strong> — a mean of 0.014 ms each. The most-repeated query in the worst endpoint averaged <strong>0.004 ms</strong>. Every second of user-visible latency measured here is Python-side: ORM round-trip overhead, serialization, and repeated work per object.</p>
+    <p>This has a practical consequence. Adding indexes would buy almost nothing at this scale, and the entire set of findings below is addressable in application code.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Read path</h2>
+  <hr class="sec-rule">
+  <div class="tablewrap">
+    <table>
+      <caption>Ten most expensive read scenarios of 38. Duplicates are repeated query shapes after literal normalization. p95 is over HTTP at concurrency 4.</caption>
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th class="num">Queries</th>
+          <th class="num">Duplicate</th>
+          <th class="num">p95</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="emph"><td class="id">api.interface.depth1</td><td class="num">1,332</td><td class="num">1,302</td><td class="num">6,829 ms</td></tr>
+        <tr><td class="id">api.device.list.depth1</td><td class="num">112</td><td class="num">101</td><td class="num">1,125 ms</td></tr>
+        <tr><td class="id">ui.device.detail.worst</td><td class="num">111</td><td class="num">55</td><td class="num">372 ms</td></tr>
+        <tr><td class="id">ui.device.detail</td><td class="num">108</td><td class="num">55</td><td class="num">520 ms</td></tr>
+        <tr><td class="id">ui.rack.detail</td><td class="num">99</td><td class="num">45</td><td class="num">474 ms</td></tr>
+        <tr><td class="id">ui.home</td><td class="num">79</td><td class="num">32</td><td class="num">181 ms</td></tr>
+        <tr><td class="id">ui.prefix.detail</td><td class="num">78</td><td class="num">32</td><td class="num">524 ms</td></tr>
+        <tr><td class="id">ui.device.interfaces</td><td class="num">74</td><td class="num">37</td><td class="num">1,016 ms</td></tr>
+        <tr><td class="id">ui.location.detail</td><td class="num">68</td><td class="num">27</td><td class="num">304 ms</td></tr>
+        <tr><td class="id">api.interface.list</td><td class="num">23</td><td class="num flat">3</td><td class="num">1,805 ms</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose">
+    <p>All 38 endpoints returned 200. List views are efficient at 9–10 queries each; the cost concentrates in nested API serialization and in detail pages. The last row is the outlier worth noting: <code>api.interface.list</code> issues only 23 queries yet takes 1.8 seconds — no N+1 at all, purely CPU-bound work per row.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Write path</h2>
+  <hr class="sec-rule">
+  <div class="tablewrap">
+    <table>
+      <caption>Each operation measured inside a change context and rolled back. "Changes" counts ObjectChange records created.</caption>
+      <thead>
+        <tr>
+          <th>Operation</th>
+          <th class="num">Queries</th>
+          <th class="num">Wall</th>
+          <th class="num">Changes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="id">create.device</td><td class="num">34</td><td class="num">17.5 ms</td><td class="num">1</td></tr>
+        <tr><td class="id">update.device.name</td><td class="num">35</td><td class="num">18.6 ms</td><td class="num">1</td></tr>
+        <tr class="emph"><td class="id">update.device.noop</td><td class="num">35</td><td class="num">18.3 ms</td><td class="num">1</td></tr>
+        <tr><td class="id">delete.device</td><td class="num">183</td><td class="num">66.3 ms</td><td class="num">2</td></tr>
+        <tr><td class="id">create.interface</td><td class="num">20</td><td class="num">13.3 ms</td><td class="num">1</td></tr>
+        <tr><td class="id">create.tag</td><td class="num">10</td><td class="num">6.1 ms</td><td class="num">1</td></tr>
+        <tr><td class="id">bulk.create.x100.loop</td><td class="num">1,604</td><td class="num">1,610 ms</td><td class="num">100</td></tr>
+        <tr><td class="id">bulk.create.x100.deferred</td><td class="num">1,507</td><td class="num">1,085 ms</td><td class="num">100</td></tr>
+        <tr class="emph"><td class="id">bulk.create.x100.bulk_create</td><td class="num">3</td><td class="num">7.4 ms</td><td class="num">0</td></tr>
+        <tr><td class="id">bulk.update.x100.deferred</td><td class="num">1,826</td><td class="num">1,544 ms</td><td class="num">49</td></tr>
+        <tr><td class="id">bulk.delete.x100</td><td class="num">2,473</td><td class="num">1,019 ms</td><td class="num">50</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose">
+    <p>Two rows carry the story. <code>update.device.noop</code> — a save that changes no field — costs the same 35 queries as a real update, because change logging runs regardless. And the bulk triple isolates what change logging costs: the same 100 rows take 1,604 queries with logging inline, 1,507 with logging deferred, and <strong>3 queries</strong> with signals and validation bypassed entirely.</p>
+    <p>Deferral is the mechanism Nautobot's own bulk-edit views use, and it removes only <strong>6% of queries</strong>. Independently, <code>INSERT INTO extras_objectchange</code> is the single largest consumer of database time across the whole run at 479 ms over 4,879 calls — 10.6% of all time spent in PostgreSQL.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Findings</h2>
+  <hr class="sec-rule">
+  <div class="prose">
+    <p>Ranked by measured impact. <span class="tag tag-verified">verified</span> means I applied the change and measured it against the committed baseline myself. <span class="tag tag-proposed">proposed</span> means the analysis and numbers come from a focused investigation but I have not yet re-measured from a clean tree.</p>
+  </div>
+
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">F-01</span>
+      <h3>Nested serializers walk foreign keys one query per hop</h3>
+      <div class="tags"><span class="tag tag-proposed">proposed</span><span class="tag">tier A + B</span></div>
+    </div>
+    <p class="src">nautobot/core/api/views.py:263 · nautobot/core/models/__init__.py:174 · nautobot/dcim/api/serializers.py:166</p>
+    <div class="prose">
+      <p>Every serializer carries a <code>natural_slug</code> field, and computing it traverses foreign keys with plain <code>getattr()</code> — one SELECT per uncached hop. The viewset's prefetch logic inspects <em>top-level</em> serializer fields only, skipping any source containing a dot, so objects reached through nested <code>?depth</code> serializers and through GenericForeignKeys are never prefetched.</p>
+      <p>The 666 repeated location queries decompose exactly: 150 interfaces are fetched cold through <code>cable_peer</code> and <code>connected_endpoint</code>; with <code>Location.objects.max_depth == 4</code>, 122 of them pay 5 hops and 28 hit a null parent at 2 — <strong>122 × 5 + 28 × 2 = 666</strong>.</p>
+      <p>Reported impact: <code>api.interface.depth1</code> 1,332 → 435 queries, <code>api.device.list.depth1</code> 112 → 11, and 2,357 → 1,359 across all 38 scenarios.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">F-02</span>
+      <h3>Detail pages render the component tree three times</h3>
+      <div class="tags"><span class="tag tag-proposed">proposed</span><span class="tag">tier A + B</span></div>
+    </div>
+    <p class="src">nautobot/core/templates/generic/object_retrieve.html:45, :122, :129</p>
+    <div class="prose">
+      <p>The detail template walks the same tab and panel tree three times — labels, table-config forms, then contents — and nothing memoizes between passes. <code>should_render()</code> runs three times per tab, <code>render_label()</code> twice, and <code>ObjectsTablePanel.get_extra_context()</code>, which builds <em>and paginates</em> a table, runs twice. A single device page issues the identical <code>extras_contactassociation</code> COUNT from seven distinct call sites.</p>
+      <p>This is model-agnostic, which explains why Device, Rack, Prefix and Location all show the same shape while list views — which have no tabs and no multi-pass template — stay at 9–10 queries.</p>
+      <p>Reported impact: 2,357 → 2,171 overall, with <code>ui.device.detail</code> 108 → 68 and <code>ui.device.interfaces</code> 74 → 42. Rendered HTML was diffed byte-for-byte before and after; only the CSRF token differed.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">F-03</span>
+      <h3>An eagerly evaluated default computes every natural key twice</h3>
+      <div class="tags"><span class="tag tag-verified">verified</span><span class="tag">tier A</span></div>
+    </div>
+    <p class="src">nautobot/core/api/serializers.py:495 and :483</p>
+    <div class="prose">
+      <p><code>getattr(instance, "natural_slug", construct_natural_slug(instance.natural_key(), pk=instance.pk))</code> — Python evaluates that third argument before the attribute lookup. Since <code>natural_slug</code> is a <code>BaseModel</code> property that always exists, the fallback is computed and discarded on every row, and the property then computes <code>natural_key()</code> a second time. The recursive natural-key machinery reads Constance config from Redis at each level, so this cost around 3,300 Redis round-trips per request.</p>
+      <p>Making the fallback lazy removes no queries at all — which is precisely why a query-count gate alone would have missed it.</p>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <caption>Measured in-process, median of 15 reps, before and after.</caption>
+        <thead><tr><th>Endpoint</th><th class="num">Before</th><th class="num">After</th><th class="num">Change</th></tr></thead>
+        <tbody>
+          <tr><td class="id">api.interface.list</td><td class="num">357.9 ms</td><td class="num">268.2 ms</td><td class="num delta-good">−25.1%</td></tr>
+          <tr><td class="id">api.interface.depth1</td><td class="num">1,479.1 ms</td><td class="num">1,254.4 ms</td><td class="num delta-good">−15.2%</td></tr>
+          <tr><td class="id">ui.interface.list</td><td class="num">64.2 ms</td><td class="num">56.0 ms</td><td class="num delta-good">−12.9%</td></tr>
+          <tr><td class="id">api.device.list</td><td class="num">217.7 ms</td><td class="num">191.5 ms</td><td class="num delta-good">−12.0%</td></tr>
+          <tr><td class="id">api.device.list.depth1</td><td class="num">301.2 ms</td><td class="num">277.5 ms</td><td class="num delta-good">−7.9%</td></tr>
+          <tr><td class="id">api.prefix.list</td><td class="num">35.2 ms</td><td class="num">36.6 ms</td><td class="num flat">flat</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="prose">
+      <p>Endpoints whose natural keys touch no config-dependent model stayed flat, as expected. Query count was unchanged at 2,357 and no endpoint's status moved.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">F-04</span>
+      <h3>Natural-key lookups are recomputed against Redis on every access</h3>
+      <div class="tags"><span class="tag tag-proposed">proposed</span><span class="tag">tier B</span></div>
+    </div>
+    <p class="src">nautobot/core/models/__init__.py:265 · nautobot/dcim/models/devices.py:700 · nautobot/dcim/models/locations.py:245</p>
+    <div class="prose">
+      <p><code>natural_key_field_lookups</code> is an uncached <code>classproperty</code>, so it is rebuilt on every single access — and for Device and Location each rebuild performs a Constance lookup, which reads Redis. Serializing one object at depth 1 touches it dozens of times.</p>
+      <p>Profiling a 100-interface create loop: <strong>26% of total wall time</strong>, driving 3,600 config lookups and 5,700 Redis round-trips. It costs <strong>zero SQL</strong>, which is exactly why a query-count gate cannot see it.</p>
+      <p>Memoizing for the duration of a single <code>serialize_object_v2()</code> call measured <strong>+19.8%</strong> on the bulk-create loop across 7 interleaved repetitions, with output verified byte-identical. Scoping to one call rather than caching on the class is deliberate: Location's value depends on live tree depth and Device's on Constance config, so a permanent cache would go stale. A permanent cache measured +21.7% — indistinguishable, and not worth the risk.</p>
+      <p>A related one-line fix: <code>devices.py:700</code> calls <code>get_settings_or_config("DEVICE_UNIQUENESS")</code> twice in a single if/elif. Hoisting it measured <strong>+7.8%</strong> standalone.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">F-05</span>
+      <h3>Change logging serializes every object twice — but the redundant half is the cheap one</h3>
+      <div class="tags"><span class="tag tag-scope">out of scope</span><span class="tag">tier C</span></div>
+    </div>
+    <p class="src">nautobot/extras/models/change_logging.py:45–46 · nautobot/extras/api/serializers.py:1099</p>
+    <div class="prose">
+      <p><code>to_objectchange()</code> calls both <code>serialize_object()</code> and <code>serialize_object_v2()</code> for every change record, and deferred bulk logging does not avoid it — <code>create_object_changes()</code> calls the same method per object at flush time, which is why deferral saves only 6%. Ingesting this dataset created <strong>3,219 ObjectChange records for 2,119 objects</strong>, roughly 6,400 serializations.</p>
+      <p><strong>The measurement inverts the intuition.</strong> The redundant v1 serialization costs 0.73 ms and 2 queries; the v2 serialization that is actually consumed costs 8.75 ms and 7 queries — twelve times more. Eliminating the duplication is worth only about 8–12% of write-path wall time and 12.5% of its queries. The expensive serializer is the one that cannot be removed.</p>
+      <p><strong>And the v1 fallback is not dead code.</strong> Migration <code>0022_objectchange_object_datav2</code> added the v2 field as nullable <em>with no backfill</em>, and two data migrations construct ObjectChange rows carrying only v1. So <code>object_data_v2 is None</code> is permanent for real historical data, and <code>get_snapshots()</code> genuinely depends on the fallback.</p>
+      <p>Writing <code>{}</code> to <code>object_data</code> is therefore Tier C, not the safe app-code workaround it first appeared to be. Both the REST serializer and the auto-generated GraphQL type use <code>fields = "__all__"</code>, so the empty value would surface in two public API contracts; the ObjectChange detail panel would render an em-dash instead of JSON on every page; and four test classes in <code>test_changelog.py</code> assert on its contents, including <code>test_legacy_object_data</code>, a direct regression test for this branch.</p>
+      <p>Recorded for review rather than acted on. Pursuing it needs a deprecation cycle and a decision about pre-2022 rows whose only snapshot is v1.</p>
+    </div>
+  </div>
+
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">F-06</span>
+      <h3>One cable path is fetched three times per object</h3>
+      <div class="tags"><span class="tag tag-proposed">proposed</span><span class="tag">tier A</span></div>
+    </div>
+    <p class="src">nautobot/dcim/api/serializers.py:169, :190, :201</p>
+    <div class="prose">
+      <p>Three <code>SerializerMethodField</code>s — <code>connected_endpoint_type</code>, <code>connected_endpoint</code>, and <code>connected_endpoint_reachable</code> — each call <code>obj.cable_paths.first()</code> independently, issuing the same query three times per serialized object. Memoizing on the instance accounts for 231 of the repeated <code>dcim_cablepath</code> queries in the interface endpoint.</p>
+    </div>
+  </div>
+
+</section>
+
+<section>
+  <h2>Out of scope</h2>
+  <hr class="sec-rule">
+  <div class="prose">
+    <p>Recorded, not acted on, under the agreed constraint of application code only — no migrations, indexes, schema changes, or PostgreSQL tuning.</p>
+    <ul class="tight">
+      <li><strong>Stop writing <code>object_data</code> (F-05).</strong> Worth 8–12% of write-path time. Changes the REST and GraphQL payloads, blanks the ObjectChange detail panel, and breaks four test classes. Needs a deprecation cycle.</li>
+      <li><strong>Backfill or drop <code>object_data</code>.</strong> Migration <code>0022</code> added v2 with no backfill, so historical rows depend on v1 permanently. Resolving that — either backfilling v2 or making v1 nullable — is what would make F-05 tractable. Requires a migration.</li>
+      <li><strong>Drop <code>natural_slug</code> and <code>composite_key</code> from nested serializers</strong>, or make them opt-in. Eliminates the F-01 cost class outright rather than mitigating it, but changes the API response payload.</li>
+      <li><strong>Duplicate <code>DeviceUniquenessValidator</code> run.</strong> <code>Device.save()</code> re-runs a validator that <code>full_clean()</code> already executed — 2 redundant queries per Device save. It deliberately guards direct <code>.save()</code> callers, so removing it changes behavior.</li>
+      <li><strong><code>get_snapshots()</code> issues one SELECT per ObjectChange</strong> — 100 queries per 100-object bulk operation. The largest remaining SQL win on the write path after serialization. Already tracked upstream as issue #6303.</li>
+      <li><strong>Index candidates: none identified.</strong> A finding rather than an omission. With 325,152 queries totaling 4.6 seconds, no query shape was slow enough for an index to matter at this dataset size.</li>
+      <li><strong>Location's variadic natural key</strong> is the structural reason chains run five hops deep. Bounding it is a data-model question, not a code one.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2>Experiment ledger</h2>
+  <hr class="sec-rule">
+  <div class="prose">
+    <p>Each accepted change is one commit on <code>perf/experiments</code>, carrying its hypothesis, method, and before/after numbers. A change is kept only if the gate passes — no endpoint that returned 200 may start erroring — and the improvement is real.</p>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <caption>Cumulative effect of all applied fixes is measured once iteration is complete; the individual gains overlap and do not sum.</caption>
+      <thead>
+        <tr><th>Finding</th><th>Change</th><th>Status</th><th class="num">Measured effect</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="id">F-03</td>
+          <td>Lazy natural-key fallback</td>
+          <td><span class="tag tag-verified">committed</span></td>
+          <td class="num delta-good">−25% api.interface.list</td>
+        </tr>
+        <tr>
+          <td class="id">F-01</td>
+          <td>Prefetch nested natural keys; warm FK chains; memoize cable path</td>
+          <td><span class="tag tag-proposed">queued</span></td>
+          <td class="num">−998 queries reported</td>
+        </tr>
+        <tr>
+          <td class="id">F-02</td>
+          <td>Memoize detail-page component tree across render passes</td>
+          <td><span class="tag tag-proposed">queued</span></td>
+          <td class="num">−186 queries reported</td>
+        </tr>
+        <tr>
+          <td class="id">F-04</td>
+          <td>Scope natural-key lookup cache to one serialization</td>
+          <td><span class="tag tag-proposed">queued</span></td>
+          <td class="num">+19.8% write path reported</td>
+        </tr>
+        <tr>
+          <td class="id">F-05</td>
+          <td>Stop double-serializing change records</td>
+          <td><span class="tag tag-scope">not pursued</span></td>
+          <td class="num flat">tier C</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Caveats</h2>
+  <hr class="sec-rule">
+  <div class="prose">
+    <ul class="tight">
+      <li><strong>Small dataset.</strong> 2,119 objects is enough to expose N+1 patterns in query counts, but most list views paginate at 25–50 rows and look fast regardless. These findings should be re-baselined at the <code>large</code> tier — roughly 24,000 objects — before their real-world value is trusted.</li>
+      <li><strong>Proposed impacts are not yet independently reproduced.</strong> The F-01 and F-02 numbers were measured while other changes were present in the working tree. They are plausible and internally consistent, but I will re-measure each from a clean tree before committing.</li>
+      <li><strong>Improvements are not additive.</strong> F-01 and F-03 both reduce natural-key work by different means, so their gains overlap rather than sum.</li>
+      <li><strong>Silk middleware remains in the request chain.</strong> It is inert without a session flag and constant across runs, so it does not distort relative comparisons, but it is present in every absolute number here.</li>
+      <li><strong>UI response bodies are not byte-stable</strong> between identical requests, so HTML endpoints are compared on query count and status rather than content.</li>
+    </ul>
+  </div>
+</section>
+
+<p class="endnote">Measured against nautobot/next at 3.3.0a0 on an isolated stack with pinned resources. Harness, workload definition, and baseline data are committed on the <code>perf/experiments</code> branch under <code>perf/</code>; every scenario and operation above is reproducible with <code>perf/run_experiment.sh</code>.</p>
+
+</div>
