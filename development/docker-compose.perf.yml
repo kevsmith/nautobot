@@ -1,0 +1,46 @@
+---
+# Performance-testing overlay.
+#
+#   * Remaps published ports off the stock 8080/8081 so this stack can run
+#     alongside another local Nautobot instance.
+#   * Pins CPU/memory so run-to-run numbers are comparable.
+#   * Loads pg_stat_statements for query attribution (measurement only).
+services:
+  nautobot:
+    ports: !override
+      - "8180:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: "8gb"
+        reservations:
+          cpus: "4"
+          memory: "4gb"
+  celery_worker:
+    ports: !override
+      - "8181:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: "4gb"
+  db:
+    command:
+      - "postgres"
+      - "-c"
+      - "max_locks_per_transaction=512"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.track=all"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+    deploy:
+      resources:
+        limits:
+          cpus: "6"
+          memory: "12gb"
+        reservations:
+          cpus: "4"
+          memory: "6gb"
