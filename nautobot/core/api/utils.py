@@ -402,9 +402,36 @@ def return_nested_serializer_data_based_on_depth(serializer, depth, obj, obj_rel
         # Object would be fully serialized due to depth, but is downgraded due to permissions. Include "display"
         # (no "generic_foreign_key" flag) so that the human-friendly value is still exposed, matching the UI.
         return get_brief_representation(obj_related_field, request, include_display=True)
-    relation_info = get_relation_info_for_nested_serializers(obj, obj_related_field, obj_related_field_name)
-    field_class, field_kwargs = serializer.build_nested_field(obj_related_field_name, relation_info, depth)
-    data = field_class(obj_related_field, context={"request": request}, **field_kwargs).data
+    # Building the nested serializer costs far more than running it: `build_nested_field()` synthesizes a new
+    # serializer class on every call, and instantiating that class deep-copies every declared field. Both the
+    # class and its kwargs are a pure function of (parent serializer, field name, parent model, related model,
+    # depth), so one instance per distinct combination can render every object that reaches this branch --
+    # `to_representation()` reads only the object handed to it, never `self.instance`. A page of Interfaces at
+    # ?depth=1 builds ~250 of these serializers, one per object per generic-FK field, and needs 3.
+    nested_serializer_cache = None
+    if request is not None:
+        nested_serializer_cache = getattr(request, "_nested_serializer_cache", None)
+        if nested_serializer_cache is None:
+            nested_serializer_cache = {}
+            try:
+                request._nested_serializer_cache = nested_serializer_cache
+            except AttributeError:
+                # Some stand-ins for a request don't accept new attributes; fall back to building per object.
+                nested_serializer_cache = None
+
+    if nested_serializer_cache is None:
+        relation_info = get_relation_info_for_nested_serializers(obj, obj_related_field, obj_related_field_name)
+        field_class, field_kwargs = serializer.build_nested_field(obj_related_field_name, relation_info, depth)
+        data = field_class(obj_related_field, context={"request": request}, **field_kwargs).data
+    else:
+        cache_key = (type(serializer), obj_related_field_name, type(obj), type(obj_related_field), depth)
+        nested_serializer = nested_serializer_cache.get(cache_key)
+        if nested_serializer is None:
+            relation_info = get_relation_info_for_nested_serializers(obj, obj_related_field, obj_related_field_name)
+            field_class, field_kwargs = serializer.build_nested_field(obj_related_field_name, relation_info, depth)
+            nested_serializer = field_class(context={"request": request}, **field_kwargs)
+            nested_serializer_cache[cache_key] = nested_serializer
+        data = dict(nested_serializer.to_representation(obj_related_field))
     data["generic_foreign_key"] = True
     return data
 
