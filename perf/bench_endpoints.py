@@ -24,6 +24,37 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tier1_queries import get_perf_client  # noqa: E402
 import workload as workload_mod  # noqa: E402
 from tier1w_writes import ConfigCallCounter  # noqa: E402
+from django.core.cache import caches as _django_caches  # noqa: E402
+
+
+class RedisReadCounter:
+    """Count reads that reach the cache backend.
+
+    ConfigCallCounter counts calls to get_settings_or_config(); once that function
+    memoizes internally, its call count stops tracking actual Redis traffic. This
+    counts one layer lower, at the cache backend, which is what actually costs a
+    network round trip.
+    """
+
+    def __init__(self):
+        self.count = 0
+        self._orig = None
+        self._backend_cls = None
+
+    def __enter__(self):
+        # django.core.cache.cache is a ConnectionProxy; patch the real backend class.
+        self._backend_cls = type(_django_caches["default"])
+        self._orig = self._backend_cls.get
+
+        def counting(cache_self, *a, **kw):
+            self.count += 1
+            return self._orig(cache_self, *a, **kw)
+
+        self._backend_cls.get = counting
+        return self
+
+    def __exit__(self, *exc):
+        self._backend_cls.get = self._orig
 
 # The endpoints where serialization dominates; no point timing cheap ones.
 TARGETS = [
@@ -56,9 +87,11 @@ def main():
         # clock. For fixes that remove config lookups rather than SQL, this is the
         # signal that survives a busy machine.
         counter = ConfigCallCounter()
-        with counter:
+        redis_counter = RedisReadCounter()
+        with counter, redis_counter:
             client.get(url)
         config_reads = counter.count
+        redis_reads = redis_counter.count
 
         samples = []
         for _ in range(args.reps):
@@ -72,9 +105,11 @@ def main():
             "p10_ms": round(samples[max(0, len(samples) // 10)], 2),
             "p90_ms": round(samples[min(len(samples) - 1, 9 * len(samples) // 10)], 2),
             "config_reads": config_reads,
+            "redis_reads": redis_reads,
             "reps": len(samples),
         }
-        print(f"{tid:28s} cfg={out[tid]['config_reads']:<6} median={out[tid]['median_ms']:>9.2f}ms  "
+        print(f"{tid:28s} cfg={out[tid]['config_reads']:<5} redis={out[tid]['redis_reads']:<5} "
+              f"median={out[tid]['median_ms']:>9.2f}ms  "
               f"(p10={out[tid]['p10_ms']:.0f} p90={out[tid]['p90_ms']:.0f})", file=sys.stderr)
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
