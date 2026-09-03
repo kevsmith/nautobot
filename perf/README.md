@@ -171,12 +171,26 @@ written against whatever shape survives review, by whoever lands it.
 
 ## The gate comes before the taxonomy
 
-A change must **be faster** and must not break availability. Nothing else
-matters until those hold:
+A change must **be faster** and must not break availability.
 
-- `compare.py` exits 0. An endpoint that returned 200/302 at baseline must not
-  start erroring or 404ing. Content and row ordering may change and are reported
-  for information only.
+**Availability is the hard gate.** An endpoint that returned 200/302 at baseline
+must not start erroring or 404ing. Content and row ordering may change and are
+reported for information only. There is no arguing with this one.
+
+**A query-count regression is a tripwire, not a verdict.** `compare.py` exits 1
+on any increase, and that is the right default -- it makes an increase
+impossible to miss. But this branch has spent its whole length establishing that
+query count misranks changes, and that cuts both ways: a change that removed 666
+queries was rejected for running 62% slower, and a change that adds 4 queries to
+one endpoint while removing 162 from another is not obviously bad.
+
+So an exit 1 means *explain it*, with wall clock measured on both the endpoint
+that improved and the one that regressed. Then either take the change and record
+the trade, or don't. What is not acceptable is reverting on the sign of an
+integer, or shipping without measuring what the regression costs. Batch queries
+are the specific trap: a query that fetches 83 rows is not interchangeable with
+a point lookup, so per-query heuristics do not transfer to them.
+
 - The improvement is real on an instrument that can see it, with the arms proven
   to differ by a deterministic counter.
 
