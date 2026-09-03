@@ -167,3 +167,33 @@ surface N+1 patterns in query counts, but most list views paginate at 25–50 ro
 and will look fast regardless. Re-baseline at `large` (~24k objects) before
 trusting any optimization's real-world value. The report marks each finding as
 query-count-only or latency-confirmed.
+
+## Future: workload derived from customer demo recordings
+
+The 39 scenarios in `workload.yml` were chosen by hand for *diagnostic coverage* --
+deliberately including worst cases like `?depth=1` -- which is close to the opposite of a
+usage-weighted sample. `compare.py` therefore weights every scenario equally, which is
+almost certainly wrong relative to real usage.
+
+A better source than either guesswork or production logs: the recorded demos NTC uses with
+customers and prospects. Those encode workflows that were refined *because* they illustrate
+real use cases, where production logs would be dominated by whatever one customer's
+integrations happen to poll.
+
+Sketch, not yet built:
+
+1. `ffmpeg -vf fps=1` to extract frames; read them to produce an ordered trace of page
+   identity, action, and dwell time. UUIDs do not need to be recovered -- the resolver picks
+   objects by strategy, so "a device with many interfaces" is sufficient.
+2. Map to Django view names and resolve through `reverse()`, as `workload.yml` already does,
+   so anything that no longer exists fails loudly.
+3. Replay the sequence once with `OTEL_PYTHON_DJANGO_INSTRUMENT` enabled (see
+   `development/docker-compose.observability.yml`) to capture the real request fan-out per
+   page. This is the step that matters: one page view can be 1 HTTP request or 30, and every
+   optimization on this branch lives at request granularity.
+4. Emit weights into `workload.yml` and have `compare.py` report weighted alongside unweighted
+   totals, so existing numbers stay comparable.
+
+Caveat to carry forward: demo workflows over-represent the narratively interesting and
+under-represent boring bulk -- integration polling, a list view left open. Useful for "does
+Nautobot feel good in the situations we sell on", not a complete picture of load.
