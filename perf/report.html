@@ -871,7 +871,7 @@ ul.tight li { margin-bottom: 7px; }
   </div>
   <div class="tablewrap">
     <table>
-      <caption>Cumulative effect against the clean large baseline. Queries are exact and repeatable. In-process timing is the median of three separate runs of 15 repetitions. HTTP p95 is over HTTP at concurrency 4 and <strong>predates the last two fixes</strong>, so it understates <code>api.interface.depth1</code>.</caption>
+      <caption>Cumulative effect against the clean large baseline. Queries are exact and repeatable. In-process timing is the median of three separate runs of 15 repetitions. The HTTP p95 column is from the <strong>superseded</strong> instrument &mdash; concurrency 4, runserver, and predating the last two fixes. It is kept because the round-one figures were taken that way; the current reference is HTTP at concurrency 1 under uwsgi, which is a different measurement and not comparable to it.</caption>
       <thead><tr><th>Scenario</th><th class="num">Queries</th><th class="num">In-process</th><th class="num">HTTP p95</th></tr></thead>
       <tbody>
         <tr class="emph"><td class="id">api.interface.depth1</td><td class="num">1,229 &rarr; 292 <span class="delta-good">&minus;76%</span></td><td class="num">1,512 &rarr; 347ms <span class="delta-good">&minus;77%</span></td><td class="num">6,797 &rarr; 1,752ms <span class="delta-good">&minus;74%</span></td></tr>
@@ -940,10 +940,36 @@ ul.tight li { margin-bottom: 7px; }
       <tbody>
         <tr><td>SQL query count</td><td>N+1s, missing prefetch</td><td>Python and Redis work</td></tr>
         <tr><td>Redis backend reads</td><td>config and cache round-trip storms</td><td>SQL and pure CPU</td></tr>
-        <tr><td>Wall clock</td><td>everything</td><td>nothing &mdash; but needs 3+ alternating rounds to trust</td></tr>
+        <tr><td>Wall clock, in-process</td><td>everything Django does</td><td>the HTTP layer &mdash; but reproduces to <strong>&plusmn;4%</strong> across rounds on a quiesced host</td></tr>
+        <tr><td>Wall clock, HTTP at concurrency 1</td><td>everything, including HTTP and WSGI</td><td>nothing &mdash; reproduces to <strong>&plusmn;1.6%</strong>, and agrees with in-process to 1.08x</td></tr>
       </tbody>
     </table>
   </div>
+  <h3>The HTTP instrument was measured wrong, twice, before it was measured right</h3>
+  <div class="prose">
+    <p>Tier 2 originally ran 30 requests at concurrency 4 and reported the 95th percentile. On a
+    host that holds in-process timings to &plusmn;4%, that configuration spread <strong>25.3% at the
+    median and 41.4% at worst</strong> across three rounds of identical code. The p95 was being drawn
+    from roughly two samples in the tail, against three uwsgi workers sharing two physical cores,
+    reported in integer milliseconds. It was noise wearing a percentile.</p>
+    <p>At concurrency 1, reporting the median, the same 38 endpoints on the same code spread
+    <strong>1.6% at the median and 5.7% at worst</strong> &mdash; a sixteenfold improvement in
+    precision, from changing the instrument rather than the hardware.</p>
+    <p>The result that matters is not the precision, though. It is that the two independent
+    instruments now <em>corroborate</em> each other: HTTP at concurrency 1 runs a median
+    <strong>1.08x</strong> in-process across fourteen shared endpoints, range 1.04&ndash;1.19x, which is
+    what HTTP parsing, WSGI and response transfer should cost on top of identical Django work.
+    Under the old configuration they disagreed by 4&ndash;6x and nothing could say which was right.</p>
+    <p>Before that, they disagreed in a way that was physically impossible and went unnoticed:
+    <code>ui.device.interfaces</code> reported a 66ms HTTP p95 against a 607ms in-process median.
+    An API token authenticates DRF only, so every UI endpoint had been answering <strong>403</strong>
+    with a 299KB permission-denied page that renders in ~50ms. cassowary counts an answered request
+    as a success, and the driver recorded no status code at all, so the run reported 38 endpoints and
+    zero failures while 27 of them timed an error page. Tier 2 now probes each endpoint once before
+    timing it, carries the status alongside the timing, and refuses to time anything that does not
+    answer 200.</p>
+  </div>
+
   <div class="prose">
     <p>The Redis counter exists because one endpoint was making <strong>1,938 Redis round-trips against 977 SQL queries</strong> &mdash; twice as many cache calls as database calls, entirely invisible to SQL-shaped tooling. Two rounds of alternating A/B were not enough twice over: a 2ms "regression" and an 11% "regression" both dissolved on a third round. Four of the fourteen commits could quote no wall-clock number at all, because the box was busy; their evidence is a deterministic counter instead.</p>
   </div>
