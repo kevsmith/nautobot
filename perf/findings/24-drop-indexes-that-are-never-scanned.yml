@@ -5,19 +5,34 @@ status: proposed
 behaviour: A
 migration: M0
 flags: []
-title: Drop indexes that are never scanned
+title: Index maintenance on extras_objectchange, the hottest insert path
 site: to be determined from pg_stat_user_indexes
-summary: Unused indexes cost write throughput and bloat on every insert, and the write path
-  is where the remaining cost sits -- bulk.create.x100 is still 1,404 queries, dominated by
-  ObjectChange inserts. pg_stat_user_indexes.idx_scan identifies never-scanned indexes directly.
+summary: 'extras_objectchange carries at least eleven indexes, every one maintained on every
+  insert, and it is the highest-insert-volume table in Nautobot. The write path is where the
+  remaining cost sits: bulk.create.x100 is still 1,404 queries dominated by those inserts,
+  and nothing on this branch has looked at index maintenance as a cost.'
 result:
-  expected: unmeasured; this is the unexplored half of the index question
-caveat: An index dropped on the strength of one workload's scan counts may be needed by a
-  workload this branch does not exercise. Coverage is ~5% of the API surface, so scan counts
-  under-represent real usage.
-note: 'Adding indexes is a dead end here and that is measured, not assumed: 325,152 queries
-  totalling 4.6 seconds, mean 0.014ms, and query count fell 57% while total DB time went 601ms
-  to 602ms. api.prefix.list even spends 13.7ms planning a query that executes in 1.3ms, where
-  an index makes planning worse. Removal is the direction with headroom. Nautobot has no AddIndexConcurrently
-  or RemoveIndexConcurrently anywhere in its migrations, so every existing index migration
-  takes a table lock -- doing this safely on a large table means introducing that pattern.'
+  observed: '11+ indexes on extras_objectchange totalling ~12MB at this dataset size: time_request_id_changed_uniq
+    2432kB, triple_idx 2136kB, user_changed_object_idx 1472kB, user_name_changed_object_idx
+    1288kB, changed_object_idx 1088kB, changed_object_id 904kB, time 816kB, rtime_idx 816kB,
+    related_object_idx 392kB, double_idx 304kB, request_id 296kB'
+  unmeasured: the insert-side cost of maintaining them
+caveat: Dropping any index needs evidence from a workload that exercises the queries it serves.
+  Coverage here is ~5% of the API surface, so scan counts from this workload under-represent
+  real usage and cannot by themselves justify a removal.
+note: '**Correction: an earlier reading of this was a measurement artifact.** A pg_stat_user_indexes
+  query reported 1,205 of 1,234 indexes never scanned, which looked dramatic and meant nothing:
+  those counters reset when the database is dropped and recreated, and restore_snapshot.sh
+  had run seconds earlier. After actually running the workload the figure is 1,050 of 1,234
+  -- still not evidence for removal at 5% coverage, but at least a real measurement.
+
+
+  Adding indexes remains a dead end here, and that is measured rather than assumed: 325,152
+  queries totalling 4.6 seconds, mean 0.014ms, and query count fell 57% while total DB time
+  went 601ms to 602ms. api.prefix.list even spends 13.7ms planning a query that executes in
+  1.3ms, where an index makes planning worse.
+
+
+  Nautobot has no AddIndexConcurrently or RemoveIndexConcurrently anywhere in its migrations,
+  so every existing index migration takes a table lock. Doing anything here safely on a large
+  table means introducing that pattern.'

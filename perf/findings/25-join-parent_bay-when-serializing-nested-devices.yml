@@ -1,0 +1,36 @@
+---
+seq: 25
+id: null
+commit: 4c9635e52
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: Join parent_bay when serializing nested Devices
+site: nautobot/dcim/api/views.py InterfaceViewSet
+summary: DeviceSerializer pulls parent_bay in explicitly, because it is the reverse side of
+  DeviceBay.installed_device and DRF does not auto-include it. A reverse one-to-one costs
+  one query per Device unless it is joined, and at ?depth=1 each row on the page has its own
+  Device instance -- so a 100-row page paid exactly 100 dcim_devicebay queries. select_related(device__parent_bay)
+  on the viewset joins it.
+result:
+  queries: api.interface.depth1 292 -> 192 (-100, exactly as attributed); Tier 1 total 957
+    -> 857 (-61.7% from baseline)
+  duplicates: total 346 -> 247
+controls: All 38 scenarios 200/302, no query count unstable, no other scenario moved. Re-running
+  the attribution shows the core/api/serializers.py:619 call site gone entirely rather than
+  reduced.
+tests: dcim test_api 1673 OK (41 skipped), core test_api 61 OK (2 skipped)
+caveat: null
+note: 'Found by attribution rather than by reading code, and the attribution predicted the
+  exact figure: 100 dcim_devicebay queries from one call site, 100 removed. Verified the mechanism
+  in isolation first -- 20 interfaces cost 20 queries with a plain select_related(device)
+  and 0 with select_related(device__parent_bay) -- so the change was measured before it was
+  written.
+
+
+  Rollout candidates: every viewset whose serializer nests a Device carries the same cost.
+  FrontPort, RearPort, ConsolePort, PowerPort and the other component viewsets are the obvious
+  set, and they use the same connection_prefetch_related_fields() helper. Left for a follow-up
+  so this commit''s number stays attributable, exactly as the TemplateColumn fix was rolled
+  out separately from its measurement.'
