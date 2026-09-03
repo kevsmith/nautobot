@@ -13,6 +13,9 @@ summary: Migration 0022_objectchange_object_datav2 added v2 as nullable with no 
 result:
   cost: 8.75ms per row measured. ~5 minutes at this dataset's 36,552 rows; ~2.4 hours at one
     million; unbounded where CHANGELOG_RETENTION is 0 or its cleanup Job was never scheduled
+wall_clock: n/a — priced by migration runtime
+wall_clock_detail: not applicable -- priced by migration runtime (8.75ms per row), not by
+  request latency
 caveat: A migration whose runtime is set by the operator's retention configuration rather
   than by anything in the release.
 reason: 'M2 on cost, and a correctness stop that pricing does not rehabilitate: v1 stores

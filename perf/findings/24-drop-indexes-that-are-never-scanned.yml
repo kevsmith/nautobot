@@ -17,6 +17,9 @@ result:
     1288kB, changed_object_idx 1088kB, changed_object_id 904kB, time 816kB, rtime_idx 816kB,
     related_object_idx 392kB, double_idx 304kB, request_id 296kB'
   unmeasured: the insert-side cost of maintaining them
+wall_clock: not measured
+wall_clock_detail: not measured -- the insert-side cost of maintaining eleven indexes is the
+  open question
 caveat: Dropping any index needs evidence from a workload that exercises the queries it serves.
   Coverage here is ~5% of the API surface, so scan counts from this workload under-represent
   real usage and cannot by themselves justify a removal.

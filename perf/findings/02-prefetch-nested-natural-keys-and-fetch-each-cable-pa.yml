@@ -14,6 +14,9 @@ summary: The viewset's prefetch logic inspects top-level serializer fields only,
   independently.
 result:
   queries: 2235 -> 1903 (-332)
+wall_clock: −26% api.interface.depth1
+wall_clock_detail: api.interface.depth1 1479 -> 1092ms (-26%); api.device.list.depth1 301
+  -> 238ms (-21%); api.interface.list 268 -> 250ms
 tests: dcim test_api 1673 OK
 caveat: null
 note: The cable-path memo is instance-scoped, so it is discarded with the object.
