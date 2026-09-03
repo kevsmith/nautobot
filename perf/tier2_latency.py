@@ -19,6 +19,8 @@ import os
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 
 
 def cassowary_once(url, headers, requests, concurrency, timeout):
@@ -51,6 +53,47 @@ def cassowary_once(url, headers, requests, concurrency, timeout):
             os.unlink(metrics_path)
         except OSError:
             pass
+
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Turn a 3xx into an HTTPError instead of silently chasing it."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def probe(url, headers, timeout):
+    """One plain request, to record what the endpoint actually returns.
+
+    cassowary reports no status code -- neither its JSON summary nor this
+    driver's output carried one -- and it counts any answered request as a
+    success. A Tier 2 run against UI endpoints with only an API token therefore
+    reported 27 endpoints, zero failures, and timed a 299KB HTTP 403 page in
+    ~50ms apiece, which looked like a 6-16x improvement over the previous
+    baseline. Nothing in the result file could have revealed that.
+
+    So every endpoint is probed once before it is load-tested, and its status
+    travels with its timing. An endpoint that does not answer 200/302 is
+    recorded and skipped rather than timed.
+    """
+    req = urllib.request.Request(url)
+    for h in headers:
+        name, _, value = h.partition(": ")
+        req.add_header(name, value)
+    # Do NOT follow redirects. urlopen follows them by default, and an
+    # unauthenticated UI request 302s to /login/?next=... -- so the first
+    # version of this probe chased the redirect, got 200 back with a 14,888-byte
+    # login page, and cleared the endpoint for timing. Only 200 counts here: a
+    # redirect means the thing that would be timed is not the page under test.
+    opener = urllib.request.build_opener(_NoRedirect)
+    try:
+        with opener.open(req, timeout=timeout) as resp:
+            return resp.status, len(resp.read()), None
+    except urllib.error.HTTPError as exc:
+        return exc.code, len(exc.read() or b""), exc.headers.get("Location")
+    except Exception as exc:  # noqa: BLE001 -- reported, not raised
+        return None, str(exc), None
 
 
 def main():
@@ -102,6 +145,23 @@ def main():
         elif args.session:
             headers.append(f"Cookie: sessionid={args.session}")
 
+        status, size, location = probe(full, headers, args.timeout)
+        if status != 200:
+            where = f" -> {location}" if location else ""
+            print(f"[{i}/{len(pairs)}] {view_name} SKIPPED -- probe returned "
+                  f"{status}{where} ({size} bytes); not timing an endpoint that "
+                  f"is not serving the page under test", file=sys.stderr)
+            records.append({
+                "id": view_name, "url": url, "probe_status": status,
+                "probe_bytes": size if isinstance(size, int) else None,
+                "skipped": f"probe status {status}"
+                           + (f" -> {location}" if location else ""),
+                "requests": None, "failed": None, "rps": None,
+                "server_ms_mean": None, "server_ms_median": None,
+                "server_ms_p95": None, "error": None if isinstance(size, int) else size,
+            })
+            continue
+
         m = cassowary_once(full, headers, args.requests, args.concurrency, args.timeout)
         if m.get("_error") or m.get("_stderr"):
             print(f"    cassowary: {m.get('_stderr') or m.get('_error')}", file=sys.stderr)
@@ -116,17 +176,29 @@ def main():
             "server_ms_median": sp.get("median"),
             "server_ms_p95": sp.get("95th_percentile"),
             "error": m.get("_error"),
+            "probe_status": status,
+            "probe_bytes": size,
+            "skipped": None,
         }
         records.append(rec)
         print(f"[{i}/{len(pairs)}] {view_name} "
               f"p95={rec['server_ms_p95']}ms failed={rec['failed']}", file=sys.stderr)
 
-    records.sort(key=lambda r: (r["server_ms_p95"] or 0), reverse=True)
+    records.sort(key=lambda r: (r.get("server_ms_p95") or 0), reverse=True)
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w") as fh:
         json.dump({"schema": 1, "base_url": args.base_url,
                    "requests": args.requests, "concurrency": args.concurrency,
                    "endpoints": records}, fh, indent=2, sort_keys=True)
+    skipped = [r for r in records if r.get("skipped")]
+    if skipped:
+        print(f"\n!! {len(skipped)} of {len(records)} endpoints were NOT timed:",
+              file=sys.stderr)
+        for r in skipped:
+            print(f"     {r['id']}: probe {r['probe_status']}", file=sys.stderr)
+        print("   UI views need session auth (--session / NAUTOBOT_SESSIONID); an API\n"
+              "   token authenticates DRF only and yields 403 on UI endpoints.",
+              file=sys.stderr)
     print(f"wrote {args.out}", file=sys.stderr)
 
 
