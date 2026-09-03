@@ -1,0 +1,21 @@
+---
+seq: 8
+commit: 0ccf16a4e
+status: accepted
+behaviour: B1
+migration: '-'
+flags: []
+title: Cut the residual duplicate queries on object detail pages
+site: nautobot/core/ui/object_detail.py - nautobot/core/templatetags/helpers.py - nautobot/core/views/utils.py
+summary: 'Three independent causes: Panel.get_data() called twice per render; render_ancestor_hierarchy
+  rendering each ancestor''s location_type at one query per ancestor; and prepare_cloned_fields
+  instantiating a full ModelForm just to read to_field_name off a few fields, which cost 6.5ms
+  and 10 queries on device detail alone.'
+result:
+  queries: ui.device.detail 68 -> 55, ui.rack.detail 77 -> 66, total -46
+tests: core test_views 95 OK, test_ui 59 OK, test_tree_queries 11 OK
+caveat: null
+note: 'Corrects two earlier attributions: Breadcrumbs.as_pair was blamed for calling .ancestors()
+  four times and calls it once; prepare_cloned_fields was suspected of running twice and runs
+  once. My own A/B here was inconclusive -- ui.rack.detail swung 84ms to 110ms across two
+  runs of the same config -- so no wall-clock number is claimed from it.'

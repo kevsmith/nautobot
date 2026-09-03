@@ -1,0 +1,27 @@
+---
+seq: 14
+commit: 3d59d0854
+status: accepted
+behaviour: B1
+migration: '-'
+flags: []
+title: Resolve natural keys from a whole-table map for small reference models
+site: nautobot/core/models/__init__.py - nautobot/dcim/models/locations.py - nautobot/tenancy/models.py
+summary: BaseModel.natural_key() walks each lookup with plain getattr(), one SELECT per uncached
+  FK hop. Interface's lookups include five Location hops, so a page of 100 interfaces issued
+  257 dcim_location SELECTs against a 110-row table and 82 tenancy_tenant SELECTs against
+  a five-row table. When the referenced table is small enough to hold entirely, resolving
+  from a map beats traversing per object.
+result:
+  queries: api.interface.depth1 629 -> 292; dcim_location 257 -> 0, tenancy_tenant 82 -> 0;
+    total 1294 -> 957
+  in_process: -15% on api.interface.depth1, three alternating rounds
+controls: api.device.list and api.prefix.list both flat
+tests: core test_models 35 OK, test_csv 28 OK, test_api 61 OK, dcim test_api 1673 OK
+caveat: null
+note: Opt-in per model via natural_key_map_enabled, guarded at 5000 rows, built with values_list
+  so no model instantiation, living in the existing request_cache() scope. Falls back to traversal
+  on any miss. A cross-request Redis-backed variant was built and measured alongside and rejected
+  -- see seq 17. Byte-identical responses on six endpoints; a sweep over 1310 objects produced
+  identical natural_key, composite_key and natural_slug, and 60 objects round-tripped back
+  to the same PK.

@@ -1,0 +1,19 @@
+---
+seq: 2
+id: F-01/F-06
+commit: 33b15177e
+status: accepted
+behaviour: B1
+migration: '-'
+flags: []
+title: Prefetch nested natural keys, and fetch each cable path once
+site: nautobot/core/api/views.py:263 - nautobot/dcim/api/serializers.py:166
+summary: The viewset's prefetch logic inspects top-level serializer fields only, skipping
+  any source containing a dot, so objects reached through nested ?depth serializers were never
+  prefetched. Separately, three SerializerMethodFields each called obj.cable_paths.first()
+  independently.
+result:
+  queries: 2235 -> 1903 (-332)
+tests: dcim test_api 1673 OK
+caveat: null
+note: The cable-path memo is instance-scoped, so it is discarded with the object.

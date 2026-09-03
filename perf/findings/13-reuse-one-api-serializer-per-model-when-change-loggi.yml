@@ -1,0 +1,28 @@
+---
+seq: 13
+commit: 5f351dc5b
+status: accepted
+behaviour: B1
+migration: '-'
+flags: []
+title: Reuse one API serializer per model when change-logging a transaction
+site: nautobot/core/models/utils.py - nautobot/extras/context_managers.py
+summary: 'serialize_object_v2 runs the full DRF API serializer at depth 1 with every M2M included,
+  so change logging pays the same nested-serialization cost that dominates depth-1 list endpoints.
+  Profiling 100 Interfaces: 517ms, 445 serializer constructions, 7444 build_field calls. The
+  context is a fixed constant and to_representation() reads only the object handed to it,
+  so one instance per class can render them all.'
+result:
+  config_reads: 200 -> 2 per 100-object batch
+  wall: bulk.create.loop and .deferred both -28%, three alternating rounds
+  isolated: serialize_object_v2 -41% for 100 Interfaces over five paired rounds
+controls: the cfg column confirms the two arms really differ, 2 against 200
+tests: extras test_changelog 35 OK, extras test_models 295 OK, core test_models 35 OK, core
+  test_api 61 OK
+caveat: null
+note: 'A first attempt at this A/B used git stash to toggle, which silently did nothing because
+  the change was already committed -- all six runs measured the same code, and the cfg counter
+  is what caught it. Also: this commit credited itself with bulk.update 1542 -> 1472 and bulk.delete
+  2089 -> 2019, which were already present in the preceding run; it compared against a stale
+  before-file. The config-read result is the real effect. Serialized output compared object-by-object
+  across seven models, 172 objects, zero mismatches.'

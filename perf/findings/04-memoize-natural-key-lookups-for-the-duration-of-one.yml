@@ -1,0 +1,22 @@
+---
+seq: 4
+id: F-04
+commit: 33ad09279
+status: accepted
+behaviour: B1
+migration: '-'
+flags: []
+title: Memoize natural-key lookups for the duration of one serialization
+site: nautobot/core/models/utils.py
+summary: natural_key_field_lookups is an uncached classproperty, rebuilt on every access,
+  and for Device and Location each rebuild reads Constance -- that is, Redis. Serializing
+  one object at depth 1 touches it dozens of times.
+result:
+  config_reads: 1800 -> 200 per 100-object create loop (-89%)
+  queries: unchanged at 1404
+tests: core test_models 35 OK, core test_api 61 OK
+caveat: null
+note: 'Scoped to a single serialization deliberately: Location''s value depends on live tree
+  depth and Device''s on Constance config, so a permanent class-level cache would go stale.
+  A permanent variant measured +21.7% against +19.8% -- indistinguishable, and not worth the
+  risk.'

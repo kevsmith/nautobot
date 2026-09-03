@@ -1,0 +1,19 @@
+---
+seq: 19
+commit: 5b912a905
+status: rejected
+behaviour: B2
+migration: '-'
+flags:
+- security-visible
+title: Process-level per-user nav menu cache
+site: nautobot/core/context_processors.py
+summary: Cache the built nav menu per user across requests rather than per request.
+result:
+  in_process: ~0.6ms, now that nav_menu runs once per request
+caveat: ObjectPermission edits, group membership changes and is_superuser toggles would take
+  effect only after cache expiry.
+reason: B2 and security-visible. A bounded stale window on a display string is tolerable;
+  the same window on an authorisation decision is not. ~0.6ms does not buy that.
+note: 'Rejected on blast radius, not on measurement. Included because the reasoning generalises:
+  cached permission-derived output is a different class of risk from cached data.'

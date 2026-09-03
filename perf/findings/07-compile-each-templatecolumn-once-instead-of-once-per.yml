@@ -1,0 +1,25 @@
+---
+seq: 7
+commit: 40c3af5fe
+status: accepted
+behaviour: B1
+migration: '-'
+flags:
+- third-party-coupled
+title: Compile each TemplateColumn once instead of once per table cell
+site: nautobot/core/tables.py
+summary: django_tables2's TemplateColumn.render() calls Template(self.template_code) on every
+  cell, so a table re-parses the same source once per row per column. Django's cached template
+  loader covers the sibling template_name branch; the template_code branch has no such cache.
+  Profiling one page showed Template.parse called 1814 times.
+result:
+  in_process: ui.device.interfaces 147.5 -> 119.3ms (-18.5%), three alternating rounds
+controls: ui.device.list and ui.interface.list both within noise across three rounds
+tests: core test_tables 17 OK, dcim test_tables 34 OK
+caveat: null
+note: 'Compiled templates are immutable and hold no per-render state, so sharing one across
+  requests and threads is safe -- new state, but nothing to invalidate. Flagged third-party-coupled:
+  it reimplements django_tables2 3.0.1''s render(), depending on the get_context_data() hook
+  and the parent_context request assignment. A future version changing those would diverge
+  silently. Revisit on any django_tables2 upgrade. An earlier two-round comparison suggested
+  a ~2ms regression on two list views; a third round showed it was drift.'

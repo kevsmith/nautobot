@@ -1,0 +1,21 @@
+---
+seq: 18
+commit: 3d59d0854
+status: not-taken
+behaviour: C
+migration: '-'
+flags: []
+title: Enable LOCATION_NAME_AS_NATURAL_KEY
+site: an existing supported setting
+summary: Collapses Location's natural key from five hops to one.
+result:
+  in_process: -12% on api.interface.depth1 standalone; ~2 points on top of the whole-table
+    map
+caveat: Composite keys change for Location and for every device component that includes a
+  Location in its natural key. A CSV exported before the change no longer round-trips, and
+  any integration storing a composite key must re-resolve it.
+reason: 'Tier C: changes API output on five of the six endpoints tested. Already a supported
+  setting, so this is an operator decision rather than a code change -- worth documenting
+  as a tuning option with its caveat.'
+note: Stacking it on the whole-table map adds only ~2 points, because the map already collapses
+  most of what it avoids.

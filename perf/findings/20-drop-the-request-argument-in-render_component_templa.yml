@@ -1,0 +1,14 @@
+---
+seq: 20
+commit: 5b912a905
+status: not-taken
+behaviour: C
+migration: '-'
+flags: []
+title: Drop the request argument in render_component_template
+site: nautobot/core/ui/utils.py:39
+summary: Would skip all 70 RequestContext binds outright rather than memoizing their result.
+result:
+  in_process: ~1ms residual after the per-request memo
+caveat: Rendered output changes for permission-restricted users.
+reason: Tier C for ~1ms once the memo is in place. Not worth it.
