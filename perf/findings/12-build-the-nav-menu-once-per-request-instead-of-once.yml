@@ -16,7 +16,7 @@ result:
   in_process: ui.device.detail -24%, ui.rack.detail -25%, three alternating rounds
   queries: unchanged
   redis_reads: unchanged
-wall_clock: −24% / −25% detail pages
+wall_clock: −24% ui.device.detail, −25% ui.rack.detail
 wall_clock_detail: 'ui.device.detail -24% and ui.rack.detail -25%, alternating rounds on an
   idle machine. An independent interleaved measurement at n=42 per cell put it at -14 to -17ms
   across six detail pages (-19.5% to -28.2%). Note the retracted figure: cProfile reported
