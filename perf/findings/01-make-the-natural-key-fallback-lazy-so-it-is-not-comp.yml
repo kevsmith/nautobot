@@ -1,0 +1,22 @@
+---
+seq: 1
+id: F-03
+commit: 1974922f0
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: Make the natural-key fallback lazy, so it is not computed and discarded per row
+site: nautobot/core/api/serializers.py:495
+summary: getattr(instance, 'natural_slug', construct_natural_slug(...)) evaluates its third
+  argument before the attribute lookup. natural_slug always exists, so the fallback was computed
+  and thrown away on every row, and the property then recomputed natural_key() a second time.
+result:
+  in_process: api.interface.list 357.9 -> 268.2ms (-25.1%)
+  queries: unchanged at 2357
+controls: api.prefix.list flat, as predicted -- its natural keys touch no config-dependent
+  model
+tests: core test_api 61 OK
+caveat: null
+note: Removes no queries at all, which is why a query-count gate alone would have missed it.
+  The first evidence on this branch that query count is not the objective.

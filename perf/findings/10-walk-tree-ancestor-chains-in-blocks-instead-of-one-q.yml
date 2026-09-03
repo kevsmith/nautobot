@@ -1,0 +1,19 @@
+---
+seq: 10
+commit: 2e929c137
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: Walk tree ancestor chains in blocks instead of one query per level
+site: nautobot/core/models/tree_queries.py
+summary: TreeQuerySet.ancestors() falls back to a parent-by-parent walk when tree fields are
+  absent, one query per level. Each cache miss now pulls the next four levels in one query
+  via select_related.
+result:
+  queries: ui.device.detail 55 -> 52, ui.rack.detail 66 -> 63, total -8
+tests: core test_tree_queries 11 OK, test_views 95 OK, test_dynamicgroups 92 OK
+caveat: null
+note: Took only the Tier A half of the proposed change. The proposal also primed the returned
+  queryset's _result_cache, which is correct for count/exists/first/iteration and discarded
+  by anything that clones -- a subtler contract than one query justified.

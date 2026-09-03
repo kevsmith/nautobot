@@ -1,0 +1,27 @@
+---
+seq: 12
+commit: 5b912a905
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: Build the nav menu once per request instead of once per component
+site: nautobot/core/context_processors.py
+summary: render_component_template() passes a request to Template.render(), which makes Django
+  construct a fresh RequestContext and re-run every context processor. The UI component framework
+  calls that once per component per render pass, so nav_menu was built 70 times on a rack
+  detail page and 81 times on device detail -- each build walking a 180-node registry and
+  performing 176 permission checks, exactly 12,320 has_one_or_more_perms calls per request.
+result:
+  in_process: ui.device.detail -24%, ui.rack.detail -25%, three alternating rounds
+  queries: unchanged
+  redis_reads: unchanged
+controls: ui.device.list 48.3/49.1 vs 48.9/49.5 and ui.interface.list flat
+tests: core test_navigations 6 OK, test_views 95 OK, test_ui 59 OK
+caveat: null
+note: 'Memoized on the request object, so the cache is scoped to one request and therefore
+  one user -- no user-keyed map, no module-level dict, nothing outliving the response. Verified
+  with two users interleaved four times each in one process: the superuser sees 131 distinct
+  nav links, a permissionless user sees 10, both stable, no leakage. Corrects an earlier figure:
+  this was reported at 40ms/request from cProfile, which inflates call-heavy code; true wall
+  clock is ~16ms of an ~88ms request.'
