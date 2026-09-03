@@ -250,9 +250,12 @@ a server nobody ships.
 - **Row-scaling N+1s that memoization cannot help.** `PowerFeed.utilization` and the prefix
   hierarchy column both grow linearly with row count. Every fix on this branch so far removes
   *repeated* work; these need a different shape.
-- **`get_snapshots()` issues one SELECT per ObjectChange** — 100 queries per 100-object bulk
-  operation, and the largest remaining SQL item on the write path now that serialization is
-  cached. Tracked upstream as issue #6303.
+- **`get_snapshots()` is not the target it looked like.** It does issue one SELECT per
+  ObjectChange — 100 queries per 100-object operation — which made it look like the largest
+  remaining item on the write path. Timed, those calls are **3.1%** of a bulk update and 2.7%
+  of a bulk delete. Query count misranking a target again, and the reason finding 27 was
+  measured before it was built rather than after. Upstream #6303 stays open and correct about
+  the mechanism; what is now on record is the size of the prize.
 - **Residual `api.interface.depth1` cost is 292 queries**, down from 1,229. What is left is
   GenericForeignKey destination fetches and reverse one-to-one device-bay lookups on the nested
   Device serializer — the same mechanism as the accepted fixes, not yet applied to those paths.

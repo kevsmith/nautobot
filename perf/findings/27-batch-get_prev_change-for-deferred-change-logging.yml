@@ -2,7 +2,7 @@
 seq: 27
 id: null
 commit: null
-status: proposed
+status: not-taken
 behaviour: B1
 migration: '-'
 flags: []
@@ -14,23 +14,33 @@ summary: 'get_snapshots() calls get_prev_change(), one SELECT per ObjectChange, 
   49 changes) and bulk.delete (2,019 queries, 50 changes) both do. The code already carries
   a TODO saying so, and it is upstream issue #6303.'
 result:
-  expected: roughly one query per changed object on update and delete paths
-wall_clock: not measured; proposed
-wall_clock_detail: not measured -- proposed, not yet run
+  measured_prize: 49 get_prev_change calls costing 101.3ms of a 3278.7ms bulk.update.x100.deferred
+    (3.1%); 50 calls costing 96.9ms of 3535.0ms on bulk.delete.x100 (2.7%); 0 calls on bulk.create.deferred,
+    since it only fires for non-CREATE actions; 2 calls costing 4.1ms on delete.device (0.9%)
+wall_clock: '**3.1% ceiling** — too small to build'
+wall_clock_detail: 'The prize was measured before the fix was attempted, by wrapping get_prev_change
+  to count and time its calls while running the same operations Tier 1W runs. Batching cannot
+  recover all of it -- the batch is still one query -- so the realistic saving is ~3.0% of
+  a bulk update or delete.
+
+
+  This also corrects how the target was described. get_snapshots() was called the largest
+  remaining SQL item on the write path, which is true by query count -- 100 queries per 100-object
+  operation -- and false by time. Query count misranking a target, again: the same lesson
+  as the rejected FK pre-warming, arrived at from the other direction.'
 controls: null
 tests: null
 caveat: null
-note: 'Recorded rather than attempted, because the one-line description hides two things that
-  make it a careful change rather than a quick one.
+note: 'Upstream issue #6303 remains open and the TODO in context_managers.py:273 is accurate
+  about the mechanism -- one query per object change. What this record adds is the size of
+  the prize, so nobody spends the effort twice to find out.
 
 
-  First, intra-request repeats. The flush loop iterates order_by(time) oldest-first, so when
-  an object changes twice within one request the second change''s prior change is the first.
-  A naive batch pre-fetch gets that wrong. The shape that works is to pre-fetch the newest
-  pre-request change per object and then update the map as the loop advances.
-
-
-  Second, portability. The clean batch form is DISTINCT ON (changed_object_type, changed_object_id),
-  which is PostgreSQL-only in Django. The loop immediately above carries a comment about avoiding
-  a MySQL sort exception, so MySQL is a live concern and a portable reduction in Python may
-  be needed instead.'
+  Worth revisiting if the write path ever becomes latency-critical, or if the ObjectChange
+  insert and index-maintenance costs (finding 24) are removed first, since 3% of a smaller
+  number is a larger share.'
+reason: Measured at a 3.1% ceiling on bulk.update and 2.7% on bulk.delete, against an implementation
+  that has to handle an object changed twice within one request (the flush loop iterates oldest-first,
+  so the second change's prior change is the first) and cannot use the clean DISTINCT ON form,
+  which is PostgreSQL-only in Django while the loop above it carries a comment about MySQL
+  sort behaviour. Not worth that for 3%.
