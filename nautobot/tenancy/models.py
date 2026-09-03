@@ -43,6 +43,10 @@ class Tenant(PrimaryModel):
     department.
     """
 
+    # Tenant's name is part of Device's natural key under the default DEVICE_UNIQUENESS, so it is resolved once
+    # per device component serialized; see `BaseModel.natural_key_map`.
+    natural_key_map_enabled = True
+
     name = models.CharField(max_length=CHARFIELD_MAX_LENGTH, unique=True)
     tenant_group = models.ForeignKey(
         to="tenancy.TenantGroup",
