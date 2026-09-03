@@ -268,3 +268,73 @@ of where to point the next investigation.
 | Compose project | `nautobot-perf-3-3` (all commands via `perf/dc.sh`) |
 | Dataset | databot `enterprise-campus / large / seed 42`, 24,091 objects |
 | Restore | `perf/restore_snapshot.sh` (uses `perf/snapshot-large.sql`, gitignored) |
+
+## Parity checklist for an apples-to-apples environment comparison
+
+Standing up a replica of a hosted instance only yields a valid comparison if the variables
+below match. Each one here either was measured to matter during this work, or is a known
+way to invalidate the result.
+
+**Ask before building anything.** These two questions may answer the whole thing without a
+replica:
+
+- **Shared or dedicated vCPU?** DigitalOcean Basic droplets are shared-vCPU and throttle
+  under sustained load once burst credits are spent. That alone can produce a multiple-x
+  gap, and no application change recovers it.
+- **What is the steal time?** `vmstat 1 10`, watch the `st` column. Non-zero means the
+  hypervisor is taking CPU. Add `nproc` and, if containerized, `cat /sys/fs/cgroup/cpu.max`.
+
+**Compute**
+- droplet class (Basic / General Purpose / CPU-Optimized) and size
+- vCPU count and whether CPU is pinned; container CPU/memory limits if containerized
+- steal time under load, not just at idle
+
+**Storage** -- the usual hidden variable for a database
+- local NVMe vs network-attached block storage
+- IOPS ceiling and whether it is being hit (`iostat -x 1`)
+
+**Postgres**
+- managed DO database vs on-droplet; if managed, the network hop is real
+- version, `shared_buffers`, `work_mem`, `effective_cache_size`, `max_connections`
+- `pg_stat_statements` for comparison. Local reference from this work: **325,152 queries in
+  4.6 seconds total** across a full baseline run, mean 0.014ms. If the replica or the demo
+  is far off that, the database is implicated; if it matches, it is exonerated.
+
+**Redis** -- managed vs local. Measured here: one endpoint was doing 1,938 Redis round-trips
+against 977 SQL queries, so a network hop to Redis is not a rounding error.
+
+**Application**
+- gunicorn worker count, worker class, timeouts
+- `DEBUG`, and the full `PLUGINS` list. This branch runs `PLUGINS = []` deliberately so
+  findings are attributable to core; a demo instance with Apps installed is not comparable
+  without matching them, and Apps add nav-menu items, middleware and context processors.
+- Nautobot version. next.demo.nautobot.com reports API version 3.3, same as this branch, so
+  version was *not* a confound in the one comparison done here.
+
+**Dataset -- shape, not just size**
+- next.demo.nautobot.com: 1,305 devices, 24,700 interfaces, 125 locations, 1,229 prefixes
+- this environment: 2,902 devices, 8,925 interfaces, 110 locations, 595 prefixes
+- Note the demo has *fewer* devices but ~2.8x the interfaces. Since most costs here proved
+  page-bounded rather than dataset-bounded, that matters less than it looks -- but the
+  hierarchy endpoints do scale with table size, so Location and Prefix counts should match.
+
+**Edge**
+- where TLS terminates, reverse proxy, geography. Measured from here, TLS handshake to the
+  demo was ~70ms, so network was not the story -- server time was 1,051ms for 50 devices.
+
+**Measurement note.** `perf/tier2_latency.py` runs against any URL with a token, so it works
+against a hosted instance unchanged. `tier1_queries.py` / `tier1w_writes.py` need to run
+inside the container, so a replica you control gets the full three-instrument treatment that
+a black-box hosted instance cannot.
+
+Reference measurements against next.demo.nautobot.com (5 sequential samples, concurrency 1,
+server time = time_starttransfer minus time_appconnect):
+
+| endpoint | demo | here, unpatched | here, patched |
+|---|---|---|---|
+| `/api/dcim/devices/?limit=50` | 1051 ms | 231 ms | 174 ms |
+| `/api/dcim/interfaces/?limit=100` | 947 ms | 373 ms | 141 ms |
+| `/api/ipam/prefixes/?limit=100` | 274 ms | 58 ms | 55 ms |
+
+The prefix row is the control: this branch barely changes that endpoint (58 -> 55ms), yet
+the demo is 4.7x slower on it. That gap is environment, not code.
