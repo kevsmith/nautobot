@@ -15,6 +15,9 @@ summary: build_nested_field() synthesizes a new serializer class on every call a
 result:
   queries: 1229 -> 629 (-600)
   in_process: api.interface.depth1 753.4 -> 404.8ms (-45.8%)
+wall_clock: −45.8% api.interface.depth1
+wall_clock_detail: api.interface.depth1 753.4 -> 404.8ms (-45.8%), median of 12 reps over
+  two alternating rounds each way
 controls: api.device.list.depth1 flat at 209.8/212.7 vs 212.4/214.7
 caveat: null
 note: The largest single win on the branch, and the earlier attribution missed it entirely

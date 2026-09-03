@@ -11,6 +11,9 @@ summary: Collapses Location's natural key from five hops to one.
 result:
   in_process: -12% on api.interface.depth1 standalone; ~2 points on top of the whole-table
     map
+wall_clock: −12% api.interface.depth1
+wall_clock_detail: -12% on api.interface.depth1 standalone; ~2 points on top of the whole-table
+  map
 caveat: Composite keys change for Location and for every device component that includes a
   Location in its natural key. A CSV exported before the change no longer round-trips, and
   any integration storing a composite key must re-resolve it.

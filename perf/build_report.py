@@ -94,6 +94,31 @@ def load_findings():
     return sorted(out, key=lambda f: f["seq"])
 
 
+REQUIRED = ("seq", "status", "behaviour", "migration", "title", "summary", "wall_clock")
+
+
+def validate(findings):
+    """Return a list of schema problems.
+
+    `wall_clock` is required. Eight of the first fifteen findings carried no
+    wall-clock figure -- five because the number was in the commit and never
+    transcribed, three because it was never measured -- and a blank field reads
+    as an oversight either way. Requiring it forces the record to say which:
+    a figure, or the reason there is none.
+    """
+    problems = []
+    for f in findings:
+        for key in REQUIRED:
+            if not f.get(key):
+                problems.append(f"finding {f.get('seq', '??')}: missing {key}")
+        if f.get("behaviour") not in ("A", "B1", "B2", "C"):
+            problems.append(f"finding {f['seq']}: behaviour {f.get('behaviour')!r} not a tier")
+        needs = f.get("behaviour") in ("B2", "C") or f.get("migration", "-") != "-"
+        if needs and not f.get("caveat") and f.get("status") != "rejected":
+            problems.append(f"finding {f['seq']}: {f['behaviour']}/{f['migration']} needs a caveat")
+    return problems
+
+
 def tiers(f):
     bits = [f["behaviour"]]
     if f.get("migration", "-") != "-":
@@ -102,12 +127,22 @@ def tiers(f):
     return " ".join(f"`{b}`" for b in bits)
 
 
+WALL_KEYS = ("in_process", "wall", "isolated")
+CELL_MAX = 90
+
+
 def primary(f):
-    r = f.get("result") or {}
+    """The most telling non-wall-clock figure, short enough for a table cell.
+
+    Wall clock has its own column, so repeating it here says nothing; and a
+    couple of records carry a result value long enough to wreck the table, which
+    belongs in the detail section rather than the summary.
+    """
+    r = {k: v for k, v in (f.get("result") or {}).items() if k not in WALL_KEYS}
     if not r:
         return "—"
-    key = next(iter(r))
-    return str(r[key])
+    value = str(next(iter(r.values())))
+    return value if len(value) <= CELL_MAX else value[: CELL_MAX - 1].rstrip(" ,;") + "…"
 
 
 def load_runs(pattern, key):
@@ -250,7 +285,7 @@ def render_cumulative(findings):
 
 def render_bench():
     """Absolute in-process wall clock on the current host. A reference, not a delta."""
-    data = load_runs("uwsgi-bench-r*.json", "median_ms")
+    data = load_runs("uwsgi-bench-current-r*.json", "median_ms") or load_runs("uwsgi-bench-r*.json", "median_ms")
     if not data:
         return "_No in-process wall-clock reference committed yet._"
     lines = ["| Scenario | r1 | r2 | r3 | median | spread |", "|---|---:|---:|---:|---:|---:|"]
@@ -261,9 +296,9 @@ def render_bench():
     lines.append("")
     lines.append(
         f"Spread across rounds: median **{statistics.median(spreads):.1f}%**, "
-        f"max **{max(spreads):.1f}%**. Captured at the round-two baseline, so it "
-        "predates any experiment accepted since; wall clock is re-measured only when "
-        "it is an experiment's primary signal."
+        f"max **{max(spreads):.1f}%** across {len(data)} endpoints. Reflects the tree as it "
+        "stands: every experiment measures wall clock, whatever its primary signal, because "
+        "this host is precise enough that skipping it would only hide a result."
     )
     return "\n".join(lines)
 
@@ -276,12 +311,12 @@ def render_findings(findings):
         "filter -- nothing here is disqualified for being expensive, it is labelled so "
         "the price is visible. `perf/README.md` defines the taxonomy.",
         "",
-        "| # | Change | Tier | Status | Primary measured effect |",
-        "|---:|---|---|---|---|",
+        "| # | Change | Tier | Wall clock | Other instruments | Status |",
+        "|---:|---|---|---|---|---|",
     ]
     for f in findings:
         link = f"[{f['title']}](#{anchor(f['title'])})"
-        out.append(f"| {f['seq']:02d} | {link} | {tiers(f)} | {f['status']} | {primary(f)} |")
+        out.append(f"| {f['seq']:02d} | {link} | {tiers(f)} | {f['wall_clock']} | {primary(f)} | {f['status']} |")
     out.append("")
 
     legend = ", ".join(f"`{k}` {v}" for k, v in TIER_HELP.items())
@@ -307,12 +342,14 @@ def render_findings(findings):
                 out += [f"`{f['site']}`", ""]
             out += [f["summary"], ""]
             r = f.get("result") or {}
-            if r:
-                out.append("| Instrument | Result |")
-                out.append("|---|---|")
-                for k, v in r.items():
-                    out.append(f"| {k.replace('_', ' ')} | {v} |")
-                out.append("")
+            out.append("| Instrument | Result |")
+            out.append("|---|---|")
+            out.append(f"| **wall clock** | {f['wall_clock']} |")
+            for k, v in r.items():
+                out.append(f"| {k.replace('_', ' ')} | {v} |")
+            out.append("")
+            if f.get("wall_clock_detail"):
+                out += [f"**Wall clock.** {f['wall_clock_detail']}", ""]
             if f.get("controls"):
                 out += [f"**Controls.** {f['controls']}", ""]
             if f.get("caveat"):
@@ -346,6 +383,13 @@ def main():
     findings = load_findings()
     if not findings:
         print("no findings in perf/findings/", file=sys.stderr)
+        return 2
+
+    problems = validate(findings)
+    if problems:
+        print(f"{len(problems)} schema problem(s) in perf/findings/:", file=sys.stderr)
+        for problem in problems:
+            print(f"  {problem}", file=sys.stderr)
         return 2
 
     out = (PERF / "report.template.md").read_text()

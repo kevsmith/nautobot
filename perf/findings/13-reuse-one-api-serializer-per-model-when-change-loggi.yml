@@ -16,6 +16,10 @@ result:
   config_reads: 200 -> 2 per 100-object batch
   wall: bulk.create.loop and .deferred both -28%, three alternating rounds
   isolated: serialize_object_v2 -41% for 100 Interfaces over five paired rounds
+wall_clock: −28% bulk create
+wall_clock_detail: bulk.create.loop and .deferred both -28%, three alternating rounds each
+  way. serialize_object_v2 in isolation -41% for 100 Interfaces over five paired rounds (553
+  -> 326ms)
 controls: the cfg column confirms the two arms really differ, 2 against 200
 tests: extras test_changelog 35 OK, extras test_models 295 OK, core test_models 35 OK, core
   test_api 61 OK
