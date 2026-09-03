@@ -1,0 +1,34 @@
+---
+seq: 27
+id: null
+commit: null
+status: proposed
+behaviour: B1
+migration: '-'
+flags: []
+title: Batch get_prev_change for deferred change logging
+site: nautobot/extras/context_managers.py:275 - nautobot/extras/models/change_logging.py:202
+summary: 'get_snapshots() calls get_prev_change(), one SELECT per ObjectChange, and the deferred
+  flush loop calls it once per record. It only fires for non-CREATE actions, which matches
+  the measurements exactly: bulk.create pays nothing while bulk.update.deferred (1,472 queries,
+  49 changes) and bulk.delete (2,019 queries, 50 changes) both do. The code already carries
+  a TODO saying so, and it is upstream issue #6303.'
+result:
+  expected: roughly one query per changed object on update and delete paths
+controls: null
+tests: null
+caveat: null
+note: 'Recorded rather than attempted, because the one-line description hides two things that
+  make it a careful change rather than a quick one.
+
+
+  First, intra-request repeats. The flush loop iterates order_by(time) oldest-first, so when
+  an object changes twice within one request the second change''s prior change is the first.
+  A naive batch pre-fetch gets that wrong. The shape that works is to pre-fetch the newest
+  pre-request change per object and then update the map as the loop advances.
+
+
+  Second, portability. The clean batch form is DISTINCT ON (changed_object_type, changed_object_id),
+  which is PostgreSQL-only in Django. The loop immediately above carries a comment about avoiding
+  a MySQL sort exception, so MySQL is a live concern and a portable reduction in Python may
+  be needed instead.'
