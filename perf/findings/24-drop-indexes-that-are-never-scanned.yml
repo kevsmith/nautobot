@@ -1,0 +1,23 @@
+---
+seq: 24
+commit: null
+status: proposed
+behaviour: A
+migration: M0
+flags: []
+title: Drop indexes that are never scanned
+site: to be determined from pg_stat_user_indexes
+summary: Unused indexes cost write throughput and bloat on every insert, and the write path
+  is where the remaining cost sits -- bulk.create.x100 is still 1,404 queries, dominated by
+  ObjectChange inserts. pg_stat_user_indexes.idx_scan identifies never-scanned indexes directly.
+result:
+  expected: unmeasured; this is the unexplored half of the index question
+caveat: An index dropped on the strength of one workload's scan counts may be needed by a
+  workload this branch does not exercise. Coverage is ~5% of the API surface, so scan counts
+  under-represent real usage.
+note: 'Adding indexes is a dead end here and that is measured, not assumed: 325,152 queries
+  totalling 4.6 seconds, mean 0.014ms, and query count fell 57% while total DB time went 601ms
+  to 602ms. api.prefix.list even spends 13.7ms planning a query that executes in 1.3ms, where
+  an index makes planning worse. Removal is the direction with headroom. Nautobot has no AddIndexConcurrently
+  or RemoveIndexConcurrently anywhere in its migrations, so every existing index migration
+  takes a table lock -- doing this safely on a large table means introducing that pattern.'
