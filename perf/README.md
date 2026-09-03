@@ -144,16 +144,118 @@ experiment, but not a gate.
 Endpoints already failing at baseline are listed separately and never gate: the
 invariant is "nothing degrades relative to baseline", not "everything is 200".
 
-## Scope rules
+## What this exercise is for
 
-**In scope:** Python/Django application code — query construction,
-`select_related`/`prefetch_related`, serializers, table/column rendering,
-caching, pagination, avoiding per-row work in loops.
+**This is exploration, not a shipping queue.** The goal is to establish what is
+possible in Nautobot's read and write paths, measured well enough that someone
+else can decide what to do about it. Code here may never reach production, and
+that is an acceptable outcome for any individual finding.
 
-**Out of scope, log don't fix:** anything requiring a migration. No new indexes,
-no schema changes, no denormalization, no Postgres tuning. These go in the
-report's **non-actionable findings** list with evidence and expected impact, for
-review later.
+That has one consequence worth stating plainly, because it inverts the usual
+priority: **the report and the commit ledger are the deliverable, not the merged
+tree.** A finding whose numbers are right and whose write-up is wrong has failed.
+A finding that is correct, priced, and never shipped has succeeded.
+
+So the standard is not "would we ship this" but "is this priced precisely enough
+that someone who owns the product can judge it." That means blast radius
+enumerated rather than gestured at -- the way the `object_data` experiment names
+two API contracts, one UI panel and 13 specific tests -- and it means a caveat
+written as a release note would have to write it.
+
+## The gate comes before the taxonomy
+
+A change must **be faster** and must not break availability. Nothing else
+matters until those hold:
+
+- `compare.py` exits 0. An endpoint that returned 200/302 at baseline must not
+  start erroring or 404ing. Content and row ordering may change and are reported
+  for information only.
+- The improvement is real on an instrument that can see it, with the arms proven
+  to differ by a deterministic counter.
+
+A change that fails the gate is not a low tier -- it is not a finding at all.
+The rejected FK pre-warming experiment removed 666 queries and ran 62% slower;
+that is a failed gate, not a Tier C change. Keep the two ideas apart.
+
+## Risk taxonomy: two axes and two flags
+
+Everything that passes the gate gets labelled. The label is a **price tag, not a
+filter** -- no cell is forbidden, and the expensive cells are often the most
+useful things on the branch, because they tell a reader what a tempting option
+actually costs.
+
+**Behaviour axis** -- what a user or an API client can observe:
+
+| | |
+|---|---|
+| **A** | No observable change. No new shared state. |
+| **B1** | New state scoped to a request, a transaction, or an object instance, and discarded with it. Nothing to invalidate, because nothing survives the scope. |
+| **B2** | New state that outlives its scope and therefore needs invalidating. Requires an enumerated invalidation path and a **bounded** staleness window. |
+| **C** | Changes observable behaviour -- an API payload, a rendered value, a documented default. |
+
+The B split is not theoretical. Two experiments were rejected for the same
+reason A/B/C could not express: a cross-request natural-key map (`.update()` and
+`.bulk_update()` compile to one SQL statement and emit no signal, so the
+staleness window was unbounded) and a process-level per-user nav menu cache
+(permission edits taking effect only after expiry). Both looked
+"result-preserving but subtle". Both were B2, and that is why they died.
+
+**Migration axis** -- what deploying it costs an operator:
+
+| | |
+|---|---|
+| **—** | No migration. Where every accepted change on this branch currently sits. |
+| **M0** | Metadata-only. `AlterField(null=True)`, an index rename. No table rewrite. |
+| **M1** | A bounded single pass, with a measured per-row cost and a stated bound on production row counts. |
+| **M2** | Unbounded, or bounded only by operator configuration. Priced and handed off. |
+
+A migration is in scope if it is one mechanical Django operation, reversible,
+leaves no public API payload changed once the accompanying code lands, and
+**arrives with its own measured runtime**. Every other change here carries
+before/after numbers; a migration must too, because its cost lands on operators
+rather than on us.
+
+Out of scope entirely -- and this is the line worth holding -- is anything that
+changes what a model *means*: new relationships, denormalisation, splitting or
+merging tables, redefining a natural key. Redesign is a different exercise.
+
+**Flags**, which cut across both axes and make any cell stricter:
+
+- **`security-visible`** -- the staleness or behaviour change touches
+  authorisation rather than display. A bounded stale window on a display string
+  is tolerable; the same window on `is_superuser` is not. This is why a
+  per-user nav cache worth ~0.6ms was rejected.
+- **`third-party-coupled`** -- depends on internals of a dependency that can
+  change without failing loudly. Not a correctness risk today; a maintenance
+  risk that fires on upgrade, so it belongs in upgrade notes. The caching
+  `TemplateColumn` reimplements django_tables2 3.0.1's `render()` and is the
+  case in hand.
+
+**Every finding outside A × — carries a caveat, written as a release note would
+write it.** "Tier C, changes API output" is a label. *"Composite keys change for
+Location and every device component; a CSV exported before the change no longer
+round-trips"* is something a product owner can weigh. The second one is the
+deliverable.
+
+## One correctness stop that pricing does not rehabilitate
+
+Expensive is a price. Wrong is not. The `object_data_v2` backfill is the
+worked example: v1 stores foreign keys as bare primary keys while v2 needs
+nested natural keys, so reconstructing v2 for a row that references a
+since-deleted object is not possible at any cost. Record why, and stop.
+
+## Findings are structured data, and the report is generated
+
+`perf/findings/*.yml` is the source of record for every experiment: its tier,
+flags, caveat, instruments, controls, tests and status. `perf/build_report.py`
+renders `perf/report.html` from those files plus the result JSON.
+
+This exists because the report drifted five commits behind the tree once and
+carried a figure a later commit had already retracted. Under a framing where the
+report *is* the deliverable, hand-maintaining it is the weakest link. Numbers
+live in one place; the report reads them.
+
+## Measurement notes
 
 `pg_stat_statements` is loaded in the perf overlay. It's measurement only — it
 attributes total DB time across a run, which is how the non-actionable index
