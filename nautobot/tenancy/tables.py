@@ -5,6 +5,7 @@ from nautobot.core.tables import (
     ButtonsColumn,
     LinkedCountColumn,
     TagColumn,
+    TemplateColumn,
     ToggleColumn,
 )
 
@@ -53,7 +54,7 @@ class TenantColumn(tables.TemplateColumn):
 
 class TenantGroupTable(BaseTable):
     pk = ToggleColumn()
-    name = tables.TemplateColumn(template_code=TREE_LINK, attrs={"td": {"class": "text-nowrap"}})
+    name = TemplateColumn(template_code=TREE_LINK, attrs={"td": {"class": "text-nowrap"}})
     tenant_count = LinkedCountColumn(
         viewname="tenancy:tenant_list",
         url_params={"tenant_group": "name"},

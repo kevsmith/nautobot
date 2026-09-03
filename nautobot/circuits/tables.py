@@ -6,6 +6,7 @@ from nautobot.core.tables import (
     ButtonsColumn,
     LinkedCountColumn,
     TagColumn,
+    TemplateColumn,
     ToggleColumn,
 )
 from nautobot.dcim.tables.devices import PathEndpointTable
@@ -115,13 +116,13 @@ class CircuitTable(StatusTableMixin, BaseTable):
     tenant = TenantColumn()
     tags = TagColumn(url_name="circuits:circuit_list")
 
-    circuit_termination_a = tables.TemplateColumn(
+    circuit_termination_a = TemplateColumn(
         template_code=CIRCUIT_TERMINATION_PARENT,
         accessor=Accessor("circuit_termination_a"),
         orderable=False,
         verbose_name="Side A",
     )
-    circuit_termination_z = tables.TemplateColumn(
+    circuit_termination_z = TemplateColumn(
         template_code=CIRCUIT_TERMINATION_PARENT,
         accessor=Accessor("circuit_termination_z"),
         orderable=False,
