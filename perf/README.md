@@ -248,12 +248,22 @@ since-deleted object is not possible at any cost. Record why, and stop.
 
 `perf/findings/*.yml` is the source of record for every experiment: its tier,
 flags, caveat, instruments, controls, tests and status. `perf/build_report.py`
-renders `perf/report.html` from those files plus the result JSON.
+renders `perf/report.md` from those files plus the committed baselines, filling
+the `<!--GEN:...-->` markers in `perf/report.template.md`. Narrative prose stays
+in the template, where writing it by hand is the point.
+
+    python3 perf/build_report.py            # write perf/report.md
+    python3 perf/build_report.py --check    # exit 1 if it has drifted
 
 This exists because the report drifted five commits behind the tree once and
 carried a figure a later commit had already retracted. Under a framing where the
 report *is* the deliverable, hand-maintaining it is the weakest link. Numbers
 live in one place; the report reads them.
+
+Markdown rather than HTML, deliberately. A markdown diff shows which number
+moved, so drift is visible in review rather than merely detectable by `--check`
+-- and it removes escaping and tag-balancing from a tool whose entire job is not
+being wrong.
 
 ## Measurement notes
 
