@@ -6,6 +6,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.db import transaction
 
 from nautobot.core.events import publish_event
+from nautobot.core.models.utils import cache_natural_key_field_lookups
 from nautobot.core.utils.otel import traced_span
 from nautobot.core.utils.requests import mock_wsgi_request
 from nautobot.extras.change_consumers import change_has_consumers, get_change_event_topic
@@ -190,7 +191,12 @@ def change_logging(change_context: ChangeContext):
     prev_state = change_context_state.set(change_context)
 
     try:
-        yield
+        # Open the serialization scope here rather than inside serialize_object_v2, so that one scope spans
+        # every object changed in this transaction. Change logging serializes each changed object through its
+        # full API serializer; without a shared scope each object rebuilds that serializer and all of its
+        # fields. The scope is reentrant, so serialize_object_v2 called outside change logging still works.
+        with cache_natural_key_field_lookups():
+            yield
     finally:
         # Reset change logging state. This is necessary to avoid recording any errant
         # changes during test cleanup.
