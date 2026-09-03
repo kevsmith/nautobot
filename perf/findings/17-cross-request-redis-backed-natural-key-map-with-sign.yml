@@ -1,0 +1,27 @@
+---
+seq: 17
+commit: 3d59d0854
+status: rejected
+behaviour: B2
+migration: '-'
+flags: []
+title: Cross-request Redis-backed natural-key map with signal invalidation
+site: nautobot/core/models/__init__.py
+summary: The whole-table map from seq 14, cached across requests in Redis and invalidated
+  by post_save receivers.
+result:
+  in_process: +0 to 2 percentage points over the request-scoped variant -- inside run-to-run
+    variance
+caveat: A stale Location name would propagate into composite_key and natural_slug in every
+  REST response for Location, Device and every device component, and into CSV export columns
+  -- so the API would advertise a composite key that no longer resolves, and a CSV round-trip
+  would re-import against the wrong Location.
+reason: B2 with an unbounded staleness window. QuerySet.update() and .bulk_update() compile
+  to a single SQL statement and never instantiate models, so they emit no post_save and cannot
+  invalidate the cache. With no timeout that persists until some Location is saved. Low probability,
+  high blast radius, and the probability depends on plugin or shell code we do not control
+  -- not worth two points.
+note: 'The within-request memo already captures essentially all of the benefit: the map is
+  built once and read ~820 times per request. This hazard already exists in-tree for all six
+  invalidate_*_cache receivers; worth addressing separately, either with a TTL backstop or
+  by overriding update() and bulk_update() on RestrictedQuerySet.'

@@ -1,0 +1,21 @@
+---
+seq: 22
+commit: null
+status: proposed
+behaviour: B1
+migration: M0
+flags: []
+title: Make object_data nullable and key the fallback on presence
+site: nautobot/extras/models/change_logging.py plus a new AlterField migration
+summary: AlterField with null=True on ObjectChange.object_data is metadata-only -- no table
+  rewrite. New records store only object_data_v2; existing rows keep their v1 snapshot; get_snapshots()
+  keys the fallback on presence rather than on nullness.
+result:
+  expected: the ~12% of write-path queries and ~200 queries per 100 writes that seq 16 measured,
+    without its contract change
+caveat: Records created after the change carry no object_data. Any consumer reading that field
+  directly, rather than through get_snapshots(), sees null for new records. The field stays
+  in the REST and GraphQL payloads until a separate deprecation removes it.
+note: 'Not yet measured. The route seq 16 should have taken: same win, M0 migration cost,
+  no falsified history. Removing object_data from the payload entirely is a later deprecation,
+  not part of this.'

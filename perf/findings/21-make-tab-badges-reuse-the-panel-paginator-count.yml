@@ -1,0 +1,16 @@
+---
+seq: 21
+commit: 0ccf16a4e
+status: not-taken
+behaviour: C
+migration: '-'
+flags: []
+title: Make tab badges reuse the panel paginator COUNT
+site: nautobot/core/ui/object_detail.py
+summary: The tab badge issues its own COUNT alongside the one django-tables2's paginator already
+  computed.
+result:
+  in_process: no measurable effect
+caveat: The badge would show the permission-filtered count rather than the raw related count
+  -- a visible number changing for non-superusers.
+reason: Tier C for no measured gain.
