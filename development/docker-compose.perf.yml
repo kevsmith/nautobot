@@ -3,44 +3,126 @@
 #
 #   * Remaps published ports off the stock 8080/8081 so this stack can run
 #     alongside another local Nautobot instance.
-#   * Pins CPU/memory so run-to-run numbers are comparable.
-#   * Loads pg_stat_statements for query attribution (measurement only).
+#   * Pins each service to whole physical cores so run-to-run numbers are
+#     comparable.
+#   * Tunes Postgres off its defaults, and loads pg_stat_statements for query
+#     attribution (measurement only).
+#   * Keeps the UI asset watcher out of the stack.
+#
+# Sized for the round-two measurement host (hannah): Intel i5-8259U, 4 physical
+# cores / 8 threads, 30.7 GiB RAM, NVMe. Thread siblings are (0,4) (1,5) (2,6)
+# (3,7) -- verify with:
+#
+#     cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list | sort -u
+#
+# `cpuset` is used rather than a `cpus:` quota. A quota is CFS bandwidth, which
+# lets the scheduler move work between cores mid-run; affinity does not. Both
+# siblings of a physical core always go to the same service, so no two services
+# ever contend for one core's execution units.
+#
+#     core 0-1 (cpus 0,1,4,5)  nautobot
+#     core 2   (cpus 2,6)      db + redis
+#     core 3   (cpus 3,7)      OS, sshd, rsync, the harness, celery when it runs
+#
+# Physical core 3 is deliberately left out of the measured path so that driving
+# a run over ssh does not land on the cores under test.
 services:
   nautobot:
     ports: !override
       - "8180:8080"
+    volumes:
+      # The dev overlay bind-mounts the whole repo at /source, which masks the
+      # node_modules the image builds at /source/nautobot/ui/node_modules. On a
+      # host whose tree has its own copy that is harmless; on a synced tree
+      # (node_modules is excluded from perf/sync.sh -- tens of thousands of
+      # files) it leaves the directory missing entirely.
+      #
+      # An anonymous volume at that path shadows the bind mount and exposes the
+      # image's copy, which came from the same `npm ci`. This restores the
+      # condition round one measured under, without syncing the tree.
+      - /source/nautobot/ui/node_modules
+    cpuset: "0,1,4,5"
     deploy:
       resources:
         limits:
-          cpus: "4"
-          memory: "8gb"
-        reservations:
-          cpus: "4"
-          memory: "4gb"
+          memory: "6gb"
+
   celery_worker:
     ports: !override
       - "8181:8080"
+    cpuset: "3,7"
     deploy:
       resources:
         limits:
-          cpus: "2"
-          memory: "4gb"
+          memory: "2gb"
+
+  celery_beat:
+    # celery_beat fires scheduled work, which lands in the middle of a
+    # measurement window if it is left running. perf/quiesce.sh stops it.
+    cpuset: "3,7"
+    deploy:
+      resources:
+        limits:
+          memory: "1gb"
+
+  redis:
+    cpuset: "2,6"
+    deploy:
+      resources:
+        limits:
+          memory: "1gb"
+
+  ui_build:
+    # `npm run build:watch`. It has no role in measurement, and it reacts to
+    # source changes -- so a code sync would trigger a rebuild in exactly the
+    # window a measurement runs. Build the assets once, then leave this out.
+    #
+    #     perf/dc.sh --profile ui up ui_build     # build, then stop it
+    profiles:
+      - ui
+
   db:
     command:
       - "postgres"
+      # Default is 64. This ceiling helps cover TransactionTestCase flushes for
+      # test runs with many parallel workers from running OOM.
       - "-c"
       - "max_locks_per_transaction=512"
+      # Measurement only: attributes total DB time across a run, which is how
+      # the non-actionable index candidates get evidence rather than guesses.
       - "-c"
       - "shared_preload_libraries=pg_stat_statements"
       - "-c"
       - "pg_stat_statements.track=all"
       - "-c"
       - "pg_stat_statements.max=10000"
+      # Off the stock defaults. shared_buffers at its 128MB default against a
+      # 24k-object dataset is the single largest gap between this stack and the
+      # parity checklist in perf/README.md, which asks any environment being
+      # compared to declare exactly these four values.
+      - "-c"
+      - "shared_buffers=2GB"
+      - "-c"
+      - "effective_cache_size=6GB"
+      - "-c"
+      - "work_mem=32MB"
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      # NVMe: random reads cost about what sequential ones do, and the device
+      # has real queue depth.
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      # JIT compilation time varies per query and lands in wall clock. Queries
+      # here average 0.014ms, so there is nothing for it to win.
+      - "-c"
+      - "jit=off"
+      # max_connections is deliberately left at its default: the parallel test
+      # runner opens a connection per worker, and lowering it would break
+      # `invoke tests` for no measurement benefit.
+    cpuset: "2,6"
     deploy:
       resources:
         limits:
-          cpus: "6"
-          memory: "12gb"
-        reservations:
-          cpus: "4"
-          memory: "6gb"
+          memory: "8gb"
