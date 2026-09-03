@@ -10,5 +10,7 @@ site: nautobot/core/ui/utils.py:39
 summary: Would skip all 70 RequestContext binds outright rather than memoizing their result.
 result:
   in_process: ~1ms residual after the per-request memo
+wall_clock: ~1ms
+wall_clock_detail: ~1ms residual after the per-request memo
 caveat: Rendered output changes for permission-restricted users.
 reason: Tier C for ~1ms once the memo is in place. Not worth it.

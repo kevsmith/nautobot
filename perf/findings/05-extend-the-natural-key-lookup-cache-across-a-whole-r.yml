@@ -13,6 +13,10 @@ summary: 'ModelViewSetMixin.dispatch() wraps safe methods in the cache_natural_k
 result:
   config_reads: api.interface.depth1 1938 -> 2 (-99.9%), api.interface.list 612 -> 2, api.device.list
     156 -> 2
+wall_clock: −48% api.interface.list, under load
+wall_clock_detail: 'api.interface.list 305 -> 158ms and api.interface.depth1 1114 -> 726ms,
+  both halves of the same run under equal load. Supporting evidence only: the container was
+  under ~260% CPU from concurrent profiling, so the config-read count is the result'
 controls: api.prefix.list 0 -> 0 and api.cable.list 0 -> 0 -- a previously considered global
   cache had regressed prefix ~18% by adding Redis reads to models that needed none
 tests: core test_api 61 OK
