@@ -197,3 +197,74 @@ Sketch, not yet built:
 Caveat to carry forward: demo workflows over-represent the narratively interesting and
 under-represent boring bulk -- integration polling, a list view left open. Useful for "does
 Nautobot feel good in the situations we sell on", not a complete picture of load.
+
+## Open: the full test suite has never completed
+
+`invoke tests` (whole suite) has not run to completion on this branch. The one attempt
+died with:
+
+    multiprocessing.pool.MaybeEncodingError: Error sending result:
+    '<multiprocessing.pool.ExceptionWithTraceback object ...>'
+
+That is Django's parallel runner failing to pickle a worker exception back to the parent --
+a harness failure, not a test failure, and it hides whatever the underlying exception was.
+**It exited with code 0**, which is the third time on this branch that a pipeline's exit
+status has masked a failure; check the output, not `$?`.
+
+To get a real answer:
+
+    invoke tests --no-parallel          # serial, so worker exceptions surface directly
+
+Two things to know before reading the result:
+
+- The Tier C commit (`object_data={}`, `43db1b018`) knowingly breaks 13 tests in
+  `nautobot.extras.tests.test_changelog`. It is **not** in the working tree -- it was
+  reverted in `a8f7dbd60` and never restored -- so a clean run is expected. If those 13
+  reappear, something restored it.
+- `test_get_docs_url` fails across ~35 dcim model tests whenever `--skip-docs-build` is
+  passed, on a clean tree too. Run without that flag, or discount those specifically.
+
+Per-experiment targeted tests have all passed, including `nautobot.dcim.tests.test_api`
+(1673) and `nautobot.ipam.tests.test_views` (596). The gap is a single whole-suite run.
+
+## Open: systematic CRUD/list coverage matrix
+
+`workload.yml` has 39 hand-picked scenarios. The actual API surface is **330 list
+endpoints, 320 detail endpoints and 127 UI list views across 14 apps** -- so coverage is
+roughly 5%, and the scenarios were chosen for diagnostic interest, which is a selection
+bias, not a sample.
+
+The argument for building it: `api.interface.depth1` turned out to be a 74% win, and it was
+found by hand-guessing that "interfaces is the biggest table". There are ~300 endpoints
+nobody has looked at.
+
+Design, not yet built:
+
+- **Enumerate from the URL resolver at run time**, exactly as `workload.py` resolves view
+  names, so the matrix cannot rot as models come and go.
+- **Reads first** -- `list`, `list?depth=1`, `detail`, `detail?depth=1` per model. No
+  payloads, no mutation, safe to re-run. ~1200 measurements; Tier 1 does 38 in about a
+  minute, so budget roughly half an hour.
+- **Normalize to cost per object**, not per request. That is what makes it a screening
+  instrument: a 5-row model becomes comparable to an 8925-row one, and anomalies surface
+  regardless of table size. Rank by queries-per-row and ms-per-row.
+- **Writes are the harder half, and databot is the payload factory.** create/update need
+  schema-valid payloads per model, which databot already generates from the OpenAPI schema
+  and OPTIONS metadata. The open problem is isolation: REST writes cross the process
+  boundary, so the rolled-back transactions `tier1w_writes.py` relies on do not apply. Run
+  the write matrix as a batch against a restored snapshot, then restore again.
+
+**This is a screening pass, not a regression gate.** 1200 measurements do not belong in the
+inner loop -- that stays at 38 scenarios. Run this occasionally; its output is a ranked list
+of where to point the next investigation.
+
+## Environment quick reference
+
+| | |
+|---|---|
+| Nautobot UI | http://localhost:8180 (admin / admin) |
+| API token | `0123456789abcdef0123456789abcdef01234567` |
+| celery_worker | 8181; Postgres and Redis are not published to the host |
+| Compose project | `nautobot-perf-3-3` (all commands via `perf/dc.sh`) |
+| Dataset | databot `enterprise-campus / large / seed 42`, 24,091 objects |
+| Restore | `perf/restore_snapshot.sh` (uses `perf/snapshot-large.sql`, gitignored) |
