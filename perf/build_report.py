@@ -50,6 +50,13 @@ GROUPS = [
         "operators rather than on the release.",
     ),
     (
+        "proposed",
+        "Proposed, not yet measured",
+        "Targets with a mechanism and an expected effect, but no measurement behind them "
+        "yet. Listed so they are not rediscovered, and so the expectation is on record to "
+        "be falsified.",
+    ),
+    (
         "rejected",
         "Measured, and not worth it",
         "Plausible optimizations that measurement or blast-radius analysis killed. These are "
@@ -76,9 +83,17 @@ def anchor(text):
 
 
 def group_of(f):
-    """Order matters: a rejected finding is rejected whatever tier it would carry."""
-    if f["status"] == "rejected":
+    """Classify by adoption cost.
+
+    Order matters. A finding that was measured and not taken belongs with the
+    rejections whatever tier it would otherwise carry, and a proposal is not a
+    win -- grouping proposals under "free wins" claimed results that do not
+    exist yet.
+    """
+    if f["status"] in ("rejected", "not-taken"):
         return "rejected"
+    if f["status"] == "proposed":
+        return "proposed"
     if f.get("migration", "-") != "-":
         return "operational"
     if f.get("caveat"):
