@@ -42,6 +42,11 @@ EXCLUDES=(
   --exclude ".mypy_cache/"
   --exclude ".ruff_cache/"
   --exclude ".pytest_cache/"
+  # Build output, not source. mkdocs writes it from inside the container as a
+  # different UID, so rsync cannot overwrite it and fails the whole sync -- and
+  # it has no business being in the tree hash either.
+  --exclude "nautobot/project-static/docs/"
+  --exclude "examples/*/*/docs/"
 )
 if [ "$FULL" -eq 0 ]; then
   EXCLUDES+=(--exclude "perf/snapshot*.sql" --exclude "perf/dataset*.yaml")
@@ -74,7 +79,7 @@ rsync -a --delete "${EXCLUDES[@]}" ./ "$PERF_HOST:$PERF_PATH/"
 # invalidating as stale product code. Extensions are chosen so the large
 # gitignored artifacts stay out -- snapshot*.sql and dataset*.yaml match neither
 # "*.yml" nor anything else listed, and perf/results/*.json is excluded too.
-HASH_CMD='find nautobot development docker perf -type f \( -name "*.py" -o -name "*.sh" -o -name "*.yml" -o -name "*.ini" -o -name "*.html" \) -print0 | LC_ALL=C sort -z | xargs -0 cat | '
+HASH_CMD='find nautobot development docker perf -type f -not -path "*/project-static/*" \( -name "*.py" -o -name "*.sh" -o -name "*.yml" -o -name "*.ini" -o -name "*.html" \) -print0 | LC_ALL=C sort -z | xargs -0 cat | '
 if command -v sha256sum >/dev/null; then LOCAL_SUM="sha256sum"; else LOCAL_SUM="shasum -a 256"; fi
 HERE="$(eval "cd '$ROOT' && $HASH_CMD $LOCAL_SUM" | awk '{print $1}')"
 THERE="$(ssh -o BatchMode=yes "$PERF_HOST" "cd '$PERF_PATH' && $HASH_CMD sha256sum" | awk '{print $1}')"
