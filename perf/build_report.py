@@ -199,6 +199,75 @@ def render_tier2():
     return "\n".join(lines)
 
 
+def render_cumulative(findings):
+    """Read-path cumulative effect in query counts, from the baselines.
+
+    Queries only, and deliberately so. Query counts are machine-independent --
+    the same 957 and 346 reproduced across two different CPU architectures and
+    host operating systems -- so a delta between the original baseline and the
+    current tree is meaningful. Wall clock is not: round one ran on Apple
+    Silicon and round two on an Intel part with turbo disabled, 4-6x apart in
+    absolute terms. Absolute wall clock for the current host is reported
+    separately, as a reference rather than a delta.
+    """
+    base = PERF / "baselines" / "large-tier1-baseline.json"
+    cur = PERF / "baselines" / "uwsgi-tier1-current.json"
+    if not (base.exists() and cur.exists()):
+        return "_No cumulative read-path measurement committed yet._"
+
+    def load(path):
+        return {e["id"]: e for e in json.loads(path.read_text())["endpoints"]}
+
+    b, c = load(base), load(cur)
+    accepted = sum(1 for f in findings if f["status"] == "accepted")
+
+    rows = []
+    for name in sorted(c, key=lambda k: b.get(k, {}).get("query_count", 0), reverse=True):
+        if name not in b or b[name]["query_count"] == c[name]["query_count"]:
+            continue
+        bq, cq = b[name]["query_count"], c[name]["query_count"]
+        bd, cd = b[name]["duplicate_queries"], c[name]["duplicate_queries"]
+        rows.append(f"| `{name}` | {bq:,} → {cq:,} ({(cq - bq) / bq * 100:+.0f}%) | {bd:,} → {cd:,} |")
+
+    bt = sum(e["query_count"] for e in b.values())
+    ct = sum(e["query_count"] for e in c.values())
+    bdt = sum(e["duplicate_queries"] for e in b.values())
+    cdt = sum(e["duplicate_queries"] for e in c.values())
+    unchanged = sum(1 for k in c if k in b and b[k]["query_count"] == c[k]["query_count"])
+    rows.append(
+        f"| **All {len(c)} scenarios** | **{bt:,} → {ct:,} ({(ct - bt) / bt * 100:+.1f}%)** | **{bdt:,} → {cdt:,}** |"
+    )
+
+    return (
+        f"## Current state — all {accepted} accepted fixes\n\n"
+        "Measured against the 24,091-object dataset on a pristine tree, and reflecting the "
+        f"tree as it stands. Only the {len(rows) - 1} scenarios whose count changed are "
+        f"listed; the other {unchanged} are unchanged, which is itself the point -- the "
+        "list views were already efficient.\n\n"
+        "| Scenario | Queries | Duplicates |\n|---|---|---|\n" + "\n".join(rows)
+    )
+
+
+def render_bench():
+    """Absolute in-process wall clock on the current host. A reference, not a delta."""
+    data = load_runs("uwsgi-bench-r*.json", "median_ms")
+    if not data:
+        return "_No in-process wall-clock reference committed yet._"
+    lines = ["| Scenario | r1 | r2 | r3 | median | spread |", "|---|---:|---:|---:|---:|---:|"]
+    for name, (med, spread, vals) in sorted(data.items(), key=lambda kv: -kv[1][0]):
+        cells = " | ".join(f"{v:.0f}" for v in vals)
+        lines.append(f"| `{name}` | {cells} | **{med:.0f} ms** | {spread:.1f}% |")
+    spreads = [v[1] for v in data.values()]
+    lines.append("")
+    lines.append(
+        f"Spread across rounds: median **{statistics.median(spreads):.1f}%**, "
+        f"max **{max(spreads):.1f}%**. Captured at the round-two baseline, so it "
+        "predates any experiment accepted since; wall clock is re-measured only when "
+        "it is an experiment's primary signal."
+    )
+    return "\n".join(lines)
+
+
 def render_findings(findings):
     out = [
         "## Findings",
@@ -284,7 +353,9 @@ def main():
         ("<!--GEN:factbar-->", render_factbar(findings)),
         ("<!--GEN:provenance-->", render_provenance()),
         ("<!--GEN:findings-->", render_findings(findings)),
+        ("<!--GEN:cumulative-->", render_cumulative(findings)),
         ("<!--GEN:tier2-->", render_tier2()),
+        ("<!--GEN:bench-->", render_bench()),
         ("<!--GEN:endnote-->", render_endnote()),
     ):
         if marker not in out:

@@ -162,6 +162,13 @@ enumerated rather than gestured at -- the way the `object_data` experiment names
 two API contracts, one UI panel and 13 specific tests -- and it means a caveat
 written as a release note would have to write it.
 
+**No changelog fragments on this branch.** Nothing here reaches a release in its
+current shape, so a fragment written now would describe a change that review has
+not touched yet. The commit message carries the hypothesis, method, numbers and
+risk tier; the findings record carries the caveat in release-note form. Between
+them there is nothing a fragment would add. Fragments and user-facing docs get
+written against whatever shape survives review, by whoever lands it.
+
 ## The gate comes before the taxonomy
 
 A change must **be faster** and must not break availability. Nothing else
