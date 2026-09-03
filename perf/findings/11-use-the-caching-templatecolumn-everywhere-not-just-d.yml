@@ -14,6 +14,10 @@ summary: Converts the remaining 67 TemplateColumn call sites across circuits, te
 result:
   note: same mechanism and measured effect as 40c3af5fe; the saving scales with rows x TemplateColumns
     per table
+wall_clock: not measured; same mechanism as 07
+wall_clock_detail: not measured for this commit -- the machine was under concurrent profiling
+  load. The mechanism is identical to finding 07, measured there at -18.5% on ui.device.interfaces,
+  and the saving scales with rows x TemplateColumns per table
 tests: core test_tables 17 OK, dcim test_tables 34 OK, ipam test_tables 7 OK, extras test_tables
   7 OK, ipam test_views 596 OK
 caveat: null

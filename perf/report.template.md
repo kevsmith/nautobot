@@ -200,8 +200,8 @@ predict one.
 |---|---|---|
 | SQL query count | N+1s, missing prefetch | Python and Redis work |
 | Redis backend reads | config and cache round-trip storms | SQL and pure CPU |
-| Wall clock, in-process | everything Django does | the HTTP layer — reproduces to ±4% on a quiesced host |
-| Wall clock, HTTP at concurrency 1 | everything, including HTTP and WSGI | nothing — reproduces to ±1.6%, and agrees with in-process to 1.08× |
+| Wall clock, in-process | everything Django does | the HTTP layer — reproduces to a median 1.7% spread across rounds, 7.4% worst case |
+| Wall clock, HTTP at concurrency 1 | everything, including HTTP and WSGI | nothing — median 1.6% spread, 5.7% worst case, and agrees with in-process to 1.08× |
 
 The Redis counter exists because one endpoint was making **1,938 Redis round-trips against 977
 SQL queries** — twice as many cache calls as database calls, entirely invisible to SQL-shaped

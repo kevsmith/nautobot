@@ -17,6 +17,18 @@ result:
   queries: api.interface.depth1 292 -> 192 (-100, exactly as attributed); Tier 1 total 957
     -> 857 (-61.7% from baseline)
   duplicates: total 346 -> 247
+wall_clock: −5.8% api.interface.depth1
+wall_clock_detail: 'api.interface.depth1 1808.3 -> 1703.9ms (-5.8%), median of three separate
+  runs of 15 reps on a quiesced host, spread 0.7% across rounds. All 13 other benched endpoints
+  flat within +-1.6%. The before-state is the round-two baseline bench, which is this experiment''s
+  immediate predecessor on the same host.
+
+
+  Worth reading alongside the query figure rather than instead of it: removing 34% of the
+  endpoint''s queries bought 5.8% of its wall clock, about 1ms per query. That is consistent
+  with this branch''s finding that a query costs ORM round-trip overhead rather than SQL time
+  -- total database time across the whole run moved 601ms to 602ms while query count fell
+  57%.'
 controls: All 38 scenarios 200/302, no query count unstable, no other scenario moved. Re-running
   the attribution shows the core/api/serializers.py:619 call site gone entirely rather than
   reduced.
