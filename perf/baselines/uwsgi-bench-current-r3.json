@@ -1,0 +1,128 @@
+{
+  "api.cable.list": {
+    "config_reads": 0,
+    "median_ms": 332.84,
+    "p10_ms": 328.97,
+    "p90_ms": 336.98,
+    "redis_reads": 5,
+    "reps": 15,
+    "status": 200
+  },
+  "api.device.list": {
+    "config_reads": 2,
+    "median_ms": 679.06,
+    "p10_ms": 674.78,
+    "p90_ms": 719.89,
+    "redis_reads": 9,
+    "reps": 15,
+    "status": 200
+  },
+  "api.device.list.depth1": {
+    "config_reads": 52,
+    "median_ms": 905.22,
+    "p10_ms": 900.09,
+    "p90_ms": 951.43,
+    "redis_reads": 19,
+    "reps": 15,
+    "status": 200
+  },
+  "api.interface.depth1": {
+    "config_reads": 2,
+    "median_ms": 1705.02,
+    "p10_ms": 1632.76,
+    "p90_ms": 1991.41,
+    "redis_reads": 14,
+    "reps": 15,
+    "status": 200
+  },
+  "api.interface.list": {
+    "config_reads": 2,
+    "median_ms": 737.71,
+    "p10_ms": 724.61,
+    "p90_ms": 1023.78,
+    "redis_reads": 8,
+    "reps": 15,
+    "status": 200
+  },
+  "api.ipaddress.list": {
+    "config_reads": 0,
+    "median_ms": 229.85,
+    "p10_ms": 225.27,
+    "p90_ms": 237.67,
+    "redis_reads": 5,
+    "reps": 15,
+    "status": 200
+  },
+  "api.location.list": {
+    "config_reads": 101,
+    "median_ms": 296.07,
+    "p10_ms": 292.34,
+    "p90_ms": 313.6,
+    "redis_reads": 7,
+    "reps": 15,
+    "status": 200
+  },
+  "api.prefix.list": {
+    "config_reads": 0,
+    "median_ms": 321.84,
+    "p10_ms": 316.22,
+    "p90_ms": 341.37,
+    "redis_reads": 5,
+    "reps": 15,
+    "status": 200
+  },
+  "ui.cable.list": {
+    "config_reads": 7,
+    "median_ms": 172.25,
+    "p10_ms": 168.79,
+    "p90_ms": 178.61,
+    "redis_reads": 12,
+    "reps": 15,
+    "status": 200
+  },
+  "ui.device.detail": {
+    "config_reads": 17,
+    "median_ms": 269.53,
+    "p10_ms": 264.19,
+    "p90_ms": 288.53,
+    "redis_reads": 43,
+    "reps": 15,
+    "status": 200
+  },
+  "ui.device.interfaces": {
+    "config_reads": 6,
+    "median_ms": 606.93,
+    "p10_ms": 599.38,
+    "p90_ms": 627.3,
+    "redis_reads": 13,
+    "reps": 15,
+    "status": 200
+  },
+  "ui.device.list": {
+    "config_reads": 7,
+    "median_ms": 282.06,
+    "p10_ms": 277.2,
+    "p90_ms": 296.01,
+    "redis_reads": 18,
+    "reps": 15,
+    "status": 200
+  },
+  "ui.interface.list": {
+    "config_reads": 5,
+    "median_ms": 276.52,
+    "p10_ms": 268.91,
+    "p90_ms": 288.33,
+    "redis_reads": 11,
+    "reps": 15,
+    "status": 200
+  },
+  "ui.rack.detail": {
+    "config_reads": 16,
+    "median_ms": 320.26,
+    "p10_ms": 315.34,
+    "p90_ms": 345.5,
+    "redis_reads": 37,
+    "reps": 15,
+    "status": 200
+  }
+}

@@ -13,6 +13,10 @@ summary: get_settings_or_config() now memoizes in the per-request cache; TreeMan
 result:
   redis_reads: api.location.list 207 -> 7 (-96.6%), api.device.list.depth1 128 -> 19
   in_process: api.location.list 75.2 -> 54.9ms (-27%) on a quiet machine
+wall_clock: −27% api.location.list
+wall_clock_detail: api.location.list 75.2 -> 54.9ms (-27%), interleaved over 7 rounds on a
+  quiet machine. The fix also removed variance, since the Redis round-trips were the jitter
+  source
 controls: api.prefix.list 5 -> 5 unchanged
 tests: core test_tree_queries 11 OK, test_config 30 OK, test_utils 73 OK
 caveat: A configuration value written by another process is not picked up mid-request. Constance

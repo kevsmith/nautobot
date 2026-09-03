@@ -14,6 +14,9 @@ summary: django_tables2's TemplateColumn.render() calls Template(self.template_c
   Profiling one page showed Template.parse called 1814 times.
 result:
   in_process: ui.device.interfaces 147.5 -> 119.3ms (-18.5%), three alternating rounds
+wall_clock: −18.5% ui.device.interfaces
+wall_clock_detail: ui.device.interfaces 147.5 -> 119.3ms (-18.5%), median of 12 reps over
+  three alternating rounds on an idle machine
 controls: ui.device.list and ui.interface.list both within noise across three rounds
 tests: core test_tables 17 OK, dcim test_tables 34 OK
 caveat: null

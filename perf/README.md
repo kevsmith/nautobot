@@ -180,6 +180,14 @@ matters until those hold:
 - The improvement is real on an instrument that can see it, with the arms proven
   to differ by a deterministic counter.
 
+**Every experiment measures wall clock**, whatever its primary signal is. That was not
+true for the first fifteen: eight carried no wall-clock figure, because timings on the
+original machine varied by the same order as the effects being measured. The dedicated
+measurement host reproduces in-process timings to a median 1.7% spread across rounds
+(7.4% worst case) and HTTP at concurrency 1 to 1.6% (5.7% worst), so the reason to skip it
+is gone -- and it is the first number a reader looks for. A
+query-count win that does not move wall clock is a result in its own right.
+
 A change that fails the gate is not a low tier -- it is not a finding at all.
 The rejected FK pre-warming experiment removed 666 queries and ran 62% slower;
 that is a failed gate, not a Tier C change. Keep the two ideas apart.

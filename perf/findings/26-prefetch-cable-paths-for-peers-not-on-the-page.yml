@@ -13,6 +13,8 @@ summary: 'After the parent_bay join, 166 of api.interface.depth1''s remaining 19
   from _destination resolving the path''s GenericForeignKey destination.'
 result:
   expected: -166 queries on api.interface.depth1, taking it to roughly 26
+wall_clock: not measured; proposed
+wall_clock_detail: not measured -- proposed, not yet run
 controls: null
 tests: null
 caveat: null

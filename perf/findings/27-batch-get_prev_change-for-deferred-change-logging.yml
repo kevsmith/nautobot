@@ -15,6 +15,8 @@ summary: 'get_snapshots() calls get_prev_change(), one SELECT per ObjectChange, 
   a TODO saying so, and it is upstream issue #6303.'
 result:
   expected: roughly one query per changed object on update and delete paths
+wall_clock: not measured; proposed
+wall_clock_detail: not measured -- proposed, not yet run
 controls: null
 tests: null
 caveat: null
