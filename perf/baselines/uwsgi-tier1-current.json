@@ -2,32 +2,9 @@
   "endpoint_count": 38,
   "endpoints": [
     {
-      "content_hash": "c1a4930d45aceac0",
-      "content_stable": true,
-      "db_ms": 153.0,
-      "distinct_shapes": 27,
-      "duplicate_queries": 165,
-      "error": null,
-      "id": "api.interface.depth1",
-      "order_hash": "81acd3158d26b024",
-      "query_count": 192,
-      "query_count_stable": true,
-      "response_bytes": 883238,
-      "status": 200,
-      "tags": [
-        "api",
-        "list",
-        "nested"
-      ],
-      "url": "/api/dcim/interfaces/?limit=100&depth=1",
-      "wall_ms": 1693.92,
-      "worst_repeat_count": 83,
-      "worst_repeat_sql": "SELECT \"dcim_cablepath\".\"id\", \"dcim_cablepath\".\"origin_type_id\", \"dcim_cablepath\".\"origin_id\", \"dcim_cablepath\".\"destination_type_id\", \"dcim_cablepath\".\"destination_id\", \"dcim_cablepath\".\"path\", \"dcim_cablepath\".\"is_active\", \"dcim_cablepath\".\"is_split\", \"dcim_cablepath\".\"peer_connector\", \"dcim_cablepath\".\"origin_fans_out\", \"dcim_cablepath\".\"destination_fans_out\" FROM \"dcim_cablepath\" WHERE (\"dcim_"
-    },
-    {
-      "content_hash": "ddd3679432c78c2f",
+      "content_hash": "8fe4209fc3e1ecd1",
       "content_stable": false,
-      "db_ms": 29.0,
+      "db_ms": 31.0,
       "distinct_shapes": 47,
       "duplicate_queries": 32,
       "error": null,
@@ -42,14 +19,14 @@
         "dashboard"
       ],
       "url": "/",
-      "wall_ms": 187.59,
+      "wall_ms": 226.67,
       "worst_repeat_count": 15,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE \"django_content_type\".\"id\" = ? LIMIT ?"
     },
     {
-      "content_hash": "630f812d2a80494c",
+      "content_hash": "d45409f3344958fa",
       "content_stable": false,
-      "db_ms": 78.0,
+      "db_ms": 79.0,
       "distinct_shapes": 52,
       "duplicate_queries": 11,
       "error": null,
@@ -57,7 +34,7 @@
       "order_hash": null,
       "query_count": 63,
       "query_count_stable": true,
-      "response_bytes": 461438,
+      "response_bytes": 461425,
       "status": 200,
       "tags": [
         "ui",
@@ -65,14 +42,14 @@
         "elevation"
       ],
       "url": "/dcim/racks/215a852e-727e-4aa9-8df4-b9d7dd64805f/",
-      "wall_ms": 326.17,
+      "wall_ms": 478.29,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT COUNT(*) AS \"__count\" FROM \"extras_contactassociation\" WHERE (\"extras_contactassociation\".\"associated_object_id\" = ?::uuid AND \"extras_contactassociation\".\"associated_object_type_id\" = ?)"
     },
     {
-      "content_hash": "aeb4589271d278df",
+      "content_hash": "9d2a916e69e15c1e",
       "content_stable": false,
-      "db_ms": 65.0,
+      "db_ms": 52.0,
       "distinct_shapes": 51,
       "duplicate_queries": 3,
       "error": null,
@@ -88,14 +65,14 @@
         "worstcase"
       ],
       "url": "/dcim/devices/03f84c21-2a5b-4029-8699-3a264d00db70/",
-      "wall_ms": 454.42,
+      "wall_ms": 283.97,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT COUNT(*) AS \"__count\" FROM \"extras_contactassociation\" WHERE (\"extras_contactassociation\".\"associated_object_id\" = ?::uuid AND \"extras_contactassociation\".\"associated_object_type_id\" = ?)"
     },
     {
-      "content_hash": "5669447a52f51457",
+      "content_hash": "3ae0831b04c71e3d",
       "content_stable": false,
-      "db_ms": 62.0,
+      "db_ms": 48.0,
       "distinct_shapes": 49,
       "duplicate_queries": 3,
       "error": null,
@@ -111,14 +88,14 @@
         "core"
       ],
       "url": "/dcim/devices/001d7a3d-4b7b-4d8f-9bc7-494bc1669e7a/",
-      "wall_ms": 408.1,
+      "wall_ms": 275.96,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT COUNT(*) AS \"__count\" FROM \"extras_contactassociation\" WHERE (\"extras_contactassociation\".\"associated_object_id\" = ?::uuid AND \"extras_contactassociation\".\"associated_object_type_id\" = ?)"
     },
     {
-      "content_hash": "c67b845464dd66c5",
+      "content_hash": "1b42c686d20bb966",
       "content_stable": false,
-      "db_ms": 59.0,
+      "db_ms": 57.0,
       "distinct_shapes": 42,
       "duplicate_queries": 7,
       "error": null,
@@ -126,21 +103,21 @@
       "order_hash": null,
       "query_count": 49,
       "query_count_stable": true,
-      "response_bytes": 454388,
+      "response_bytes": 454387,
       "status": 200,
       "tags": [
         "ui",
         "detail"
       ],
       "url": "/ipam/prefixes/0015ff3e-0094-439a-9c7f-3ecb1a2d69f1/",
-      "wall_ms": 339.26,
+      "wall_ms": 340.26,
       "worst_repeat_count": 3,
       "worst_repeat_sql": "SELECT ? AS \"a\" FROM \"ipam_prefix\" WHERE \"ipam_prefix\".\"parent_id\" = ?::uuid LIMIT ?"
     },
     {
-      "content_hash": "bd098d539c33da01",
+      "content_hash": "bd5164ad58ca3fbf",
       "content_stable": false,
-      "db_ms": 78.0,
+      "db_ms": 84.0,
       "distinct_shapes": 38,
       "duplicate_queries": 1,
       "error": null,
@@ -156,14 +133,14 @@
         "worstcase"
       ],
       "url": "/dcim/devices/03f84c21-2a5b-4029-8699-3a264d00db70/interfaces/",
-      "wall_ms": 636.69,
+      "wall_ms": 1033.16,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT COUNT(*) AS \"__count\" FROM \"dcim_interface\" WHERE \"dcim_interface\".\"device_id\" = ?::uuid"
     },
     {
-      "content_hash": "78cca8d338d7b429",
+      "content_hash": "b4d5d3cb5b285eca",
       "content_stable": false,
-      "db_ms": 25.0,
+      "db_ms": 34.0,
       "distinct_shapes": 36,
       "duplicate_queries": 3,
       "error": null,
@@ -171,7 +148,7 @@
       "order_hash": null,
       "query_count": 39,
       "query_count_stable": true,
-      "response_bytes": 410162,
+      "response_bytes": 410161,
       "status": 200,
       "tags": [
         "ui",
@@ -179,14 +156,37 @@
         "stats"
       ],
       "url": "/dcim/locations/03e2a541-67b0-486e-8122-d9e4aed59d68/",
-      "wall_ms": 222.62,
+      "wall_ms": 344.56,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT COUNT(*) AS \"__count\" FROM \"extras_contactassociation\" WHERE (\"extras_contactassociation\".\"associated_object_id\" = ?::uuid AND \"extras_contactassociation\".\"associated_object_type_id\" = ?)"
     },
     {
+      "content_hash": "c1a4930d45aceac0",
+      "content_stable": true,
+      "db_ms": 142.0,
+      "distinct_shapes": 27,
+      "duplicate_queries": 3,
+      "error": null,
+      "id": "api.interface.depth1",
+      "order_hash": "81acd3158d26b024",
+      "query_count": 30,
+      "query_count_stable": true,
+      "response_bytes": 883238,
+      "status": 200,
+      "tags": [
+        "api",
+        "list",
+        "nested"
+      ],
+      "url": "/api/dcim/interfaces/?limit=100&depth=1",
+      "wall_ms": 1467.54,
+      "worst_repeat_count": 2,
+      "worst_repeat_sql": "SELECT \"dcim_cablepath\".\"id\", \"dcim_cablepath\".\"origin_type_id\", \"dcim_cablepath\".\"origin_id\", \"dcim_cablepath\".\"destination_type_id\", \"dcim_cablepath\".\"destination_id\", \"dcim_cablepath\".\"path\", \"dcim_cablepath\".\"is_active\", \"dcim_cablepath\".\"is_split\", \"dcim_cablepath\".\"peer_connector\", \"dcim_cablepath\".\"origin_fans_out\", \"dcim_cablepath\".\"destination_fans_out\" FROM \"dcim_cablepath\" WHERE (\"dcim_"
+    },
+    {
       "content_hash": "0aa9c6cdcc2bd0ae",
       "content_stable": true,
-      "db_ms": 137.0,
+      "db_ms": 139.0,
       "distinct_shapes": 22,
       "duplicate_queries": 1,
       "error": null,
@@ -202,14 +202,14 @@
         "core"
       ],
       "url": "/api/dcim/interfaces/?limit=100",
-      "wall_ms": 735.85,
+      "wall_ms": 817.51,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"dcim_location\".\"id\", \"dcim_location\".\"created\", \"dcim_location\".\"last_updated\", \"dcim_location\".\"_custom_field_data\", \"dcim_location\".\"parent_id\", \"dcim_location\".\"name\", \"dcim_location\".\"_name\", \"dcim_location\".\"location_type_id\", \"dcim_location\".\"status_id\", \"dcim_location\".\"tenant_id\", \"dcim_location\".\"description\", \"dcim_location\".\"facility\", \"dcim_location\".\"asn\", \"dcim_location\".\"tim"
     },
     {
-      "content_hash": "62eb35b947b7efd2",
+      "content_hash": "6e05a12a1da99003",
       "content_stable": false,
-      "db_ms": 13.0,
+      "db_ms": 12.0,
       "distinct_shapes": 15,
       "duplicate_queries": 2,
       "error": null,
@@ -225,12 +225,12 @@
         "changelog"
       ],
       "url": "/extras/object-changes/fffe40e7-c4eb-4c1d-ac95-00b17a94ec3b/",
-      "wall_ms": 119.22,
+      "wall_ms": 120.3,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT COUNT(*) AS \"__count\" FROM \"extras_objectchange\" WHERE (\"extras_objectchange\".\"changed_object_id\" = ?::uuid AND \"extras_objectchange\".\"changed_object_type_id\" = ? AND NOT (\"extras_objectchange\".\"id\" = ?::uuid) AND \"extras_objectchange\".\"request_id\" = ?::uuid)"
     },
     {
-      "content_hash": "72972512203bd16b",
+      "content_hash": "191d01a2807825b7",
       "content_stable": false,
       "db_ms": 5.0,
       "distinct_shapes": 11,
@@ -248,14 +248,14 @@
         "filter"
       ],
       "url": "/dcim/devices/?status=Active",
-      "wall_ms": 289.09,
+      "wall_ms": 289.74,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"extras_status\".\"id\", \"extras_status\".\"created\", \"extras_status\".\"last_updated\", \"extras_status\".\"_custom_field_data\", \"extras_status\".\"name\", \"extras_status\".\"color\", \"extras_status\".\"description\" FROM \"extras_status\" WHERE \"extras_status\".\"name\" IN (?) ORDER BY \"extras_status\".\"name\" ASC"
     },
     {
       "content_hash": "08b8f690bdbad990",
       "content_stable": true,
-      "db_ms": 443.0,
+      "db_ms": 448.0,
       "distinct_shapes": 11,
       "duplicate_queries": 0,
       "error": null,
@@ -271,14 +271,14 @@
         "nested"
       ],
       "url": "/api/dcim/devices/?limit=50&depth=1",
-      "wall_ms": 1197.19,
+      "wall_ms": 1498.04,
       "worst_repeat_count": 1,
       "worst_repeat_sql": "SELECT \"django_session\".\"session_key\", \"django_session\".\"session_data\", \"django_session\".\"expire_date\" FROM \"django_session\" WHERE (\"django_session\".\"expire_date\" > ?::timestamptz AND \"django_session\".\"session_key\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "61e7e2678693e0a8",
+      "content_hash": "16f6a8eb47f33027",
       "content_stable": false,
-      "db_ms": 13.0,
+      "db_ms": 12.0,
       "distinct_shapes": 9,
       "duplicate_queries": 1,
       "error": null,
@@ -294,14 +294,14 @@
         "pagination"
       ],
       "url": "/dcim/devices/?per_page=100",
-      "wall_ms": 293.01,
+      "wall_ms": 294.46,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "1ea3074967405628",
+      "content_hash": "d16835da04d4a564",
       "content_stable": false,
-      "db_ms": 11.0,
+      "db_ms": 12.0,
       "distinct_shapes": 9,
       "duplicate_queries": 1,
       "error": null,
@@ -317,12 +317,12 @@
         "pagination"
       ],
       "url": "/dcim/devices/?per_page=50&page=4",
-      "wall_ms": 292.05,
+      "wall_ms": 296.09,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "45b38496159ccc87",
+      "content_hash": "f342c0a62b991fb0",
       "content_stable": false,
       "db_ms": 12.0,
       "distinct_shapes": 9,
@@ -340,14 +340,14 @@
         "core"
       ],
       "url": "/dcim/interfaces/?per_page=100",
-      "wall_ms": 275.71,
+      "wall_ms": 283.36,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "6b54676759de0fb4",
+      "content_hash": "4d7709010e548f17",
       "content_stable": false,
-      "db_ms": 13.0,
+      "db_ms": 12.0,
       "distinct_shapes": 9,
       "duplicate_queries": 1,
       "error": null,
@@ -363,14 +363,14 @@
         "tree"
       ],
       "url": "/ipam/prefixes/?per_page=100",
-      "wall_ms": 231.29,
+      "wall_ms": 232.73,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "131a1e54791b3570",
+      "content_hash": "45b38d5bb29e471d",
       "content_stable": false,
-      "db_ms": 14.0,
+      "db_ms": 7.0,
       "distinct_shapes": 9,
       "duplicate_queries": 1,
       "error": null,
@@ -385,14 +385,14 @@
         "list"
       ],
       "url": "/ipam/ip-addresses/?per_page=100",
-      "wall_ms": 215.7,
+      "wall_ms": 209.17,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "e1a23ae5227dbd0b",
+      "content_hash": "71e8a5063f633bcc",
       "content_stable": false,
-      "db_ms": 6.0,
+      "db_ms": 2.0,
       "distinct_shapes": 9,
       "duplicate_queries": 1,
       "error": null,
@@ -408,14 +408,14 @@
         "changelog"
       ],
       "url": "/extras/object-changes/",
-      "wall_ms": 131.67,
+      "wall_ms": 131.0,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "81c7d03813f238b4",
+      "content_hash": "ada01eeeb3b3e0fd",
       "content_stable": false,
-      "db_ms": 3.0,
+      "db_ms": 2.0,
       "distinct_shapes": 9,
       "duplicate_queries": 1,
       "error": null,
@@ -430,14 +430,14 @@
         "list"
       ],
       "url": "/extras/statuses/",
-      "wall_ms": 136.41,
+      "wall_ms": 134.57,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "5b929520656dc4e1",
+      "content_hash": "d6a488c3d3a783a6",
       "content_stable": false,
-      "db_ms": 3.0,
+      "db_ms": 2.0,
       "distinct_shapes": 9,
       "duplicate_queries": 1,
       "error": null,
@@ -452,14 +452,14 @@
         "list"
       ],
       "url": "/extras/roles/",
-      "wall_ms": 130.45,
+      "wall_ms": 130.35,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "c31a0b6f2e897137",
+      "content_hash": "e518ce77dc89f695",
       "content_stable": false,
-      "db_ms": 5.0,
+      "db_ms": 3.0,
       "distinct_shapes": 9,
       "duplicate_queries": 1,
       "error": null,
@@ -474,7 +474,7 @@
         "list"
       ],
       "url": "/extras/tags/",
-      "wall_ms": 147.91,
+      "wall_ms": 146.61,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
@@ -497,14 +497,14 @@
         "nested"
       ],
       "url": "/api/dcim/devices/03f84c21-2a5b-4029-8699-3a264d00db70/?depth=1",
-      "wall_ms": 204.61,
+      "wall_ms": 193.75,
       "worst_repeat_count": 1,
       "worst_repeat_sql": "SELECT \"django_session\".\"session_key\", \"django_session\".\"session_data\", \"django_session\".\"expire_date\" FROM \"django_session\" WHERE (\"django_session\".\"expire_date\" > ?::timestamptz AND \"django_session\".\"session_key\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "8050e97358dcf19c",
+      "content_hash": "593577b186ade090",
       "content_stable": false,
-      "db_ms": 2.0,
+      "db_ms": 4.0,
       "distinct_shapes": 8,
       "duplicate_queries": 1,
       "error": null,
@@ -520,14 +520,14 @@
         "core"
       ],
       "url": "/dcim/devices/",
-      "wall_ms": 282.85,
+      "wall_ms": 289.25,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "38e734da415743d4",
+      "content_hash": "ad3480039edc9ba7",
       "content_stable": false,
-      "db_ms": 1.0,
+      "db_ms": 3.0,
       "distinct_shapes": 8,
       "duplicate_queries": 1,
       "error": null,
@@ -542,14 +542,14 @@
         "list"
       ],
       "url": "/dcim/cables/",
-      "wall_ms": 168.35,
+      "wall_ms": 174.83,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "f21867de296aacfe",
+      "content_hash": "e90782ea8feca430",
       "content_stable": false,
-      "db_ms": 2.0,
+      "db_ms": 4.0,
       "distinct_shapes": 8,
       "duplicate_queries": 1,
       "error": null,
@@ -564,14 +564,14 @@
         "list"
       ],
       "url": "/dcim/racks/",
-      "wall_ms": 198.98,
+      "wall_ms": 201.78,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "46b8037994c02cba",
+      "content_hash": "cf41d77ab1557c95",
       "content_stable": false,
-      "db_ms": 7.0,
+      "db_ms": 4.0,
       "distinct_shapes": 8,
       "duplicate_queries": 1,
       "error": null,
@@ -587,14 +587,14 @@
         "tree"
       ],
       "url": "/dcim/locations/",
-      "wall_ms": 449.2,
+      "wall_ms": 246.34,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "b83e514d858d2279",
+      "content_hash": "fb2d74ee2b5349f3",
       "content_stable": false,
-      "db_ms": 6.0,
+      "db_ms": 2.0,
       "distinct_shapes": 8,
       "duplicate_queries": 1,
       "error": null,
@@ -609,14 +609,14 @@
         "list"
       ],
       "url": "/dcim/device-types/",
-      "wall_ms": 371.37,
+      "wall_ms": 201.9,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "c5d6421189ac2096",
+      "content_hash": "60f679a1031d5aa1",
       "content_stable": false,
-      "db_ms": 3.0,
+      "db_ms": 7.0,
       "distinct_shapes": 8,
       "duplicate_queries": 1,
       "error": null,
@@ -632,12 +632,12 @@
         "tree"
       ],
       "url": "/ipam/prefixes/",
-      "wall_ms": 214.87,
+      "wall_ms": 399.73,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "9af284dee9d29e0c",
+      "content_hash": "9af7b88f6caec32a",
       "content_stable": false,
       "db_ms": 4.0,
       "distinct_shapes": 8,
@@ -654,14 +654,14 @@
         "list"
       ],
       "url": "/ipam/vlans/",
-      "wall_ms": 154.35,
+      "wall_ms": 154.71,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "835671995088ad0e",
+      "content_hash": "d2b0cc9439f0c814",
       "content_stable": false,
-      "db_ms": 3.0,
+      "db_ms": 2.0,
       "distinct_shapes": 8,
       "duplicate_queries": 1,
       "error": null,
@@ -676,14 +676,14 @@
         "list"
       ],
       "url": "/circuits/circuits/",
-      "wall_ms": 170.6,
+      "wall_ms": 173.66,
       "worst_repeat_count": 2,
       "worst_repeat_sql": "SELECT \"django_content_type\".\"id\", \"django_content_type\".\"app_label\", \"django_content_type\".\"model\" FROM \"django_content_type\" WHERE (\"django_content_type\".\"app_label\" = ? AND \"django_content_type\".\"model\" = ?) LIMIT ?"
     },
     {
       "content_hash": "d2483fd94d300fe7",
       "content_stable": true,
-      "db_ms": 17.0,
+      "db_ms": 14.0,
       "distinct_shapes": 9,
       "duplicate_queries": 0,
       "error": null,
@@ -699,14 +699,14 @@
         "tree"
       ],
       "url": "/api/dcim/locations/?limit=100",
-      "wall_ms": 300.45,
+      "wall_ms": 295.55,
       "worst_repeat_count": 1,
       "worst_repeat_sql": "SELECT \"django_session\".\"session_key\", \"django_session\".\"session_data\", \"django_session\".\"expire_date\" FROM \"django_session\" WHERE (\"django_session\".\"expire_date\" > ?::timestamptz AND \"django_session\".\"session_key\" = ?) LIMIT ?"
     },
     {
       "content_hash": "d8b1257447bd64fb",
       "content_stable": true,
-      "db_ms": 442.0,
+      "db_ms": 440.0,
       "distinct_shapes": 8,
       "duplicate_queries": 0,
       "error": null,
@@ -722,14 +722,14 @@
         "core"
       ],
       "url": "/api/dcim/devices/?limit=50",
-      "wall_ms": 685.18,
+      "wall_ms": 682.43,
       "worst_repeat_count": 1,
       "worst_repeat_sql": "SELECT \"django_session\".\"session_key\", \"django_session\".\"session_data\", \"django_session\".\"expire_date\" FROM \"django_session\" WHERE (\"django_session\".\"expire_date\" > ?::timestamptz AND \"django_session\".\"session_key\" = ?) LIMIT ?"
     },
     {
       "content_hash": "0790767220120e5f",
       "content_stable": true,
-      "db_ms": 443.0,
+      "db_ms": 448.0,
       "distinct_shapes": 8,
       "duplicate_queries": 0,
       "error": null,
@@ -745,7 +745,7 @@
         "pagination"
       ],
       "url": "/api/dcim/devices/?limit=50&offset=150",
-      "wall_ms": 685.9,
+      "wall_ms": 692.01,
       "worst_repeat_count": 1,
       "worst_repeat_sql": "SELECT \"django_session\".\"session_key\", \"django_session\".\"session_data\", \"django_session\".\"expire_date\" FROM \"django_session\" WHERE (\"django_session\".\"expire_date\" > ?::timestamptz AND \"django_session\".\"session_key\" = ?) LIMIT ?"
     },
@@ -767,14 +767,14 @@
         "list"
       ],
       "url": "/api/dcim/cables/?limit=100",
-      "wall_ms": 337.9,
+      "wall_ms": 331.34,
       "worst_repeat_count": 1,
       "worst_repeat_sql": "SELECT \"django_session\".\"session_key\", \"django_session\".\"session_data\", \"django_session\".\"expire_date\" FROM \"django_session\" WHERE (\"django_session\".\"expire_date\" > ?::timestamptz AND \"django_session\".\"session_key\" = ?) LIMIT ?"
     },
     {
       "content_hash": "3709d1c9b0fcb5c3",
       "content_stable": true,
-      "db_ms": 47.0,
+      "db_ms": 46.0,
       "distinct_shapes": 7,
       "duplicate_queries": 0,
       "error": null,
@@ -789,14 +789,14 @@
         "detail"
       ],
       "url": "/api/dcim/devices/03f84c21-2a5b-4029-8699-3a264d00db70/",
-      "wall_ms": 182.25,
+      "wall_ms": 173.61,
       "worst_repeat_count": 1,
       "worst_repeat_sql": "SELECT \"django_session\".\"session_key\", \"django_session\".\"session_data\", \"django_session\".\"expire_date\" FROM \"django_session\" WHERE (\"django_session\".\"expire_date\" > ?::timestamptz AND \"django_session\".\"session_key\" = ?) LIMIT ?"
     },
     {
       "content_hash": "80bde805acc0decd",
       "content_stable": true,
-      "db_ms": 57.0,
+      "db_ms": 54.0,
       "distinct_shapes": 6,
       "duplicate_queries": 0,
       "error": null,
@@ -812,14 +812,14 @@
         "tree"
       ],
       "url": "/api/ipam/prefixes/?limit=100",
-      "wall_ms": 336.4,
+      "wall_ms": 324.02,
       "worst_repeat_count": 1,
       "worst_repeat_sql": "SELECT \"django_session\".\"session_key\", \"django_session\".\"session_data\", \"django_session\".\"expire_date\" FROM \"django_session\" WHERE (\"django_session\".\"expire_date\" > ?::timestamptz AND \"django_session\".\"session_key\" = ?) LIMIT ?"
     },
     {
       "content_hash": "48b884c54a6c9db9",
       "content_stable": true,
-      "db_ms": 15.0,
+      "db_ms": 14.0,
       "distinct_shapes": 6,
       "duplicate_queries": 0,
       "error": null,
@@ -834,12 +834,12 @@
         "list"
       ],
       "url": "/api/ipam/ip-addresses/?limit=100",
-      "wall_ms": 238.02,
+      "wall_ms": 234.47,
       "worst_repeat_count": 1,
       "worst_repeat_sql": "SELECT \"django_session\".\"session_key\", \"django_session\".\"session_data\", \"django_session\".\"expire_date\" FROM \"django_session\" WHERE (\"django_session\".\"expire_date\" > ?::timestamptz AND \"django_session\".\"session_key\" = ?) LIMIT ?"
     },
     {
-      "content_hash": "67646f9ac9f345ef",
+      "content_hash": "1ed8bfc1b91697a1",
       "content_stable": false,
       "db_ms": 1.0,
       "distinct_shapes": 3,
@@ -856,7 +856,7 @@
         "search"
       ],
       "url": "/search/?q=sw",
-      "wall_ms": 64.16,
+      "wall_ms": 66.29,
       "worst_repeat_count": 1,
       "worst_repeat_sql": "SELECT \"django_session\".\"session_key\", \"django_session\".\"session_data\", \"django_session\".\"expire_date\" FROM \"django_session\" WHERE (\"django_session\".\"expire_date\" > ?::timestamptz AND \"django_session\".\"session_key\" = ?) LIMIT ?"
     }
