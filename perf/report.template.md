@@ -112,30 +112,7 @@ tables around it.)
 
 <!--GEN:findings-->
 
-## Current state — all fourteen fixes at scale
-
-Re-established against the 24,091-object dataset on a pristine tree, then measured with all
-accepted fixes applied. Fourteen changes across 33 files, each with its own hypothesis, method
-and numbers in its commit message.
-
-Queries are exact and repeatable. In-process timing is the median of three separate runs of 15
-repetitions.
-
-| Scenario | Queries | In-process |
-|---|---|---|
-| **`api.interface.depth1`** | 1,229 → 292 (−76%) | 1,512 → 347ms (−77%) |
-| `api.interface.list` | 23 → 23 | 373 → 153ms (−59%) |
-| `api.device.list.depth1` | 112 → 11 (−90%) | 320 → 214ms (−33%) |
-| `api.location.list` | 9 → 9 | 94 → 50ms (−47%) |
-| `api.device.list` | 8 → 8 | 231 → 177ms (−23%) |
-| `ui.device.detail` | 108 → 52 (−52%) | — |
-| `ui.device.interfaces` | 71 → 39 (−45%) | — |
-| `ui.location.detail` | 68 → 39 (−43%) | — |
-| `ui.prefix.detail` | 79 → 49 (−38%) | — |
-| `ui.rack.detail` | 99 → 63 (−36%) | — |
-| `ui.interface.list` | 10 → 10 | 64 → 47ms (−27%) |
-| **All 38 scenarios** | **2,235 → 957 (−57.2%)** | — |
-| **Duplicate queries, all 38** | **1,604 → 346 (−78.4%)** | — |
+<!--GEN:cumulative-->
 
 Write path. Queries and config reads are deterministic; config reads are Redis round-trips
 through Constance.
@@ -174,6 +151,12 @@ measurement host. No before/after column: this is a reference, and it replaces a
 instrument that was measuring something else (see below).
 
 <!--GEN:tier2-->
+
+### In-process reference, same host
+
+Absolute figures with no HTTP layer, for the endpoints where serialization dominates.
+
+<!--GEN:bench-->
 
 ## What measurement overturned
 
@@ -306,10 +289,14 @@ It is a ranking instrument, not a gate; the inner loop stays at 38 scenarios.
   A serial run (`invoke tests --no-parallel`) is the gating item before any of this becomes a
   pull request. Note that `test_get_docs_url` fails across ~35 dcim model tests whenever
   `--skip-docs-build` is passed, on a clean tree too.
-- **No changelog fragments and no docs yet.** 33 files of core changes, including a new public
-  export (`nautobot.apps.tables.TemplateColumn`) that needs documenting and an upgrade note,
-  since it reimplements django_tables2 3.0.1 internals. The fragments in `changes/` belong to
-  unrelated develop work.
+- **No changelog fragments, deliberately.** Nothing here reaches a release in its current
+  shape: anything upstreamed would go through review and very likely change, so a fragment
+  written now would describe a change that no longer exists. The commit messages and the
+  findings records carry more than a fragment would, and each finding's caveat is already
+  written the way a release note would have to write it. The same applies to documenting the
+  new `nautobot.apps.tables.TemplateColumn` export and the django_tables2 upgrade note --
+  both are real requirements for landing, recorded against their findings, and written
+  against the final shape rather than this one.
 - **Absolute wall-clock figures are not comparable across the two machines used here.** Round
   one ran on an Apple Silicon workstation; round two on an Intel i5-8259U with turbo disabled,
   which is 4–6× slower in absolute terms and far more precise. Relative comparisons hold;
