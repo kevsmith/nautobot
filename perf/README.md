@@ -193,6 +193,11 @@ a point lookup, so per-query heuristics do not transfer to them.
 
 - The improvement is real on an instrument that can see it, with the arms proven
   to differ by a deterministic counter.
+- Wall clock takes three alternating rounds, and the arm order **reverses between
+  rounds**. Running the same arm first every time lets a monotonic drift bias one
+  arm: on finding 26 two endpoints the change could not touch read +7.1% and
+  +4.9% for the arm that always went first, and had to be discarded. A figure
+  that moves against the ordering bias is the one worth trusting.
 
 **Every experiment measures wall clock**, whatever its primary signal is. That was not
 true for the first fifteen: eight carried no wall-clock figure, because timings on the
