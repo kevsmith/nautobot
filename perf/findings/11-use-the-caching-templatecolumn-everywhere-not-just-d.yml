@@ -14,7 +14,7 @@ summary: Converts the remaining 67 TemplateColumn call sites across circuits, te
 result:
   note: same mechanism and measured effect as 40c3af5fe; the saving scales with rows x TemplateColumns
     per table
-wall_clock: not measured; same mechanism as 07
+wall_clock: not measured — same mechanism as 07, −18.5% there
 wall_clock_detail: not measured for this commit -- the machine was under concurrent profiling
   load. The mechanism is identical to finding 07, measured there at -18.5% on ui.device.interfaces,
   and the saving scales with rows x TemplateColumns per table
