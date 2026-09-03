@@ -30,6 +30,31 @@ services:
   nautobot:
     ports: !override
       - "8180:8080"
+    # Serve under uwsgi, not `runserver`.
+    #
+    # The dev image's CMD is `nautobot-server runserver 0.0.0.0:8080 --insecure`
+    # -- Django's development server: one process, threaded, GIL-bound. Since the
+    # cost on this branch is Python-side rather than SQL, concurrent requests
+    # serialize on the GIL, which is why round one's Tier 2 p95 ran 4-6x the
+    # in-process median on the same endpoint (api.interface.depth1: 347ms
+    # in-process, 1,752ms p95). Production runs uwsgi, so Tier 2 was measuring a
+    # server nobody deploys.
+    #
+    # Two consequences:
+    #   * No autoreloader. A code sync MUST be followed by a restart of this
+    #     service, or Tier 2 measures the previous version -- `perf/sync.sh
+    #     --restart` does that. Tier 1 and Tier 1W spawn a fresh Python process
+    #     inside the container and are unaffected either way.
+    #   * Static files are not served. Irrelevant to both instruments (Tier 1
+    #     reads the response body, Tier 2 requests one URL and no
+    #     sub-resources), but the UI renders unstyled in a browser.
+    #
+    # To fall back to the dev server, comment out this command block.
+    command:
+      - "nautobot-server"
+      - "start"
+      - "--ini"
+      - "/source/development/uwsgi-perf.ini"
     volumes:
       # The dev overlay bind-mounts the whole repo at /source, which masks the
       # node_modules the image builds at /source/nautobot/ui/node_modules. On a
