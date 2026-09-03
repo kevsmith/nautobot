@@ -1,0 +1,23 @@
+---
+seq: 9
+commit: 295b54700
+status: accepted
+behaviour: B1
+migration: '-'
+flags: []
+title: Build nested serializers once, and share one instance per cabled row
+site: nautobot/core/api/utils.py - nautobot/dcim/api/serializers.py
+summary: build_nested_field() synthesizes a new serializer class on every call and instantiating
+  it deep-copies every declared field; a page of Interfaces at depth 1 built ~250 where 3
+  are needed. Separately, cable_peer and connected_endpoint resolved to the same 166 rows
+  with 100% overlap -- two Python instances per row, each with its own empty FK cache, each
+  re-walking the chain from cold.
+result:
+  queries: 1229 -> 629 (-600)
+  in_process: api.interface.depth1 753.4 -> 404.8ms (-45.8%)
+controls: api.device.list.depth1 flat at 209.8/212.7 vs 212.4/214.7
+caveat: null
+note: The largest single win on the branch, and the earlier attribution missed it entirely
+  -- it named ~150 GFK fetches, ~100 device bays and ~77 cable paths, which were the small
+  items, and missed the 70% item. Found by grouping queries by originating call site and checking
+  instance provenance.

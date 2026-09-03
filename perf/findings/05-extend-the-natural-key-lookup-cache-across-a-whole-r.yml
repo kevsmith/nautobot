@@ -1,0 +1,21 @@
+---
+seq: 5
+commit: 2f7bf3003
+status: accepted
+behaviour: B1
+migration: '-'
+flags: []
+title: Extend the natural-key lookup cache across a whole read request
+site: nautobot/core/api/views.py
+summary: 'ModelViewSetMixin.dispatch() wraps safe methods in the cache_natural_key_field_lookups()
+  scope. Writes deliberately keep recomputing: a POST can deepen the Location tree and then
+  serialize the result in the same request, and must observe the new depth.'
+result:
+  config_reads: api.interface.depth1 1938 -> 2 (-99.9%), api.interface.list 612 -> 2, api.device.list
+    156 -> 2
+controls: api.prefix.list 0 -> 0 and api.cable.list 0 -> 0 -- a previously considered global
+  cache had regressed prefix ~18% by adding Redis reads to models that needed none
+tests: core test_api 61 OK
+caveat: null
+note: Wall clock was unusable during this experiment -- the container was under ~260% CPU
+  from concurrent profiling -- so the deterministic config-read count is the primary evidence.

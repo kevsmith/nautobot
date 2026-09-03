@@ -1,0 +1,23 @@
+---
+seq: 15
+commit: 27b3ec422
+status: rejected
+behaviour: A
+migration: '-'
+flags: []
+title: Pre-warm natural-key FK chains with one select_related
+site: nautobot/core/models/__init__.py
+summary: Replaces the hop-by-hop walk with a single select_related covering the whole natural-key
+  chain.
+result:
+  queries: 2357 -> 1359 (-666 beyond the accepted fixes)
+  in_process: api.interface.depth1 1092 -> 1767ms (+62%)
+caveat: null
+reason: 'Failed the gate: slower. Location''s natural key is variadic on live tree depth,
+  so with max_depth 4 it expands to eight prefixes and an 8-join, 5,420-character query per
+  object. PostgreSQL answers it quickly, but Django then materializes wide rows across eight
+  tables and instantiates a model object for each. It also added a per-call inspection walk
+  to every natural_key(), slowing a depth-0 endpoint it was never meant to touch.'
+note: The most useful result on the branch. The variant that looked three times better by
+  query count was the one that regressed past the original baseline in wall time. Deeper Location
+  trees make it worse, not better.

@@ -1,0 +1,22 @@
+---
+seq: 11
+commit: d25990a84
+status: accepted
+behaviour: A
+migration: '-'
+flags:
+- third-party-coupled
+title: Use the caching TemplateColumn everywhere, not just device tables
+site: nautobot/circuits/tables.py and nine other table modules
+summary: Converts the remaining 67 TemplateColumn call sites across circuits, tenancy, ipam,
+  extras, the App-plugins table and the dcim cables/racks/locations/power modules. Zero remain
+  outside tests.
+result:
+  note: same mechanism and measured effect as 40c3af5fe; the saving scales with rows x TemplateColumns
+    per table
+tests: core test_tables 17 OK, dcim test_tables 34 OK, ipam test_tables 7 OK, extras test_tables
+  7 OK, ipam test_views 596 OK
+caveat: null
+note: 'No wall-clock number quoted: the machine was under concurrent profiling load, and timings
+  here need an idle box and three alternating rounds. Deterministic signals unchanged as expected,
+  since this removes Python work rather than queries.'
