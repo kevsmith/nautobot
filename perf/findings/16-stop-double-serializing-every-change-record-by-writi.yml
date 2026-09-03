@@ -14,7 +14,7 @@ summary: to_objectchange() calls both serialize_object() for v1 and serialize_ob
 result:
   queries: -200 per 100 writes (-14.2% on bulk.create.loop); exactly two queries per ObjectChange
     record
-wall_clock: not measured
+wall_clock: not measured — never a candidate to ship
 wall_clock_detail: not measured. Deterministic query counts were the point; the change was
   never a candidate to ship
 controls: 'read path unaffected: Tier 1 total unchanged, all endpoints 200'

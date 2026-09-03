@@ -17,7 +17,7 @@ result:
   measured_prize: 49 get_prev_change calls costing 101.3ms of a 3278.7ms bulk.update.x100.deferred
     (3.1%); 50 calls costing 96.9ms of 3535.0ms on bulk.delete.x100 (2.7%); 0 calls on bulk.create.deferred,
     since it only fires for non-CREATE actions; 2 calls costing 4.1ms on delete.device (0.9%)
-wall_clock: '**3.1% ceiling** — too small to build'
+wall_clock: −3.1% ceiling, bulk update
 wall_clock_detail: 'The prize was measured before the fix was attempted, by wrapping get_prev_change
   to count and time its calls while running the same operations Tier 1W runs. Batching cannot
   recover all of it -- the batch is still one query -- so the realistic saving is ~3.0% of

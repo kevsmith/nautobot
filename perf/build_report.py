@@ -111,6 +111,11 @@ def load_findings():
 
 REQUIRED = ("seq", "status", "behaviour", "migration", "title", "summary", "wall_clock")
 
+# A wall-clock headline is a signed percentage, or an explicit statement that there
+# is none. Absolutes mixed in among percentages make the column incomparable row to
+# row, so one is only allowed alongside a percentage, in parentheses.
+WALL_OK = re.compile(r"^(?:[+−-]|≈[+−-]?)\d|^not measured|^not applicable|^no measurable")
+
 
 def validate(findings):
     """Return a list of schema problems.
@@ -126,6 +131,11 @@ def validate(findings):
         for key in REQUIRED:
             if not f.get(key):
                 problems.append(f"finding {f.get('seq', '??')}: missing {key}")
+        if f.get("wall_clock") and not WALL_OK.match(str(f["wall_clock"])):
+            problems.append(
+                f"finding {f['seq']}: wall_clock {f['wall_clock']!r} should lead with a signed "
+                "percentage, or say 'not measured — <reason>'"
+            )
         if f.get("behaviour") not in ("A", "B1", "B2", "C"):
             problems.append(f"finding {f['seq']}: behaviour {f.get('behaviour')!r} not a tier")
         needs = f.get("behaviour") in ("B2", "C") or f.get("migration", "-") != "-"
@@ -142,22 +152,26 @@ def tiers(f):
     return " ".join(f"`{b}`" for b in bits)
 
 
-WALL_KEYS = ("in_process", "wall", "isolated")
-CELL_MAX = 90
+# The summary table shows the three instruments by name. `result` accumulated ten
+# different keys across 27 findings -- expected, cost, observed, measured_prize,
+# unmeasured, note -- so a column showing "whichever came first" read as a notes
+# field rather than a measurement. Those keys still appear in each finding's own
+# detail table; only the summary is restricted.
+QUERY_KEYS = ("queries",)
+CACHE_KEYS = ("config_reads", "redis_reads")
+CELL_MAX = 46
 
 
-def primary(f):
-    """The most telling non-wall-clock figure, short enough for a table cell.
-
-    Wall clock has its own column, so repeating it here says nothing; and a
-    couple of records carry a result value long enough to wreck the table, which
-    belongs in the detail section rather than the summary.
-    """
-    r = {k: v for k, v in (f.get("result") or {}).items() if k not in WALL_KEYS}
-    if not r:
-        return "—"
-    value = str(next(iter(r.values())))
-    return value if len(value) <= CELL_MAX else value[: CELL_MAX - 1].rstrip(" ,;") + "…"
+def instrument(f, keys):
+    """The first of `keys` present in a finding's result, trimmed for a table cell."""
+    r = f.get("result") or {}
+    for key in keys:
+        if key in r:
+            value = str(r[key])
+            if len(value) > CELL_MAX:
+                value = value[: CELL_MAX - 1].rstrip(" ,;") + "…"
+            return value
+    return "—"
 
 
 def load_runs(pattern, key):
@@ -326,12 +340,16 @@ def render_findings(findings):
         "filter -- nothing here is disqualified for being expensive, it is labelled so "
         "the price is visible. `perf/README.md` defines the taxonomy.",
         "",
-        "| # | Change | Tier | Wall clock | Other instruments | Status |",
-        "|---:|---|---|---|---|---|",
+        "| # | Change | Tier | Wall clock | Queries | Cache reads | Status |",
+        "|---:|---|---|---|---|---|---|",
     ]
     for f in findings:
         link = f"[{f['title']}](#{anchor(f['title'])})"
-        out.append(f"| {f['seq']:02d} | {link} | {tiers(f)} | {f['wall_clock']} | {primary(f)} | {f['status']} |")
+        out.append(
+            f"| {f['seq']:02d} | {link} | {tiers(f)} | {f['wall_clock']} "
+            f"| {instrument(f, QUERY_KEYS)} | {instrument(f, CACHE_KEYS)} "
+            f"| {f['status']} |"
+        )
     out.append("")
 
     legend = ", ".join(f"`{k}` {v}" for k, v in TIER_HELP.items())

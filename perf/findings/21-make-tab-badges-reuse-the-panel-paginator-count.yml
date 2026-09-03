@@ -11,7 +11,7 @@ summary: The tab badge issues its own COUNT alongside the one django-tables2's p
   computed.
 result:
   in_process: no measurable effect
-wall_clock: none measurable
+wall_clock: no measurable change
 wall_clock_detail: no measurable effect
 caveat: The badge would show the permission-filtered count rather than the raw related count
   -- a visible number changing for non-superusers.
