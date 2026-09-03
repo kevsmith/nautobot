@@ -29,7 +29,11 @@
 services:
   nautobot:
     ports: !override
+      # 8180 is what the harness measures against -- tier2_latency.py defaults to
+      # it -- and is kept so measurement defaults do not move. 8080 is published
+      # on all interfaces alongside it, for reaching the stack from a browser.
       - "8180:8080"
+      - "0.0.0.0:8080:8080"
     # Serve under uwsgi, not `runserver`.
     #
     # The dev image's CMD is `nautobot-server runserver 0.0.0.0:8080 --insecure`
