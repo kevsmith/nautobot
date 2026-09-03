@@ -624,10 +624,20 @@ class PowerOutletViewSet(PathEndpointMixin, NautobotModelViewSet):
 
 
 class InterfaceViewSet(PathEndpointMixin, NautobotModelViewSet):
-    queryset = Interface.objects.prefetch_related(
-        *Interface.connection_prefetch_related_fields(), *Interface.cable_peer_prefetch_related_fields()
-    ).annotate(
-        _ip_address_count=count_related(IPAddress, "interfaces")  # avoid conflict with Interface.ip_address_count()
+    queryset = (
+        Interface.objects
+        # DeviceSerializer pulls in parent_bay explicitly (it is the reverse side
+        # of DeviceBay.installed_device, so DRF does not auto-include it), and a
+        # reverse one-to-one costs one query per Device unless it is joined. At
+        # ?depth=1 that is one query per row on the page.
+        .select_related("device__parent_bay")
+        .prefetch_related(
+            *Interface.connection_prefetch_related_fields(),
+            *Interface.cable_peer_prefetch_related_fields(),
+        )
+        .annotate(
+            _ip_address_count=count_related(IPAddress, "interfaces")  # avoid conflict with Interface.ip_address_count()
+        )
     )
     serializer_class = serializers.InterfaceSerializer
     filterset_class = filters.InterfaceFilterSet
