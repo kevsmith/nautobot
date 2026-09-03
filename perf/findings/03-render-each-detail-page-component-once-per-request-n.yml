@@ -14,7 +14,7 @@ summary: The detail template walks the same tab and panel tree three times and n
   COUNT from seven distinct call sites.
 result:
   queries: ui.device.detail 108 -> 68, ui.device.interfaces 74 -> 42, total -186
-wall_clock: not measured
+wall_clock: not measured — no wall-clock A/B was run
 wall_clock_detail: not measured. The commit reports query counts and a byte-for-byte HTML
   diff only; no wall-clock A/B was run
 controls: Rendered HTML diffed byte-for-byte before and after; only the CSRF token differed

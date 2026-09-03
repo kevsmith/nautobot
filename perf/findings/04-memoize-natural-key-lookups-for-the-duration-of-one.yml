@@ -14,7 +14,7 @@ summary: natural_key_field_lookups is an uncached classproperty, rebuilt on ever
 result:
   config_reads: 1800 -> 200 per 100-object create loop (-89%)
   queries: unchanged at 1404
-wall_clock: ~−13%, within variance
+wall_clock: −13% bulk create, within variance
 wall_clock_detail: ~1010 -> ~877ms on the 100-interface create loop, directionally consistent
   across repeats but within run-to-run variance. Quoted as supporting evidence, not as the
   result -- the deterministic config-read count is the result

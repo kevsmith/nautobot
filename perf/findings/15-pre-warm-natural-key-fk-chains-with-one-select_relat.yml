@@ -12,7 +12,7 @@ summary: Replaces the hop-by-hop walk with a single select_related covering the 
 result:
   queries: 2357 -> 1359 (-666 beyond the accepted fixes)
   in_process: api.interface.depth1 1092 -> 1767ms (+62%)
-wall_clock: '**+62%** — the reason it was rejected'
+wall_clock: +62% api.interface.depth1
 wall_clock_detail: '-666 queries and api.interface.depth1 1092 -> 1767ms, +62%. The wall-clock
   measurement IS the result here: it is what rejected the change'
 caveat: null

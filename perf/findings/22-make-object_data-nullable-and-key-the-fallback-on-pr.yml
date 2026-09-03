@@ -13,7 +13,7 @@ summary: AlterField with null=True on ObjectChange.object_data is metadata-only 
 result:
   expected: the ~12% of write-path queries and ~200 queries per 100 writes that seq 16 measured,
     without its contract change
-wall_clock: not measured; proposed
+wall_clock: not measured — proposed
 wall_clock_detail: not measured -- proposed, not yet run
 caveat: Records created after the change carry no object_data. Any consumer reading that field
   directly, rather than through get_snapshots(), sees null for new records. The field stays
