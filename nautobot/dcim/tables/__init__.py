@@ -1,7 +1,7 @@
 import django_tables2 as tables
 from django_tables2.utils import Accessor
 
-from nautobot.core.tables import BaseTable, BooleanColumn
+from nautobot.core.tables import BaseTable, BooleanColumn, TemplateColumn
 from nautobot.dcim.models import CablePath, ConsolePort, PowerPort
 
 from .cables import CableTable, CableTypeTable
@@ -207,10 +207,10 @@ class InterfaceConnectionTable(BaseTable):
     rows) while each fan-out endpoint appears on its own row on the B side.
     """
 
-    device_a = tables.TemplateColumn(
+    device_a = TemplateColumn(
         template_code=INTERFACE_CONNECTION_DEVICE_A, orderable=False, verbose_name="Device A"
     )
-    interface_a = tables.TemplateColumn(
+    interface_a = TemplateColumn(
         template_code=INTERFACE_CONNECTION_INTERFACE_A, orderable=False, verbose_name="Interface A"
     )
     device_b = tables.Column(
