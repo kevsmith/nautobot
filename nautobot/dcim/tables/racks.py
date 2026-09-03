@@ -6,6 +6,7 @@ from nautobot.core.tables import (
     ButtonsColumn,
     LinkedCountColumn,
     TagColumn,
+    TemplateColumn,
     ToggleColumn,
 )
 from nautobot.dcim.models import Rack, RackGroup, RackReservation
@@ -29,7 +30,7 @@ __all__ = (
 
 class RackGroupTable(BaseTable):
     pk = ToggleColumn()
-    name = tables.TemplateColumn(template_code=TREE_LINK, attrs={"td": {"class": "text-nowrap"}})
+    name = TemplateColumn(template_code=TREE_LINK, attrs={"td": {"class": "text-nowrap"}})
     location = tables.Column(linkify=True)
     rack_count = LinkedCountColumn(
         viewname="dcim:rack_list",
@@ -55,7 +56,7 @@ class RackTable(StatusTableMixin, RoleTableMixin, BaseTable):
     rack_group = tables.Column(linkify=True)
     location = tables.Column(linkify=True)
     tenant = TenantColumn()
-    u_height = tables.TemplateColumn(template_code="{{ record.u_height }}U", verbose_name="Height")
+    u_height = TemplateColumn(template_code="{{ record.u_height }}U", verbose_name="Height")
 
     class Meta(BaseTable.Meta):
         model = Rack
@@ -93,8 +94,8 @@ class RackDetailTable(RackTable):
         url_params={"rack": "pk"},
         verbose_name="Devices",
     )
-    get_utilization = tables.TemplateColumn(template_code=UTILIZATION_GRAPH, orderable=False, verbose_name="Space")
-    get_power_utilization = tables.TemplateColumn(
+    get_utilization = TemplateColumn(template_code=UTILIZATION_GRAPH, orderable=False, verbose_name="Space")
+    get_power_utilization = TemplateColumn(
         template_code=UTILIZATION_GRAPH, orderable=False, verbose_name="Power"
     )
     tags = TagColumn(url_name="dcim:rack_list")

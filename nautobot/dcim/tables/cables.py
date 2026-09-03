@@ -8,6 +8,7 @@ from nautobot.core.tables import (
     ColorColumn,
     LinkedCountColumn,
     TagColumn,
+    TemplateColumn,
     ToggleColumn,
 )
 from nautobot.dcim.models import Cable, CableType
@@ -90,7 +91,7 @@ class CableTable(StatusTableMixin, BaseTable):
         orderable=False,
         verbose_name="Termination A",
     )
-    terminations_a = tables.TemplateColumn(
+    terminations_a = TemplateColumn(
         template_code=CABLE_TERMINATIONS_MULTI,
         accessor=Accessor("get_connections_a"),
         orderable=False,
@@ -108,13 +109,13 @@ class CableTable(StatusTableMixin, BaseTable):
         orderable=False,
         verbose_name="Termination B",
     )
-    terminations_b = tables.TemplateColumn(
+    terminations_b = TemplateColumn(
         template_code=CABLE_TERMINATIONS_MULTI,
         accessor=Accessor("get_connections_b"),
         orderable=False,
         verbose_name="B-Side Terminations",
     )
-    length = tables.TemplateColumn(template_code=CABLE_LENGTH, order_by="_abs_length")
+    length = TemplateColumn(template_code=CABLE_LENGTH, order_by="_abs_length")
     color = ColorColumn()
     tags = TagColumn(url_name="dcim:cable_list")
     actions = ButtonsColumn(Cable)
