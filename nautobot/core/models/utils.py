@@ -19,6 +19,7 @@ from nautobot.core.utils.data import is_uuid
 
 
 _natural_key_field_lookups_cache = contextvars.ContextVar("natural_key_field_lookups_cache", default=None)
+_serializer_instance_cache = contextvars.ContextVar("serializer_instance_cache", default=None)
 
 
 @contextlib.contextmanager
@@ -35,11 +36,18 @@ def cache_natural_key_field_lookups():
     cache would go stale. Config cannot change partway through a single serialization pass, so caching for that
     duration is safe.
     """
-    token = _natural_key_field_lookups_cache.set({})
+    if _natural_key_field_lookups_cache.get() is not None:
+        # Already inside a scope -- reuse it rather than shadowing it with an empty one, so that a caller
+        # which opens the scope around a whole batch keeps its cache for every object in that batch.
+        yield
+        return
+    lookup_token = _natural_key_field_lookups_cache.set({})
+    serializer_token = _serializer_instance_cache.set({})
     try:
         yield
     finally:
-        _natural_key_field_lookups_cache.reset(token)
+        _natural_key_field_lookups_cache.reset(lookup_token)
+        _serializer_instance_cache.reset(serializer_token)
 
 
 def cached_natural_key_field_lookups(func):
@@ -234,6 +242,9 @@ def serialize_object(obj, extra=None, exclude=None):
     return data
 
 
+SERIALIZE_V2_CONTEXT = {"request": None, "depth": 1, "exclude_m2m": False}
+
+
 def serialize_object_v2(obj):
     """
     Return a JSON serialized representation of an object using obj's serializer.
@@ -245,10 +256,23 @@ def serialize_object_v2(obj):
         # Try serializing obj(model instance) using its API Serializer
         try:
             serializer_class = get_serializer_for_model(obj.__class__)
-            data = serializer_class(obj, context={"request": None, "depth": 1, "exclude_m2m": False}).data
         except SerializerNotFound:
             # Fall back to generic JSON representation of obj
-            data = serialize_object(obj)
+            return serialize_object(obj)
+
+        # Constructing a serializer builds every one of its fields, and change logging constructs a fresh one
+        # for each changed object: profiling a 100-Interface batch showed 445 serializer constructions and
+        # 7444 field builds. The context here is a fixed constant, and `to_representation()` reads only the
+        # object handed to it -- never `self.instance` -- so within one scope a single instance per serializer
+        # class can render every object. Note `.data` is deliberately not used: it reads `self.instance`.
+        cache = _serializer_instance_cache.get()
+        if cache is None:
+            return serializer_class(obj, context=SERIALIZE_V2_CONTEXT).data
+        serializer = cache.get(serializer_class)
+        if serializer is None:
+            serializer = serializer_class(context=SERIALIZE_V2_CONTEXT)
+            cache[serializer_class] = serializer
+        data = serializer.to_representation(obj)
 
     return data
 
