@@ -318,12 +318,12 @@ ul.tight li { margin-bottom: 7px; }
   <h1>Nautobot Performance Experiments</h1>
   <p class="standfirst">A measured baseline of Nautobot core's read and write paths, and the ranked findings that come out of it. Every number here was produced by a reproducible harness against a fixed dataset.</p>
 
-  <dl class="factbar">
-    <div class="fact"><dt>Branch</dt><dd>next · 3.3.0a0</dd></div>
+    <dl class="factbar">
+    <div class="fact"><dt>Branch</dt><dd>next &middot; 3.3.0a0</dd></div>
     <div class="fact"><dt>Dataset</dt><dd>24,091 objects</dd></div>
     <div class="fact"><dt>Read scenarios</dt><dd>38</dd></div>
     <div class="fact"><dt>Accepted fixes</dt><dd>14</dd></div>
-    <div class="fact"><dt>Queries</dt><dd>2,235 &rarr; 957</dd></div>
+    <div class="fact"><dt>Queries</dt><dd>2,235 &rarr; 1,696</dd></div>
   </dl>
   <p class="provenance">Regenerated at <code>3d59d0854</code>. Read-path queries from <code>results/tier1-large-f14.json</code>; in-process wall clock from <code>results/nk-with{1,2,3}.json</code> (median of three runs) against <code>baselines/large-bench-baseline.json</code>; HTTP p95 from <code>results/large-tier2-final.json</code>, which predates the last two fixes. Write path from <code>results/large-tier1w-final.json</code> plus the A/B arms of <code>5f351dc5b</code>.</p>
 </header>
@@ -421,129 +421,375 @@ ul.tight li { margin-bottom: 7px; }
 </section>
 
 <section>
-  <h2>Findings</h2>
+  <h2>Free wins</h2>
   <hr class="sec-rule">
-  <div class="prose">
-    <p>Ranked by measured impact, and written as they stood at the end of round one. Every one of these except F-05 has since been committed with its own clean-tree measurement — see the ledger at the foot of the page for the commit and the final number. The <em>analysis</em> in each card is preserved as written, including the two attributions that later measurement corrected.</p>
-  </div>
-
-  <div class="finding">
-    <div class="finding-head">
-      <span class="fid">F-01</span>
-      <h3>Nested serializers walk foreign keys one query per hop</h3>
-      <div class="tags"><span class="tag tag-verified">committed</span><span class="tag">tier A + B</span></div>
-    </div>
-    <p class="src">nautobot/core/api/views.py:263 · nautobot/core/models/__init__.py:174 · nautobot/dcim/api/serializers.py:166</p>
-    <div class="prose">
-      <p>Every serializer carries a <code>natural_slug</code> field, and computing it traverses foreign keys with plain <code>getattr()</code> — one SELECT per uncached hop. The viewset's prefetch logic inspects <em>top-level</em> serializer fields only, skipping any source containing a dot, so objects reached through nested <code>?depth</code> serializers and through GenericForeignKeys are never prefetched.</p>
-      <p>The 666 repeated location queries decompose exactly: 150 interfaces are fetched cold through <code>cable_peer</code> and <code>connected_endpoint</code>; with <code>Location.objects.max_depth == 4</code>, 122 of them pay 5 hops and 28 hit a null parent at 2 — <strong>122 × 5 + 28 × 2 = 666</strong>.</p>
-      <p>Reported impact: <code>api.interface.depth1</code> 1,332 → 435 queries, <code>api.device.list.depth1</code> 112 → 11, and 2,357 → 1,359 across all 38 scenarios.</p>
-    </div>
-  </div>
-
-  <div class="finding">
-    <div class="finding-head">
-      <span class="fid">F-02</span>
-      <h3>Detail pages render the component tree three times</h3>
-      <div class="tags"><span class="tag tag-verified">committed</span><span class="tag">tier A + B</span></div>
-    </div>
-    <p class="src">nautobot/core/templates/generic/object_retrieve.html:45, :122, :129</p>
-    <div class="prose">
-      <p>The detail template walks the same tab and panel tree three times — labels, table-config forms, then contents — and nothing memoizes between passes. <code>should_render()</code> runs three times per tab, <code>render_label()</code> twice, and <code>ObjectsTablePanel.get_extra_context()</code>, which builds <em>and paginates</em> a table, runs twice. A single device page issues the identical <code>extras_contactassociation</code> COUNT from seven distinct call sites.</p>
-      <p>This is model-agnostic, which explains why Device, Rack, Prefix and Location all show the same shape while list views — which have no tabs and no multi-pass template — stay at 9–10 queries.</p>
-      <p>Reported impact: 2,357 → 2,171 overall, with <code>ui.device.detail</code> 108 → 68 and <code>ui.device.interfaces</code> 74 → 42. Rendered HTML was diffed byte-for-byte before and after; only the CSRF token differed.</p>
-    </div>
-  </div>
-
+  <div class="prose"><p>No migration, no user-visible change, no caveat to weigh. Adoptable as-is.</p></div>
   <div class="finding">
     <div class="finding-head">
       <span class="fid">F-03</span>
-      <h3>An eagerly evaluated default computes every natural key twice</h3>
-      <div class="tags"><span class="tag tag-verified">verified</span><span class="tag">tier A</span></div>
+      <h3>Make the natural-key fallback lazy, so it is not computed and discarded per row</h3>
+      <div class="tags"><span class="tag" title="no observable change">A</span></div>
     </div>
-    <p class="src">nautobot/core/api/serializers.py:495 and :483</p>
+    <p class="src"><code>1974922f0</code> &middot; nautobot/core/api/serializers.py:495</p>
     <div class="prose">
-      <p><code>getattr(instance, "natural_slug", construct_natural_slug(instance.natural_key(), pk=instance.pk))</code> — Python evaluates that third argument before the attribute lookup. Since <code>natural_slug</code> is a <code>BaseModel</code> property that always exists, the fallback is computed and discarded on every row, and the property then computes <code>natural_key()</code> a second time. The recursive natural-key machinery reads Constance config from Redis at each level, so this cost around 3,300 Redis round-trips per request.</p>
-      <p>Making the fallback lazy removes no queries at all — which is precisely why a query-count gate alone would have missed it.</p>
-    </div>
-    <div class="tablewrap">
-      <table>
-        <caption>Measured in-process, median of 15 reps, before and after.</caption>
-        <thead><tr><th>Endpoint</th><th class="num">Before</th><th class="num">After</th><th class="num">Change</th></tr></thead>
-        <tbody>
-          <tr><td class="id">api.interface.list</td><td class="num">357.9 ms</td><td class="num">268.2 ms</td><td class="num delta-good">−25.1%</td></tr>
-          <tr><td class="id">api.interface.depth1</td><td class="num">1,479.1 ms</td><td class="num">1,254.4 ms</td><td class="num delta-good">−15.2%</td></tr>
-          <tr><td class="id">ui.interface.list</td><td class="num">64.2 ms</td><td class="num">56.0 ms</td><td class="num delta-good">−12.9%</td></tr>
-          <tr><td class="id">api.device.list</td><td class="num">217.7 ms</td><td class="num">191.5 ms</td><td class="num delta-good">−12.0%</td></tr>
-          <tr><td class="id">api.device.list.depth1</td><td class="num">301.2 ms</td><td class="num">277.5 ms</td><td class="num delta-good">−7.9%</td></tr>
-          <tr><td class="id">api.prefix.list</td><td class="num">35.2 ms</td><td class="num">36.6 ms</td><td class="num flat">flat</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="prose">
-      <p>Endpoints whose natural keys touch no config-dependent model stayed flat, as expected. Query count was unchanged at 2,357 and no endpoint's status moved.</p>
+      <p>getattr(instance, 'natural_slug', construct_natural_slug(...)) evaluates its third argument before the attribute lookup. natural_slug always exists, so the fallback was computed and thrown away on every row, and the property then recomputed natural_key() a second time.</p>
+      <p><strong>in process</strong> api.interface.list 357.9 -&gt; 268.2ms (-25.1%) &middot; <strong>queries</strong> unchanged at 2357</p>
+      <p><em>Controls.</em> api.prefix.list flat, as predicted -- its natural keys touch no config-dependent model</p>
+      <p><em>Tests.</em> core test_api 61 OK</p>
+      <p>Removes no queries at all, which is why a query-count gate alone would have missed it. The first evidence on this branch that query count is not the objective.</p>
     </div>
   </div>
-
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">F-01/F-06</span>
+      <h3>Prefetch nested natural keys, and fetch each cable path once</h3>
+      <div class="tags"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></div>
+    </div>
+    <p class="src"><code>33b15177e</code> &middot; nautobot/core/api/views.py:263 - nautobot/dcim/api/serializers.py:166</p>
+    <div class="prose">
+      <p>The viewset's prefetch logic inspects top-level serializer fields only, skipping any source containing a dot, so objects reached through nested ?depth serializers were never prefetched. Separately, three SerializerMethodFields each called obj.cable_paths.first() independently.</p>
+      <p><strong>queries</strong> 2235 -&gt; 1903 (-332)</p>
+      <p><em>Tests.</em> dcim test_api 1673 OK</p>
+      <p>The cable-path memo is instance-scoped, so it is discarded with the object.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">F-02</span>
+      <h3>Render each detail-page component once per request, not three times</h3>
+      <div class="tags"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></div>
+    </div>
+    <p class="src"><code>20499687b</code> &middot; nautobot/core/templates/generic/object_retrieve.html:45,:122,:129</p>
+    <div class="prose">
+      <p>The detail template walks the same tab and panel tree three times and nothing memoized between passes. should_render() ran three times per tab, render_label() twice, and ObjectsTablePanel.get_extra_context() -- which builds and paginates a table -- twice. One device page issued the identical extras_contactassociation COUNT from seven distinct call sites.</p>
+      <p><strong>queries</strong> ui.device.detail 108 -&gt; 68, ui.device.interfaces 74 -&gt; 42, total -186</p>
+      <p><em>Controls.</em> Rendered HTML diffed byte-for-byte before and after; only the CSRF token differed</p>
+      <p><em>Tests.</em> core test_ui 59 OK, core test_views 95 OK</p>
+      <p>Model-agnostic, which is why Device, Rack, Prefix and Location all showed the same shape while list views stayed at 9-10 queries. An App panel whose get_extra_context() must return a fresh object per call would now see one shared object.</p>
+    </div>
+  </div>
   <div class="finding">
     <div class="finding-head">
       <span class="fid">F-04</span>
-      <h3>Natural-key lookups are recomputed against Redis on every access</h3>
-      <div class="tags"><span class="tag tag-verified">committed</span><span class="tag">tier B</span></div>
+      <h3>Memoize natural-key lookups for the duration of one serialization</h3>
+      <div class="tags"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></div>
     </div>
-    <p class="src">nautobot/core/models/__init__.py:265 · nautobot/dcim/models/devices.py:700 · nautobot/dcim/models/locations.py:245</p>
+    <p class="src"><code>33ad09279</code> &middot; nautobot/core/models/utils.py</p>
     <div class="prose">
-      <p><code>natural_key_field_lookups</code> is an uncached <code>classproperty</code>, so it is rebuilt on every single access — and for Device and Location each rebuild performs a Constance lookup, which reads Redis. Serializing one object at depth 1 touches it dozens of times.</p>
-      <p>Profiling a 100-interface create loop: <strong>26% of total wall time</strong>, driving 3,600 config lookups and 5,700 Redis round-trips. It costs <strong>zero SQL</strong>, which is exactly why a query-count gate cannot see it.</p>
-      <p>Memoizing for the duration of a single <code>serialize_object_v2()</code> call measured <strong>+19.8%</strong> on the bulk-create loop across 7 interleaved repetitions, with output verified byte-identical. Scoping to one call rather than caching on the class is deliberate: Location's value depends on live tree depth and Device's on Constance config, so a permanent cache would go stale. A permanent cache measured +21.7% — indistinguishable, and not worth the risk.</p>
-      <p>A related one-line fix: <code>devices.py:700</code> calls <code>get_settings_or_config("DEVICE_UNIQUENESS")</code> twice in a single if/elif. Hoisting it measured <strong>+7.8%</strong> standalone.</p>
+      <p>natural_key_field_lookups is an uncached classproperty, rebuilt on every access, and for Device and Location each rebuild reads Constance -- that is, Redis. Serializing one object at depth 1 touches it dozens of times.</p>
+      <p><strong>config reads</strong> 1800 -&gt; 200 per 100-object create loop (-89%) &middot; <strong>queries</strong> unchanged at 1404</p>
+      <p><em>Tests.</em> core test_models 35 OK, core test_api 61 OK</p>
+      <p>Scoped to a single serialization deliberately: Location's value depends on live tree depth and Device's on Constance config, so a permanent class-level cache would go stale. A permanent variant measured +21.7% against +19.8% -- indistinguishable, and not worth the risk.</p>
     </div>
   </div>
-
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#05</span>
+      <h3>Extend the natural-key lookup cache across a whole read request</h3>
+      <div class="tags"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></div>
+    </div>
+    <p class="src"><code>2f7bf3003</code> &middot; nautobot/core/api/views.py</p>
+    <div class="prose">
+      <p>ModelViewSetMixin.dispatch() wraps safe methods in the cache_natural_key_field_lookups() scope. Writes deliberately keep recomputing: a POST can deepen the Location tree and then serialize the result in the same request, and must observe the new depth.</p>
+      <p><strong>config reads</strong> api.interface.depth1 1938 -&gt; 2 (-99.9%), api.interface.list 612 -&gt; 2, api.device.list 156 -&gt; 2</p>
+      <p><em>Controls.</em> api.prefix.list 0 -&gt; 0 and api.cable.list 0 -&gt; 0 -- a previously considered global cache had regressed prefix ~18% by adding Redis reads to models that needed none</p>
+      <p><em>Tests.</em> core test_api 61 OK</p>
+      <p>Wall clock was unusable during this experiment -- the container was under ~260% CPU from concurrent profiling -- so the deterministic config-read count is the primary evidence.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#07</span>
+      <h3>Compile each TemplateColumn once instead of once per table cell</h3>
+      <div class="tags"><span class="tag" title="state scoped to a request, transaction or instance">B1</span><span class="tag tag-scope">third-party-coupled</span></div>
+    </div>
+    <p class="src"><code>40c3af5fe</code> &middot; nautobot/core/tables.py</p>
+    <div class="prose">
+      <p>django_tables2's TemplateColumn.render() calls Template(self.template_code) on every cell, so a table re-parses the same source once per row per column. Django's cached template loader covers the sibling template_name branch; the template_code branch has no such cache. Profiling one page showed Template.parse called 1814 times.</p>
+      <p><strong>in process</strong> ui.device.interfaces 147.5 -&gt; 119.3ms (-18.5%), three alternating rounds</p>
+      <p><em>Controls.</em> ui.device.list and ui.interface.list both within noise across three rounds</p>
+      <p><em>Tests.</em> core test_tables 17 OK, dcim test_tables 34 OK</p>
+      <p>Compiled templates are immutable and hold no per-render state, so sharing one across requests and threads is safe -- new state, but nothing to invalidate. Flagged third-party-coupled: it reimplements django_tables2 3.0.1's render(), depending on the get_context_data() hook and the parent_context request assignment. A future version changing those would diverge silently. Revisit on any django_tables2 upgrade. An earlier two-round comparison suggested a ~2ms regression on two list views; a third round showed it was drift.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#08</span>
+      <h3>Cut the residual duplicate queries on object detail pages</h3>
+      <div class="tags"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></div>
+    </div>
+    <p class="src"><code>0ccf16a4e</code> &middot; nautobot/core/ui/object_detail.py - nautobot/core/templatetags/helpers.py - nautobot/core/views/utils.py</p>
+    <div class="prose">
+      <p>Three independent causes: Panel.get_data() called twice per render; render_ancestor_hierarchy rendering each ancestor's location_type at one query per ancestor; and prepare_cloned_fields instantiating a full ModelForm just to read to_field_name off a few fields, which cost 6.5ms and 10 queries on device detail alone.</p>
+      <p><strong>queries</strong> ui.device.detail 68 -&gt; 55, ui.rack.detail 77 -&gt; 66, total -46</p>
+      <p><em>Tests.</em> core test_views 95 OK, test_ui 59 OK, test_tree_queries 11 OK</p>
+      <p>Corrects two earlier attributions: Breadcrumbs.as_pair was blamed for calling .ancestors() four times and calls it once; prepare_cloned_fields was suspected of running twice and runs once. My own A/B here was inconclusive -- ui.rack.detail swung 84ms to 110ms across two runs of the same config -- so no wall-clock number is claimed from it.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#09</span>
+      <h3>Build nested serializers once, and share one instance per cabled row</h3>
+      <div class="tags"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></div>
+    </div>
+    <p class="src"><code>295b54700</code> &middot; nautobot/core/api/utils.py - nautobot/dcim/api/serializers.py</p>
+    <div class="prose">
+      <p>build_nested_field() synthesizes a new serializer class on every call and instantiating it deep-copies every declared field; a page of Interfaces at depth 1 built ~250 where 3 are needed. Separately, cable_peer and connected_endpoint resolved to the same 166 rows with 100% overlap -- two Python instances per row, each with its own empty FK cache, each re-walking the chain from cold.</p>
+      <p><strong>queries</strong> 1229 -&gt; 629 (-600) &middot; <strong>in process</strong> api.interface.depth1 753.4 -&gt; 404.8ms (-45.8%)</p>
+      <p><em>Controls.</em> api.device.list.depth1 flat at 209.8/212.7 vs 212.4/214.7</p>
+      <p>The largest single win on the branch, and the earlier attribution missed it entirely -- it named ~150 GFK fetches, ~100 device bays and ~77 cable paths, which were the small items, and missed the 70% item. Found by grouping queries by originating call site and checking instance provenance.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#10</span>
+      <h3>Walk tree ancestor chains in blocks instead of one query per level</h3>
+      <div class="tags"><span class="tag" title="no observable change">A</span></div>
+    </div>
+    <p class="src"><code>2e929c137</code> &middot; nautobot/core/models/tree_queries.py</p>
+    <div class="prose">
+      <p>TreeQuerySet.ancestors() falls back to a parent-by-parent walk when tree fields are absent, one query per level. Each cache miss now pulls the next four levels in one query via select_related.</p>
+      <p><strong>queries</strong> ui.device.detail 55 -&gt; 52, ui.rack.detail 66 -&gt; 63, total -8</p>
+      <p><em>Tests.</em> core test_tree_queries 11 OK, test_views 95 OK, test_dynamicgroups 92 OK</p>
+      <p>Took only the Tier A half of the proposed change. The proposal also primed the returned queryset's _result_cache, which is correct for count/exists/first/iteration and discarded by anything that clones -- a subtler contract than one query justified.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#11</span>
+      <h3>Use the caching TemplateColumn everywhere, not just device tables</h3>
+      <div class="tags"><span class="tag" title="no observable change">A</span><span class="tag tag-scope">third-party-coupled</span></div>
+    </div>
+    <p class="src"><code>d25990a84</code> &middot; nautobot/circuits/tables.py and nine other table modules</p>
+    <div class="prose">
+      <p>Converts the remaining 67 TemplateColumn call sites across circuits, tenancy, ipam, extras, the App-plugins table and the dcim cables/racks/locations/power modules. Zero remain outside tests.</p>
+      <p><strong>note</strong> same mechanism and measured effect as 40c3af5fe; the saving scales with rows x TemplateColumns per table</p>
+      <p><em>Tests.</em> core test_tables 17 OK, dcim test_tables 34 OK, ipam test_tables 7 OK, extras test_tables 7 OK, ipam test_views 596 OK</p>
+      <p>No wall-clock number quoted: the machine was under concurrent profiling load, and timings here need an idle box and three alternating rounds. Deterministic signals unchanged as expected, since this removes Python work rather than queries.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#12</span>
+      <h3>Build the nav menu once per request instead of once per component</h3>
+      <div class="tags"><span class="tag" title="no observable change">A</span></div>
+    </div>
+    <p class="src"><code>5b912a905</code> &middot; nautobot/core/context_processors.py</p>
+    <div class="prose">
+      <p>render_component_template() passes a request to Template.render(), which makes Django construct a fresh RequestContext and re-run every context processor. The UI component framework calls that once per component per render pass, so nav_menu was built 70 times on a rack detail page and 81 times on device detail -- each build walking a 180-node registry and performing 176 permission checks, exactly 12,320 has_one_or_more_perms calls per request.</p>
+      <p><strong>in process</strong> ui.device.detail -24%, ui.rack.detail -25%, three alternating rounds &middot; <strong>queries</strong> unchanged &middot; <strong>redis reads</strong> unchanged</p>
+      <p><em>Controls.</em> ui.device.list 48.3/49.1 vs 48.9/49.5 and ui.interface.list flat</p>
+      <p><em>Tests.</em> core test_navigations 6 OK, test_views 95 OK, test_ui 59 OK</p>
+      <p>Memoized on the request object, so the cache is scoped to one request and therefore one user -- no user-keyed map, no module-level dict, nothing outliving the response. Verified with two users interleaved four times each in one process: the superuser sees 131 distinct nav links, a permissionless user sees 10, both stable, no leakage. Corrects an earlier figure: this was reported at 40ms/request from cProfile, which inflates call-heavy code; true wall clock is ~16ms of an ~88ms request.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#13</span>
+      <h3>Reuse one API serializer per model when change-logging a transaction</h3>
+      <div class="tags"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></div>
+    </div>
+    <p class="src"><code>5f351dc5b</code> &middot; nautobot/core/models/utils.py - nautobot/extras/context_managers.py</p>
+    <div class="prose">
+      <p>serialize_object_v2 runs the full DRF API serializer at depth 1 with every M2M included, so change logging pays the same nested-serialization cost that dominates depth-1 list endpoints. Profiling 100 Interfaces: 517ms, 445 serializer constructions, 7444 build_field calls. The context is a fixed constant and to_representation() reads only the object handed to it, so one instance per class can render them all.</p>
+      <p><strong>config reads</strong> 200 -&gt; 2 per 100-object batch &middot; <strong>wall</strong> bulk.create.loop and .deferred both -28%, three alternating rounds &middot; <strong>isolated</strong> serialize_object_v2 -41% for 100 Interfaces over five paired rounds</p>
+      <p><em>Controls.</em> the cfg column confirms the two arms really differ, 2 against 200</p>
+      <p><em>Tests.</em> extras test_changelog 35 OK, extras test_models 295 OK, core test_models 35 OK, core test_api 61 OK</p>
+      <p>A first attempt at this A/B used git stash to toggle, which silently did nothing because the change was already committed -- all six runs measured the same code, and the cfg counter is what caught it. Also: this commit credited itself with bulk.update 1542 -&gt; 1472 and bulk.delete 2089 -&gt; 2019, which were already present in the preceding run; it compared against a stale before-file. The config-read result is the real effect. Serialized output compared object-by-object across seven models, 172 objects, zero mismatches.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#14</span>
+      <h3>Resolve natural keys from a whole-table map for small reference models</h3>
+      <div class="tags"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></div>
+    </div>
+    <p class="src"><code>3d59d0854</code> &middot; nautobot/core/models/__init__.py - nautobot/dcim/models/locations.py - nautobot/tenancy/models.py</p>
+    <div class="prose">
+      <p>BaseModel.natural_key() walks each lookup with plain getattr(), one SELECT per uncached FK hop. Interface's lookups include five Location hops, so a page of 100 interfaces issued 257 dcim_location SELECTs against a 110-row table and 82 tenancy_tenant SELECTs against a five-row table. When the referenced table is small enough to hold entirely, resolving from a map beats traversing per object.</p>
+      <p><strong>queries</strong> api.interface.depth1 629 -&gt; 292; dcim_location 257 -&gt; 0, tenancy_tenant 82 -&gt; 0; total 1294 -&gt; 957 &middot; <strong>in process</strong> -15% on api.interface.depth1, three alternating rounds</p>
+      <p><em>Controls.</em> api.device.list and api.prefix.list both flat</p>
+      <p><em>Tests.</em> core test_models 35 OK, test_csv 28 OK, test_api 61 OK, dcim test_api 1673 OK</p>
+      <p>Opt-in per model via natural_key_map_enabled, guarded at 5000 rows, built with values_list so no model instantiation, living in the existing request_cache() scope. Falls back to traversal on any miss. A cross-request Redis-backed variant was built and measured alongside and rejected -- see seq 17. Byte-identical responses on six endpoints; a sweep over 1310 objects produced identical natural_key, composite_key and natural_slug, and 60 objects round-tripped back to the same PK.</p>
+    </div>
+  </div>
+</section>
+<section>
+  <h2>Wins with a user-visible caveat</h2>
+  <hr class="sec-rule">
+  <div class="prose"><p>Each one works and is measured. Whether it is acceptable is a product decision, not a measurement one, so the caveat is quoted as a release note would have to write it.</p></div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#06</span>
+      <h3>Stop paying Redis round-trips for tree display and config lookups</h3>
+      <div class="tags"><span class="tag" title="state that outlives its scope and needs invalidating">B2</span></div>
+    </div>
+    <p class="src"><code>6020f8ebf</code> &middot; nautobot/core/utils/config.py - nautobot/core/models/tree_queries.py - nautobot/core/signals.py</p>
+    <div class="prose">
+      <p>get_settings_or_config() now memoizes in the per-request cache; TreeManager.max_depth goes through cache_get_or_set; TreeModel.display walks the in-memory parent chain when it is complete instead of fetching a cached string it could concatenate for free.</p>
+      <p><strong>redis reads</strong> api.location.list 207 -&gt; 7 (-96.6%), api.device.list.depth1 128 -&gt; 19 &middot; <strong>in process</strong> api.location.list 75.2 -&gt; 54.9ms (-27%) on a quiet machine</p>
+      <p><em>Controls.</em> api.prefix.list 5 -&gt; 5 unchanged</p>
+      <p class="supersede"><strong>Caveat.</strong> A configuration value written by another process is not picked up mid-request. Constance already has its own eventual propagation, and a config_updated receiver covers same-process writes.</p>
+      <p><em>Tests.</em> core test_tree_queries 11 OK, test_config 30 OK, test_utils 73 OK</p>
+      <p>B2 because max_depth uses the cross-request Redis cache. The invalidate_max_depth_cache receiver was extended to evict the request-local entry too, and that line is necessary -- without it a tree change mid-request leaves a stale max_depth. Note the pre-existing hazard this shares: all six invalidate_*_cache receivers miss QuerySet.update() and .bulk_update(), which compile to one SQL statement and emit no signal.</p>
+    </div>
+  </div>
   <div class="finding">
     <div class="finding-head">
       <span class="fid">F-05</span>
-      <h3>Change logging serializes every object twice — but the redundant half is the cheap one</h3>
-      <div class="tags"><span class="tag tag-scope">out of scope</span><span class="tag">tier C</span></div>
+      <h3>Stop double-serializing every change record by writing an empty object_data</h3>
+      <div class="tags"><span class="tag" title="changes observable behaviour">C</span></div>
     </div>
-    <p class="src">nautobot/extras/models/change_logging.py:45–46 · nautobot/extras/api/serializers.py:1099</p>
+    <p class="src"><code>43db1b018</code> &middot; nautobot/extras/models/change_logging.py:45-46</p>
     <div class="prose">
-      <p><code>to_objectchange()</code> calls both <code>serialize_object()</code> and <code>serialize_object_v2()</code> for every change record, and deferred bulk logging does not avoid it — <code>create_object_changes()</code> calls the same method per object at flush time, which is why deferral saves only 6%. Ingesting this dataset created <strong>3,219 ObjectChange records for 2,119 objects</strong>, roughly 6,400 serializations.</p>
-      <p><strong>The measurement inverts the intuition.</strong> The redundant v1 serialization costs 0.73 ms and 2 queries; the v2 serialization that is actually consumed costs 8.75 ms and 7 queries — twelve times more. Eliminating the duplication is worth only about 8–12% of write-path wall time and 12.5% of its queries. The expensive serializer is the one that cannot be removed.</p>
-      <p><strong>And the v1 fallback is not dead code.</strong> Migration <code>0022_objectchange_object_datav2</code> added the v2 field as nullable <em>with no backfill</em>, and two data migrations construct ObjectChange rows carrying only v1. So <code>object_data_v2 is None</code> is permanent for real historical data, and <code>get_snapshots()</code> genuinely depends on the fallback.</p>
-      <p>Writing <code>{}</code> to <code>object_data</code> is therefore Tier C, not the safe app-code workaround it first appeared to be. Both the REST serializer and the auto-generated GraphQL type use <code>fields = "__all__"</code>, so the empty value would surface in two public API contracts; the ObjectChange detail panel would render an em-dash instead of JSON on every page; and four test classes in <code>test_changelog.py</code> assert on its contents, including <code>test_legacy_object_data</code>, a direct regression test for this branch.</p>
-      <p>Recorded for review rather than acted on. Pursuing it needs a deprecation cycle and a decision about pre-2022 rows whose only snapshot is v1.</p>
+      <p>to_objectchange() calls both serialize_object() for v1 and serialize_object_v2(). Every current consumer reads v1 only as a fallback when v2 is null, which never happens for a newly created record.</p>
+      <p><strong>queries</strong> -200 per 100 writes (-14.2% on bulk.create.loop); exactly two queries per ObjectChange record</p>
+      <p><em>Controls.</em> read path unaffected: Tier 1 total unchanged, all endpoints 200</p>
+      <p class="supersede"><strong>Caveat.</strong> Every /api/extras/object-changes/ response would carry an empty object_data, and the GraphQL objectData field likewise, because both serialize with all fields. The Object Data panel on the ObjectChange detail page would render an em-dash instead of JSON. Historical records whose only snapshot is v1 would lose it.</p>
+      <p><strong>Why not.</strong> Tier C on two public API contracts, and the premise did not survive measurement: the redundant serializer is the cheap one. serialize_object costs 0.73ms and two queries; serialize_object_v2 costs 8.75ms and seven queries -- twelve times more. Removing the duplication is worth ~12% of write-path queries, not half of them.</p>
+      <p><em>Tests.</em> breaks 13 tests in nautobot.extras.tests.test_changelog -- six failures and seven errors across ChangeLogAPITest, ChangeLogViewTest and ObjectChangeModelTest, including test_legacy_object_data</p>
+      <p>Kept in history with its measurements rather than deleted, because the number is the deliverable. The route that gets this win without the contract change is seq 22.</p>
     </div>
   </div>
-
   <div class="finding">
     <div class="finding-head">
-      <span class="fid">F-06</span>
-      <h3>One cable path is fetched three times per object</h3>
-      <div class="tags"><span class="tag tag-verified">committed</span><span class="tag">tier A</span></div>
+      <span class="fid">#18</span>
+      <h3>Enable LOCATION_NAME_AS_NATURAL_KEY</h3>
+      <div class="tags"><span class="tag" title="changes observable behaviour">C</span></div>
     </div>
-    <p class="src">nautobot/dcim/api/serializers.py:169, :190, :201</p>
+    <p class="src"><code>3d59d0854</code> &middot; an existing supported setting</p>
     <div class="prose">
-      <p>Three <code>SerializerMethodField</code>s — <code>connected_endpoint_type</code>, <code>connected_endpoint</code>, and <code>connected_endpoint_reachable</code> — each call <code>obj.cable_paths.first()</code> independently, issuing the same query three times per serialized object. Memoizing on the instance accounts for 231 of the repeated <code>dcim_cablepath</code> queries in the interface endpoint.</p>
+      <p>Collapses Location's natural key from five hops to one.</p>
+      <p><strong>in process</strong> -12% on api.interface.depth1 standalone; ~2 points on top of the whole-table map</p>
+      <p class="supersede"><strong>Caveat.</strong> Composite keys change for Location and for every device component that includes a Location in its natural key. A CSV exported before the change no longer round-trips, and any integration storing a composite key must re-resolve it.</p>
+      <p><strong>Why not.</strong> Tier C: changes API output on five of the six endpoints tested. Already a supported setting, so this is an operator decision rather than a code change -- worth documenting as a tuning option with its caveat.</p>
+      <p>Stacking it on the whole-table map adds only ~2 points, because the map already collapses most of what it avoids.</p>
     </div>
   </div>
-
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#20</span>
+      <h3>Drop the request argument in render_component_template</h3>
+      <div class="tags"><span class="tag" title="changes observable behaviour">C</span></div>
+    </div>
+    <p class="src"><code>5b912a905</code> &middot; nautobot/core/ui/utils.py:39</p>
+    <div class="prose">
+      <p>Would skip all 70 RequestContext binds outright rather than memoizing their result.</p>
+      <p><strong>in process</strong> ~1ms residual after the per-request memo</p>
+      <p class="supersede"><strong>Caveat.</strong> Rendered output changes for permission-restricted users.</p>
+      <p><strong>Why not.</strong> Tier C for ~1ms once the memo is in place. Not worth it.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#21</span>
+      <h3>Make tab badges reuse the panel paginator COUNT</h3>
+      <div class="tags"><span class="tag" title="changes observable behaviour">C</span></div>
+    </div>
+    <p class="src"><code>0ccf16a4e</code> &middot; nautobot/core/ui/object_detail.py</p>
+    <div class="prose">
+      <p>The tab badge issues its own COUNT alongside the one django-tables2's paginator already computed.</p>
+      <p><strong>in process</strong> no measurable effect</p>
+      <p class="supersede"><strong>Caveat.</strong> The badge would show the permission-filtered count rather than the raw related count -- a visible number changing for non-superusers.</p>
+      <p><strong>Why not.</strong> Tier C for no measured gain.</p>
+    </div>
+  </div>
 </section>
-
 <section>
-  <h2>Out of scope</h2>
+  <h2>Wins with an operational cost</h2>
   <hr class="sec-rule">
-  <div class="prose">
-    <p>Recorded, not acted on, under the agreed constraint of application code only — no migrations, indexes, schema changes, or PostgreSQL tuning.</p>
-    <ul class="tight">
-      <li><strong>Stop writing <code>object_data</code> (F-05).</strong> Worth 8–12% of write-path time. Changes the REST and GraphQL payloads, blanks the ObjectChange detail panel, and breaks four test classes. Needs a deprecation cycle.</li>
-      <li><strong>Backfill or drop <code>object_data</code>.</strong> Migration <code>0022</code> added v2 with no backfill, so historical rows depend on v1 permanently. Resolving that — either backfilling v2 or making v1 nullable — is what would make F-05 tractable. Requires a migration.</li>
-      <li><strong>Drop <code>natural_slug</code> and <code>composite_key</code> from nested serializers</strong>, or make them opt-in. Eliminates the F-01 cost class outright rather than mitigating it, but changes the API response payload.</li>
-      <li><strong>Duplicate <code>DeviceUniquenessValidator</code> run.</strong> <code>Device.save()</code> re-runs a validator that <code>full_clean()</code> already executed — 2 redundant queries per Device save. It deliberately guards direct <code>.save()</code> callers, so removing it changes behavior.</li>
-      <li><strong><code>get_snapshots()</code> issues one SELECT per ObjectChange</strong> — 100 queries per 100-object bulk operation. The largest remaining SQL win on the write path after serialization. Already tracked upstream as issue #6303.</li>
-      <li><strong>Index candidates: none identified.</strong> A finding rather than an omission. With 325,152 queries totaling 4.6 seconds, no query shape was slow enough for an index to matter at this dataset size.</li>
-      <li><strong>Location's variadic natural key</strong> is the structural reason chains run five hops deep. Bounding it is a data-model question, not a code one.</li>
-    </ul>
+  <div class="prose"><p>These need a migration. The cost of running it is stated, because it lands on operators rather than on the release.</p></div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#22</span>
+      <h3>Make object_data nullable and key the fallback on presence</h3>
+      <div class="tags"><span class="tag" title="state scoped to a request, transaction or instance">B1</span><span class="tag" title="metadata-only migration">M0</span></div>
+    </div>
+    <p class="src">nautobot/extras/models/change_logging.py plus a new AlterField migration</p>
+    <div class="prose">
+      <p>AlterField with null=True on ObjectChange.object_data is metadata-only -- no table rewrite. New records store only object_data_v2; existing rows keep their v1 snapshot; get_snapshots() keys the fallback on presence rather than on nullness.</p>
+      <p><strong>expected</strong> the ~12% of write-path queries and ~200 queries per 100 writes that seq 16 measured, without its contract change</p>
+      <p class="supersede"><strong>Caveat.</strong> Records created after the change carry no object_data. Any consumer reading that field directly, rather than through get_snapshots(), sees null for new records. The field stays in the REST and GraphQL payloads until a separate deprecation removes it.</p>
+      <p>Not yet measured. The route seq 16 should have taken: same win, M0 migration cost, no falsified history. Removing object_data from the payload entirely is a later deprecation, not part of this.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#23</span>
+      <h3>Backfill object_data_v2 for historical ObjectChange rows</h3>
+      <div class="tags"><span class="tag" title="no observable change">A</span><span class="tag" title="unbounded migration">M2</span></div>
+    </div>
+    <p class="src">a new data migration</p>
+    <div class="prose">
+      <p>Migration 0022_objectchange_object_datav2 added v2 as nullable with no backfill, and two data migrations construct rows carrying only v1. Backfilling would let object_data be dropped outright rather than merely left null.</p>
+      <p><strong>cost</strong> 8.75ms per row measured. ~5 minutes at this dataset's 36,552 rows; ~2.4 hours at one million; unbounded where CHANGELOG_RETENTION is 0 or its cleanup Job was never scheduled</p>
+      <p class="supersede"><strong>Caveat.</strong> A migration whose runtime is set by the operator's retention configuration rather than by anything in the release.</p>
+      <p><strong>Why not.</strong> M2 on cost, and a correctness stop that pricing does not rehabilitate: v1 stores foreign keys as bare primary keys while v2 needs nested natural keys, so reconstructing v2 for a row referencing a since-deleted object is not possible at any cost. Re-serializing the live object instead would falsify the historical record.</p>
+      <p>Recorded so the option is priced rather than rediscovered. seq 22 gets the same win without it.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#24</span>
+      <h3>Drop indexes that are never scanned</h3>
+      <div class="tags"><span class="tag" title="no observable change">A</span><span class="tag" title="metadata-only migration">M0</span></div>
+    </div>
+    <p class="src">to be determined from pg_stat_user_indexes</p>
+    <div class="prose">
+      <p>Unused indexes cost write throughput and bloat on every insert, and the write path is where the remaining cost sits -- bulk.create.x100 is still 1,404 queries, dominated by ObjectChange inserts. pg_stat_user_indexes.idx_scan identifies never-scanned indexes directly.</p>
+      <p><strong>expected</strong> unmeasured; this is the unexplored half of the index question</p>
+      <p class="supersede"><strong>Caveat.</strong> An index dropped on the strength of one workload's scan counts may be needed by a workload this branch does not exercise. Coverage is ~5% of the API surface, so scan counts under-represent real usage.</p>
+      <p>Adding indexes is a dead end here and that is measured, not assumed: 325,152 queries totalling 4.6 seconds, mean 0.014ms, and query count fell 57% while total DB time went 601ms to 602ms. api.prefix.list even spends 13.7ms planning a query that executes in 1.3ms, where an index makes planning worse. Removal is the direction with headroom. Nautobot has no AddIndexConcurrently or RemoveIndexConcurrently anywhere in its migrations, so every existing index migration takes a table lock -- doing this safely on a large table means introducing that pattern.</p>
+    </div>
+  </div>
+</section>
+<section>
+  <h2>Measured, and not worth it</h2>
+  <hr class="sec-rule">
+  <div class="prose"><p>Plausible optimizations that measurement or blast-radius analysis killed. These are results, not omissions -- they tell you what a tempting option actually costs.</p></div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#15</span>
+      <h3>Pre-warm natural-key FK chains with one select_related</h3>
+      <div class="tags"><span class="tag" title="no observable change">A</span></div>
+    </div>
+    <p class="src"><code>27b3ec422</code> &middot; nautobot/core/models/__init__.py</p>
+    <div class="prose">
+      <p>Replaces the hop-by-hop walk with a single select_related covering the whole natural-key chain.</p>
+      <p><strong>queries</strong> 2357 -&gt; 1359 (-666 beyond the accepted fixes) &middot; <strong>in process</strong> api.interface.depth1 1092 -&gt; 1767ms (+62%)</p>
+      <p><strong>Why not.</strong> Failed the gate: slower. Location's natural key is variadic on live tree depth, so with max_depth 4 it expands to eight prefixes and an 8-join, 5,420-character query per object. PostgreSQL answers it quickly, but Django then materializes wide rows across eight tables and instantiates a model object for each. It also added a per-call inspection walk to every natural_key(), slowing a depth-0 endpoint it was never meant to touch.</p>
+      <p>The most useful result on the branch. The variant that looked three times better by query count was the one that regressed past the original baseline in wall time. Deeper Location trees make it worse, not better.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#17</span>
+      <h3>Cross-request Redis-backed natural-key map with signal invalidation</h3>
+      <div class="tags"><span class="tag" title="state that outlives its scope and needs invalidating">B2</span></div>
+    </div>
+    <p class="src"><code>3d59d0854</code> &middot; nautobot/core/models/__init__.py</p>
+    <div class="prose">
+      <p>The whole-table map from seq 14, cached across requests in Redis and invalidated by post_save receivers.</p>
+      <p><strong>in process</strong> +0 to 2 percentage points over the request-scoped variant -- inside run-to-run variance</p>
+      <p class="supersede"><strong>Caveat.</strong> A stale Location name would propagate into composite_key and natural_slug in every REST response for Location, Device and every device component, and into CSV export columns -- so the API would advertise a composite key that no longer resolves, and a CSV round-trip would re-import against the wrong Location.</p>
+      <p><strong>Why not.</strong> B2 with an unbounded staleness window. QuerySet.update() and .bulk_update() compile to a single SQL statement and never instantiate models, so they emit no post_save and cannot invalidate the cache. With no timeout that persists until some Location is saved. Low probability, high blast radius, and the probability depends on plugin or shell code we do not control -- not worth two points.</p>
+      <p>The within-request memo already captures essentially all of the benefit: the map is built once and read ~820 times per request. This hazard already exists in-tree for all six invalidate_*_cache receivers; worth addressing separately, either with a TTL backstop or by overriding update() and bulk_update() on RestrictedQuerySet.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="finding-head">
+      <span class="fid">#19</span>
+      <h3>Process-level per-user nav menu cache</h3>
+      <div class="tags"><span class="tag" title="state that outlives its scope and needs invalidating">B2</span><span class="tag tag-scope">security-visible</span></div>
+    </div>
+    <p class="src"><code>5b912a905</code> &middot; nautobot/core/context_processors.py</p>
+    <div class="prose">
+      <p>Cache the built nav menu per user across requests rather than per request.</p>
+      <p><strong>in process</strong> ~0.6ms, now that nav_menu runs once per request</p>
+      <p class="supersede"><strong>Caveat.</strong> ObjectPermission edits, group membership changes and is_superuser toggles would take effect only after cache expiry.</p>
+      <p><strong>Why not.</strong> B2 and security-visible. A bounded stale window on a display string is tolerable; the same window on an authorisation decision is not. ~0.6ms does not buy that.</p>
+      <p>Rejected on blast radius, not on measurement. Included because the reasoning generalises: cached permission-derived output is a different class of risk from cached data.</p>
+    </div>
   </div>
 </section>
 
@@ -594,7 +840,7 @@ ul.tight li { margin-bottom: 7px; }
 </section>
 
 <section>
-  <h2>A rejected fix worth recording</h2>
+  <h2>The rejection worth reading in full</h2>
   <hr class="sec-rule">
   <div class="prose">
     <p class="supersede">A round-one measurement, on the small dataset. Kept because the lesson is the most useful single result on this page.</p>
@@ -735,48 +981,37 @@ ul.tight li { margin-bottom: 7px; }
   <div class="prose">
     <p>Each accepted change is one commit on <code>perf/experiments</code>, carrying its hypothesis, method, and before/after numbers. A change is kept only if the gate passes — no endpoint that returned 200 may start erroring — and the improvement is real.</p>
   </div>
-  <div class="tablewrap">
+    <div class="tablewrap">
     <table>
-      <caption>Every accepted change, in commit order. Individual gains overlap and do not sum &mdash; several attack natural-key cost by different means. The effect column quotes each commit's own primary measurement, which is a deterministic counter wherever wall clock was unusable.</caption>
-      <thead>
-        <tr><th>Commit</th><th>Change</th><th>Tier</th><th class="num">Primary measured effect</th></tr>
-      </thead>
+      <caption>Every experiment, in order. Individual gains overlap and do not sum &mdash; several attack natural-key cost by different means. The effect column quotes each experiment's own primary measurement, which is a deterministic counter wherever wall clock was unusable. Generated from <code>perf/findings/</code>.</caption>
+      <thead><tr><th>#</th><th>Commit</th><th>Change</th><th class="num">Tier</th><th>Status</th><th class="num">Primary measured effect</th></tr></thead>
       <tbody>
-        <tr><td class="id">1974922f0</td><td>Make the natural-key fallback lazy, so it is not computed and discarded per row <span class="tag">F-03</span></td><td>A</td><td class="num delta-good">&minus;25% <code>api.interface.list</code></td></tr>
-        <tr><td class="id">33b15177e</td><td>Prefetch nested natural keys; fetch each cable path once <span class="tag">F-01, F-06</span></td><td>A+B</td><td class="num delta-good">&minus;332 queries</td></tr>
-        <tr><td class="id">20499687b</td><td>Render each detail-page component once per request, not three times <span class="tag">F-02</span></td><td>B</td><td class="num delta-good">&minus;186 queries</td></tr>
-        <tr><td class="id">33ad09279</td><td>Memoize natural-key lookups for one serialization <span class="tag">F-04</span></td><td>B</td><td class="num delta-good">config reads &minus;89%</td></tr>
-        <tr><td class="id">2f7bf3003</td><td>Extend that cache across a whole read request</td><td>B</td><td class="num delta-good">1,938 &rarr; 2 config reads</td></tr>
-        <tr><td class="id">6020f8ebf</td><td>Memoize config reads; walk in-memory ancestry for tree display; cache <code>max_depth</code></td><td>B</td><td class="num delta-good">Redis reads &minus;96.6% <code>api.location.list</code></td></tr>
-        <tr><td class="id">40c3af5fe</td><td>Compile each <code>TemplateColumn</code> once instead of once per cell</td><td>A/B</td><td class="num delta-good">&minus;18.5% <code>ui.device.interfaces</code></td></tr>
-        <tr><td class="id">0ccf16a4e</td><td>Memoize <code>Panel.get_data</code>; <code>select_related</code> ancestor types; read declared form fields instead of building the form</td><td>B</td><td class="num delta-good">&minus;46 queries</td></tr>
-        <tr class="emph"><td class="id">295b54700</td><td>Build nested serializers once; share one instance per cabled row</td><td>B</td><td class="num delta-good">&minus;600 queries, &minus;45.8% wall</td></tr>
-        <tr><td class="id">2e929c137</td><td>Walk tree ancestor chains four levels per query</td><td>A</td><td class="num delta-good">&minus;8 queries</td></tr>
-        <tr><td class="id">d25990a84</td><td>Use the caching <code>TemplateColumn</code> at the remaining 67 call sites</td><td>A</td><td class="num">same mechanism as <code>40c3af5fe</code></td></tr>
-        <tr class="emph"><td class="id">5b912a905</td><td>Build the nav menu once per request instead of once per component</td><td>A</td><td class="num delta-good">&minus;24% detail pages, zero queries</td></tr>
-        <tr><td class="id">5f351dc5b</td><td>Reuse one API serializer per model when change-logging a transaction</td><td>B</td><td class="num delta-good">config reads 200 &rarr; 2, &minus;28% bulk create</td></tr>
-        <tr class="emph"><td class="id">3d59d0854</td><td>Resolve natural keys from a whole-table map for small reference models</td><td>A</td><td class="num delta-good">&minus;337 queries, &minus;15% wall</td></tr>
+        <tr><td class="id">01</td><td><code>1974922f0</code></td><td>Make the natural-key fallback lazy, so it is not computed and discarded per row</td><td class="num"><span class="tag" title="no observable change">A</span></td><td>accepted</td><td class="num">api.interface.list 357.9 -&gt; 268.2ms (-25.1%)</td></tr>
+        <tr><td class="id">02</td><td><code>33b15177e</code></td><td>Prefetch nested natural keys, and fetch each cable path once</td><td class="num"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></td><td>accepted</td><td class="num">2235 -&gt; 1903 (-332)</td></tr>
+        <tr><td class="id">03</td><td><code>20499687b</code></td><td>Render each detail-page component once per request, not three times</td><td class="num"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></td><td>accepted</td><td class="num">ui.device.detail 108 -&gt; 68, ui.device.interfaces 74 -&gt; 42, total -186</td></tr>
+        <tr><td class="id">04</td><td><code>33ad09279</code></td><td>Memoize natural-key lookups for the duration of one serialization</td><td class="num"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></td><td>accepted</td><td class="num">1800 -&gt; 200 per 100-object create loop (-89%)</td></tr>
+        <tr><td class="id">05</td><td><code>2f7bf3003</code></td><td>Extend the natural-key lookup cache across a whole read request</td><td class="num"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></td><td>accepted</td><td class="num">api.interface.depth1 1938 -&gt; 2 (-99.9%), api.interface.list 612 -&gt; 2, api.device.list 156 -&gt; 2</td></tr>
+        <tr><td class="id">06</td><td><code>6020f8ebf</code></td><td>Stop paying Redis round-trips for tree display and config lookups</td><td class="num"><span class="tag" title="state that outlives its scope and needs invalidating">B2</span></td><td>accepted</td><td class="num">api.location.list 207 -&gt; 7 (-96.6%), api.device.list.depth1 128 -&gt; 19</td></tr>
+        <tr><td class="id">07</td><td><code>40c3af5fe</code></td><td>Compile each TemplateColumn once instead of once per table cell</td><td class="num"><span class="tag" title="state scoped to a request, transaction or instance">B1</span><span class="tag tag-scope">third-party-coupled</span></td><td>accepted</td><td class="num">ui.device.interfaces 147.5 -&gt; 119.3ms (-18.5%), three alternating rounds</td></tr>
+        <tr><td class="id">08</td><td><code>0ccf16a4e</code></td><td>Cut the residual duplicate queries on object detail pages</td><td class="num"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></td><td>accepted</td><td class="num">ui.device.detail 68 -&gt; 55, ui.rack.detail 77 -&gt; 66, total -46</td></tr>
+        <tr class="emph"><td class="id">09</td><td><code>295b54700</code></td><td>Build nested serializers once, and share one instance per cabled row</td><td class="num"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></td><td>accepted</td><td class="num">1229 -&gt; 629 (-600)</td></tr>
+        <tr><td class="id">10</td><td><code>2e929c137</code></td><td>Walk tree ancestor chains in blocks instead of one query per level</td><td class="num"><span class="tag" title="no observable change">A</span></td><td>accepted</td><td class="num">ui.device.detail 55 -&gt; 52, ui.rack.detail 66 -&gt; 63, total -8</td></tr>
+        <tr><td class="id">11</td><td><code>d25990a84</code></td><td>Use the caching TemplateColumn everywhere, not just device tables</td><td class="num"><span class="tag" title="no observable change">A</span><span class="tag tag-scope">third-party-coupled</span></td><td>accepted</td><td class="num">same mechanism and measured effect as 40c3af5fe; the saving scales with rows x TemplateColumns per table</td></tr>
+        <tr><td class="id">12</td><td><code>5b912a905</code></td><td>Build the nav menu once per request instead of once per component</td><td class="num"><span class="tag" title="no observable change">A</span></td><td>accepted</td><td class="num">ui.device.detail -24%, ui.rack.detail -25%, three alternating rounds</td></tr>
+        <tr><td class="id">13</td><td><code>5f351dc5b</code></td><td>Reuse one API serializer per model when change-logging a transaction</td><td class="num"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></td><td>accepted</td><td class="num">200 -&gt; 2 per 100-object batch</td></tr>
+        <tr><td class="id">14</td><td><code>3d59d0854</code></td><td>Resolve natural keys from a whole-table map for small reference models</td><td class="num"><span class="tag" title="state scoped to a request, transaction or instance">B1</span></td><td>accepted</td><td class="num">api.interface.depth1 629 -&gt; 292; dcim_location 257 -&gt; 0, tenancy_tenant 82 -&gt; 0; total 1294 -&gt; 957</td></tr>
+        <tr><td class="id">15</td><td><code>27b3ec422</code></td><td>Pre-warm natural-key FK chains with one select_related</td><td class="num"><span class="tag" title="no observable change">A</span></td><td>rejected</td><td class="num">2357 -&gt; 1359 (-666 beyond the accepted fixes)</td></tr>
+        <tr><td class="id">16</td><td><code>43db1b018</code></td><td>Stop double-serializing every change record by writing an empty object_data</td><td class="num"><span class="tag" title="changes observable behaviour">C</span></td><td>parked</td><td class="num">-200 per 100 writes (-14.2% on bulk.create.loop); exactly two queries per ObjectChange record</td></tr>
+        <tr><td class="id">17</td><td><code>3d59d0854</code></td><td>Cross-request Redis-backed natural-key map with signal invalidation</td><td class="num"><span class="tag" title="state that outlives its scope and needs invalidating">B2</span></td><td>rejected</td><td class="num">+0 to 2 percentage points over the request-scoped variant -- inside run-to-run variance</td></tr>
+        <tr><td class="id">18</td><td><code>3d59d0854</code></td><td>Enable LOCATION_NAME_AS_NATURAL_KEY</td><td class="num"><span class="tag" title="changes observable behaviour">C</span></td><td>not-taken</td><td class="num">-12% on api.interface.depth1 standalone; ~2 points on top of the whole-table map</td></tr>
+        <tr><td class="id">19</td><td><code>5b912a905</code></td><td>Process-level per-user nav menu cache</td><td class="num"><span class="tag" title="state that outlives its scope and needs invalidating">B2</span><span class="tag tag-scope">security-visible</span></td><td>rejected</td><td class="num">~0.6ms, now that nav_menu runs once per request</td></tr>
+        <tr><td class="id">20</td><td><code>5b912a905</code></td><td>Drop the request argument in render_component_template</td><td class="num"><span class="tag" title="changes observable behaviour">C</span></td><td>not-taken</td><td class="num">~1ms residual after the per-request memo</td></tr>
+        <tr><td class="id">21</td><td><code>0ccf16a4e</code></td><td>Make tab badges reuse the panel paginator COUNT</td><td class="num"><span class="tag" title="changes observable behaviour">C</span></td><td>not-taken</td><td class="num">no measurable effect</td></tr>
+        <tr><td class="id">22</td><td>&mdash;</td><td>Make object_data nullable and key the fallback on presence</td><td class="num"><span class="tag" title="state scoped to a request, transaction or instance">B1</span><span class="tag" title="metadata-only migration">M0</span></td><td>proposed</td><td class="num">the ~12% of write-path queries and ~200 queries per 100 writes that seq 16 measured, without its contract change</td></tr>
+        <tr><td class="id">23</td><td>&mdash;</td><td>Backfill object_data_v2 for historical ObjectChange rows</td><td class="num"><span class="tag" title="no observable change">A</span><span class="tag" title="unbounded migration">M2</span></td><td>priced</td><td class="num">8.75ms per row measured. ~5 minutes at this dataset's 36,552 rows; ~2.4 hours at one million; unbounded where CHANGELOG_RETENTION is 0 or its cleanup Job was never scheduled</td></tr>
+        <tr><td class="id">24</td><td>&mdash;</td><td>Drop indexes that are never scanned</td><td class="num"><span class="tag" title="no observable change">A</span><span class="tag" title="metadata-only migration">M0</span></td><td>proposed</td><td class="num">unmeasured; this is the unexplored half of the index question</td></tr>
       </tbody>
     </table>
-  </div>
-
-  <div class="tablewrap">
-    <table>
-      <caption>Measured and not taken. Recording these is the point &mdash; each one is a plausible optimization that measurement or blast-radius analysis killed.</caption>
-      <thead><tr><th>Change</th><th>Why not</th><th class="num">Measured</th></tr></thead>
-      <tbody>
-        <tr><td>Pre-warm natural-key FK chains with one <code>select_related</code></td><td>Materializes wide rows across 8 self-joined tables; slower than the PK lookups it replaced</td><td class="num delta-cost">&minus;666 queries, +62% slower</td></tr>
-        <tr><td>Write <code>{}</code> to <code>object_data</code> <span class="tag">F-05</span></td><td>Tier C. Changes the REST and GraphQL contracts, blanks a UI panel, breaks 13 tests; historical rows depend on the v1 fallback permanently</td><td class="num">&minus;200 queries / 100 writes</td></tr>
-        <tr><td>Cross-request Redis-backed natural-key map</td><td>Unbounded staleness: <code>.update()</code> and <code>.bulk_update()</code> emit no signal, so a stale name propagates into every composite key and CSV export</td><td class="num flat">+0&ndash;2 pts, inside variance</td></tr>
-        <tr><td><code>LOCATION_NAME_AS_NATURAL_KEY</code></td><td>Tier C. Collapses Location's key from 5 hops to 1, but changes API output on 5 of 6 endpoints tested</td><td class="num">&minus;12%, ~2 pts on top of the map</td></tr>
-        <tr><td>Process-level per-user nav menu cache</td><td>Permission edits and <code>is_superuser</code> toggles would take effect only after expiry &mdash; a security-visible staleness window</td><td class="num flat">~0.6ms</td></tr>
-        <tr><td>Drop <code>request=</code> in <code>render_component_template</code></td><td>Changes rendered output for permission-restricted users; residual after the memo is ~1ms</td><td class="num flat">~1ms</td></tr>
-        <tr><td>Tab badges reuse the paginator's COUNT</td><td>Badge would show the permission-filtered count &mdash; a visible number changing for non-superusers</td><td class="num flat">no measurable effect</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="prose">
-    <p>The gate is availability: an endpoint that returned 200 or 302 at baseline must not start erroring or 404ing. Content and row ordering may change and are reported for information only. Every accepted commit also records its risk tier &mdash; A (no observable behavior change), B (result-preserving but subtle, usually a new cache scope), C (changes observable behavior; measured, not shipped).</p>
   </div>
 </section>
 

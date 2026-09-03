@@ -1,0 +1,25 @@
+---
+seq: 6
+commit: 6020f8ebf
+status: accepted
+behaviour: B2
+migration: '-'
+flags: []
+title: Stop paying Redis round-trips for tree display and config lookups
+site: nautobot/core/utils/config.py - nautobot/core/models/tree_queries.py - nautobot/core/signals.py
+summary: get_settings_or_config() now memoizes in the per-request cache; TreeManager.max_depth
+  goes through cache_get_or_set; TreeModel.display walks the in-memory parent chain when it
+  is complete instead of fetching a cached string it could concatenate for free.
+result:
+  redis_reads: api.location.list 207 -> 7 (-96.6%), api.device.list.depth1 128 -> 19
+  in_process: api.location.list 75.2 -> 54.9ms (-27%) on a quiet machine
+controls: api.prefix.list 5 -> 5 unchanged
+tests: core test_tree_queries 11 OK, test_config 30 OK, test_utils 73 OK
+caveat: A configuration value written by another process is not picked up mid-request. Constance
+  already has its own eventual propagation, and a config_updated receiver covers same-process
+  writes.
+note: 'B2 because max_depth uses the cross-request Redis cache. The invalidate_max_depth_cache
+  receiver was extended to evict the request-local entry too, and that line is necessary --
+  without it a tree change mid-request leaves a stale max_depth. Note the pre-existing hazard
+  this shares: all six invalidate_*_cache receivers miss QuerySet.update() and .bulk_update(),
+  which compile to one SQL statement and emit no signal.'

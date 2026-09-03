@@ -1,0 +1,29 @@
+---
+seq: 16
+id: F-05
+commit: 43db1b018
+status: parked
+behaviour: C
+migration: '-'
+flags: []
+title: Stop double-serializing every change record by writing an empty object_data
+site: nautobot/extras/models/change_logging.py:45-46
+summary: to_objectchange() calls both serialize_object() for v1 and serialize_object_v2().
+  Every current consumer reads v1 only as a fallback when v2 is null, which never happens
+  for a newly created record.
+result:
+  queries: -200 per 100 writes (-14.2% on bulk.create.loop); exactly two queries per ObjectChange
+    record
+controls: 'read path unaffected: Tier 1 total unchanged, all endpoints 200'
+tests: breaks 13 tests in nautobot.extras.tests.test_changelog -- six failures and seven errors
+  across ChangeLogAPITest, ChangeLogViewTest and ObjectChangeModelTest, including test_legacy_object_data
+caveat: Every /api/extras/object-changes/ response would carry an empty object_data, and the
+  GraphQL objectData field likewise, because both serialize with all fields. The Object Data
+  panel on the ObjectChange detail page would render an em-dash instead of JSON. Historical
+  records whose only snapshot is v1 would lose it.
+reason: 'Tier C on two public API contracts, and the premise did not survive measurement:
+  the redundant serializer is the cheap one. serialize_object costs 0.73ms and two queries;
+  serialize_object_v2 costs 8.75ms and seven queries -- twelve times more. Removing the duplication
+  is worth ~12% of write-path queries, not half of them.'
+note: Kept in history with its measurements rather than deleted, because the number is the
+  deliverable. The route that gets this win without the contract change is seq 22.
