@@ -16,6 +16,10 @@ result:
   queries: api.interface.depth1 629 -> 292; dcim_location 257 -> 0, tenancy_tenant 82 -> 0;
     total 1294 -> 957
   in_process: -15% on api.interface.depth1, three alternating rounds
+wall_clock: −15% api.interface.depth1
+wall_clock_detail: 'api.interface.depth1 -15%, three alternating rounds (328/352/347ms against
+  398/420ms). Controls flat: api.device.list 176/178/177 vs 174/180; api.prefix.list 56/61/56
+  vs 55/59'
 controls: api.device.list and api.prefix.list both flat
 tests: core test_models 35 OK, test_csv 28 OK, test_api 61 OK, dcim test_api 1673 OK
 caveat: null
