@@ -1,0 +1,22 @@
+---
+seq: 3
+id: F-02
+commit: 20499687b
+status: accepted
+behaviour: B1
+migration: '-'
+flags: []
+title: Render each detail-page component once per request, not three times
+site: nautobot/core/templates/generic/object_retrieve.html:45,:122,:129
+summary: The detail template walks the same tab and panel tree three times and nothing memoized
+  between passes. should_render() ran three times per tab, render_label() twice, and ObjectsTablePanel.get_extra_context()
+  -- which builds and paginates a table -- twice. One device page issued the identical extras_contactassociation
+  COUNT from seven distinct call sites.
+result:
+  queries: ui.device.detail 108 -> 68, ui.device.interfaces 74 -> 42, total -186
+controls: Rendered HTML diffed byte-for-byte before and after; only the CSRF token differed
+tests: core test_ui 59 OK, core test_views 95 OK
+caveat: null
+note: Model-agnostic, which is why Device, Rack, Prefix and Location all showed the same shape
+  while list views stayed at 9-10 queries. An App panel whose get_extra_context() must return
+  a fresh object per call would now see one shared object.

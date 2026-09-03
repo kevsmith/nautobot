@@ -1,0 +1,23 @@
+---
+seq: 23
+commit: null
+status: priced
+behaviour: A
+migration: M2
+flags: []
+title: Backfill object_data_v2 for historical ObjectChange rows
+site: a new data migration
+summary: Migration 0022_objectchange_object_datav2 added v2 as nullable with no backfill,
+  and two data migrations construct rows carrying only v1. Backfilling would let object_data
+  be dropped outright rather than merely left null.
+result:
+  cost: 8.75ms per row measured. ~5 minutes at this dataset's 36,552 rows; ~2.4 hours at one
+    million; unbounded where CHANGELOG_RETENTION is 0 or its cleanup Job was never scheduled
+caveat: A migration whose runtime is set by the operator's retention configuration rather
+  than by anything in the release.
+reason: 'M2 on cost, and a correctness stop that pricing does not rehabilitate: v1 stores
+  foreign keys as bare primary keys while v2 needs nested natural keys, so reconstructing
+  v2 for a row referencing a since-deleted object is not possible at any cost. Re-serializing
+  the live object instead would falsify the historical record.'
+note: Recorded so the option is priced rather than rediscovered. seq 22 gets the same win
+  without it.
