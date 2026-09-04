@@ -1,23 +1,54 @@
 ---
 seq: 22
-commit: null
-status: proposed
-behaviour: B1
+commit: 9b8831711
+status: parked
+behaviour: C
 migration: M0
 flags: []
-title: Make object_data nullable and key the fallback on presence
+title: Stop writing ObjectChange.object_data, with the column made nullable
 site: nautobot/extras/models/change_logging.py plus a new AlterField migration
-summary: AlterField with null=True on ObjectChange.object_data is metadata-only -- no table
-  rewrite. New records store only object_data_v2; existing rows keep their v1 snapshot; get_snapshots()
-  keys the fallback on presence rather than on nullness.
+summary: object_data holds the legacy v1 snapshot -- Django's serialize("json"), flat columns
+  with foreign keys as bare primary keys. object_data_v2 holds what every current consumer
+  reads. Both were written for every change record, so each write paid for two serializations.
+  Migration 0146 makes the v1 column nullable -- AlterField, metadata-only, no table rewrite
+  -- and to_objectchange stops populating it.
 result:
-  expected: the ~12% of write-path queries and ~200 queries per 100 writes that seq 16 measured,
-    without its contract change
-wall_clock: not measured — proposed
+  queries: 'exactly 2 per ObjectChange record: bulk.create.loop 1404 -> 1204 (-14.2%), bulk.create.deferred
+    1307 -> 1107 (-15.3%), bulk.update.deferred 1472 -> 1374, bulk.delete 2019 -> 1919, create.interfaces.x50
+    704 -> 604, create.device 34 -> 32, create.interface 18 -> 16'
+  prize_remeasured: the v1 serializer costs 454.4ms of a 3775.4ms bulk.create.loop (12.0%),
+    575.8ms of 4525.7ms deferred (12.7%), 4.5ms per call against v2's 14.4ms -- 3.2x, where
+    finding 16 measured 12x. The ratio narrowed because finding 13 made v2 cheaper, so v1
+    is a larger share of what remains than when it was first measured
+wall_clock: not measured — parked before a wall-clock A/B was run
 wall_clock_detail: not measured -- proposed, not yet run
-caveat: Records created after the change carry no object_data. Any consumer reading that field
-  directly, rather than through get_snapshots(), sees null for new records. The field stays
-  in the REST and GraphQL payloads until a separate deprecation removes it.
-note: 'Not yet measured. The route seq 16 should have taken: same win, M0 migration cost,
-  no falsified history. Removing object_data from the payload entirely is a later deprecation,
-  not part of this.'
+caveat: object_data is null for every record written after this lands. Both the REST serializer
+  and the auto-generated GraphQL type use fields="__all__", so it surfaces as null in /api/extras/object-changes/
+  and in the GraphQL objectData field. Separately, a change whose prior change predates object_data_v2
+  -- Nautobot 1.2, migration 0022, which added the column with no backfill -- reports no prechange
+  rather than comparing two v1 snapshots, because a v1 snapshot and a v2 snapshot are different
+  shapes and cannot be diffed. With CHANGELOG_RETENTION at its 90-day default those records
+  are long gone; where retention is 0 they persist.
+note: 'What the nullable route buys over 43db1b018, which wrote {} into the NOT NULL column,
+  is not the 2 queries -- both save those. It is that {} makes the field present and lying:
+  an empty dict is not "no data", so updating the 13 tests to match it would have encoded
+  a falsehood. null is the correct JSON for "not recorded", so those same test updates become
+  legitimate. A Tier C change whose tests can be honestly updated is a different proposition
+  from one whose tests cannot.
+
+
+  Two things established on the way that outlive this finding. Every object_data site turned
+  out to be paired with an object_data_v2 site -- signals.py at 152/153, 391/392 and 488/489
+  -- so the write path needed no other changes. And get_snapshots carried a latent AttributeError:
+  its mixed-format branch dereferenced prior_change.object_data without checking prior_change
+  is not None, reachable in principle for an UPDATE whose prior changelog was pruned on a
+  record lacking v2. Unreachable today because every record has v1.'
+controls: 'read path unaffected: Tier 1 total 695, all 38 endpoints 200/302, gate PASS'
+tests: extras test_models 295 OK, extras test_api 1475 OK, and **13 failures in extras test_changelog**
+  -- 7 errors from assertions on oc.object_data[...] against None, 6 failures across test_legacy_object_data
+  and test_get_snapshots on mixed-format snapshot pairs
+reason: Tier C on two counts, and I classified it B1 before running the tests. It changes
+  the API and GraphQL payload, and it changes get_snapshots semantics for pre-1.2 records.
+  Landing it needs a deprecation cycle for the payload plus updates to 13 tests. Reverted
+  from the tree in the commit following 9b8831711 to keep the suite green, and kept in history
+  with its measurements.
