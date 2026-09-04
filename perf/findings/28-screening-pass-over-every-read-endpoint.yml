@@ -18,9 +18,9 @@ result:
   coverage: 6 of 166 API list endpoints were named in workload.yml; 160 had never been measured
   queries: 'top residual costs per returned object, page of 25: dcim.cabletocabletermination?depth=1
     19.5 q/obj (487 queries, 473 duplicates, 1226ms, 6556 rows); dcim.interfaceconnections
-    14.4 q/obj (359 queries, 345 duplicates, 777ms, 2780 rows); vpn.vpntunnelendpoint?depth=1
-    9.8; circuits.circuit?depth=1 7.3; dcim.interfaceredundancygroupassociation?depth=1 6.6;
-    ipam.ipaddresstointerface?depth=1 5.9'
+    14.4 q/obj (359 queries, 345 duplicates, 777ms, 2780 rows, and a clean 9 + 14n fit against
+    page size); vpn.vpntunnelendpoint?depth=1 9.8; circuits.circuit?depth=1 7.3; dcim.interfaceredundancygroupassociation?depth=1
+    6.6; ipam.ipaddresstointerface?depth=1 5.9'
 wall_clock: not measured — a screening pass ranks targets, it does not measure a change
 controls: null
 tests: null
@@ -35,11 +35,20 @@ note: 'Two of these are worse per object than anything the inner loop has ever m
   most of this branch''s effort.
 
 
-  **The connections endpoints are a different cost class.** dcim.interfaceconnections reads
-  359 queries at depth 0 and 359 at depth 1 -- identical. powerconnections and consoleconnections
-  show the same signature at 5.4 q/obj. A cost that does not move with depth is not the nested-serializer
-  class this branch has spent its length on, so the accepted fixes would not touch it and
-  a new attribution is needed.
+  **dcim.interfaceconnections is a clean N+1: 9 fixed queries plus 14 per object.** Page-size
+  sensitivity gives an exact linear fit -- 23 queries at limit 1, 79 at 5, 149 at 10, 359
+  at 25, 709 at 50 -- so the cost is per-row work rather than pagination overhead. On 2,780
+  rows that is the largest untouched N+1 the screen found.
+
+
+  **Correction to an earlier reading of this record.** It said interfaceconnections showed
+  ''a different cost class'' because its query count is identical at depth 0 and depth 1,
+  and that none of the accepted fixes would touch it. Both halves were wrong. The endpoint
+  simply ignores `depth`: diffing the two responses shows the only difference is the pagination
+  `next` link echoing `depth=1`, exactly 8 bytes at every page size. Identical counts across
+  depth therefore say nothing about cost class. It is the ordinary per-row N+1 class this
+  branch has been fixing all along, which makes it more tractable rather than less. powerconnections
+  and consoleconnections share the shape at 5.4 q/obj and presumably the same explanation.
 
 
   Caveats carried from the design. This weights every endpoint equally, which is a selection-free
