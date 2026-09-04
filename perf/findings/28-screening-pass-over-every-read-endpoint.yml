@@ -1,0 +1,55 @@
+---
+seq: 28
+id: null
+commit: null
+status: proposed
+behaviour: A
+migration: '-'
+flags: []
+title: Screening pass over every read endpoint, and what it found
+site: perf/screen_reads.py
+summary: The inner loop measures 38 hand-picked scenarios. This enumerates every REST list
+  endpoint from the URL resolver at run time and measures list, list?depth=1, detail and detail?depth=1
+  for each, normalizing to cost per returned object so a 5-row model and a 6,556-row one are
+  comparable. 518 measurements across 166 list endpoints in 84 seconds, against the tree with
+  all sixteen accepted changes applied -- so these are residual costs, not costs the branch
+  has already removed.
+result:
+  coverage: 6 of 166 API list endpoints were named in workload.yml; 160 had never been measured
+  queries: 'top residual costs per returned object, page of 25: dcim.cabletocabletermination?depth=1
+    19.5 q/obj (487 queries, 473 duplicates, 1226ms, 6556 rows); dcim.interfaceconnections
+    14.4 q/obj (359 queries, 345 duplicates, 777ms, 2780 rows); vpn.vpntunnelendpoint?depth=1
+    9.8; circuits.circuit?depth=1 7.3; dcim.interfaceredundancygroupassociation?depth=1 6.6;
+    ipam.ipaddresstointerface?depth=1 5.9'
+wall_clock: not measured — a screening pass ranks targets, it does not measure a change
+controls: null
+tests: null
+caveat: null
+note: 'Two of these are worse per object than anything the inner loop has ever measured, and
+  neither was in it.
+
+
+  **dcim.cabletocabletermination at depth 1** is the largest: 19.5 queries per returned object
+  with 473 duplicates on a page of 25. For comparison, api.interface.depth1 at its original
+  worst was 1,229 queries for 100 objects -- 12.3 per object -- and that endpoint absorbed
+  most of this branch''s effort.
+
+
+  **The connections endpoints are a different cost class.** dcim.interfaceconnections reads
+  359 queries at depth 0 and 359 at depth 1 -- identical. powerconnections and consoleconnections
+  show the same signature at 5.4 q/obj. A cost that does not move with depth is not the nested-serializer
+  class this branch has spent its length on, so the accepted fixes would not touch it and
+  a new attribution is needed.
+
+
+  Caveats carried from the design. This weights every endpoint equally, which is a selection-free
+  sample rather than a usage-weighted one -- nobody may list cabletocabletermination at depth
+  1 in practice, and that is a product question rather than a measurement one. Per-object
+  cost is misleading on pages of one or two objects, where fixed overhead dominates, so the
+  ranking above is restricted to pages of ten or more. And dcim.connected-device returns 400
+  without its required peer_device and peer_interface parameters, which is correct behaviour
+  for a lookup endpoint rather than a failure.
+
+
+  It is a screening instrument, not a regression gate. 518 measurements do not belong in the
+  inner loop, which stays at 38 scenarios.'

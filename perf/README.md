@@ -367,36 +367,57 @@ anything that later smells like stale fixture state should be re-run with
 job rather than an inner-loop check -- targeted per-module runs stay the fast
 signal during an experiment.
 
-## Open: systematic CRUD/list coverage matrix
+## Built: the read screening matrix
 
-`workload.yml` has 39 hand-picked scenarios. The actual API surface is **330 list
-endpoints, 320 detail endpoints and 127 UI list views across 14 apps** -- so coverage is
-roughly 5%, and the scenarios were chosen for diagnostic interest, which is a selection
-bias, not a sample.
+`perf/screen_reads.py` enumerates every REST list endpoint from the URL resolver
+at run time -- never from a list in a file, so it cannot rot as models come and
+go -- and measures `list`, `list?depth=1`, `detail` and `detail?depth=1` for
+each. 518 measurements in 84 seconds.
 
-The argument for building it: `api.interface.depth1` turned out to be a 74% win, and it was
-found by hand-guessing that "interfaces is the biggest table". There are ~300 endpoints
-nobody has looked at.
+**Correcting the figure this section used to carry.** It claimed a surface of 330
+list endpoints, 320 detail and 127 UI list views, and coverage of "roughly 5%".
+The resolver reports **166 API list endpoints**, of which **6** are named in
+`workload.yml`. Real coverage was **3.6%**, and the 330 was wrong.
 
-Design, not yet built:
+The normalization is what makes it a screening instrument: cost per *returned
+object*, not per request. A 5-row model and a 6,556-row one are not comparable
+per request; per object they are, and an endpoint doing something per row shows
+up regardless of its table size. Rank on pages of ten or more objects -- below
+that, fixed overhead dominates and the ratio misleads.
 
-- **Enumerate from the URL resolver at run time**, exactly as `workload.py` resolves view
-  names, so the matrix cannot rot as models come and go.
-- **Reads first** -- `list`, `list?depth=1`, `detail`, `detail?depth=1` per model. No
-  payloads, no mutation, safe to re-run. ~1200 measurements; Tier 1 does 38 in about a
-  minute, so budget roughly half an hour.
-- **Normalize to cost per object**, not per request. That is what makes it a screening
-  instrument: a 5-row model becomes comparable to an 8925-row one, and anomalies surface
-  regardless of table size. Rank by queries-per-row and ms-per-row.
-- **Writes are the harder half, and databot is the payload factory.** create/update need
-  schema-valid payloads per model, which databot already generates from the OpenAPI schema
-  and OPTIONS metadata. The open problem is isolation: REST writes cross the process
-  boundary, so the rolled-back transactions `tier1w_writes.py` relies on do not apply. Run
-  the write matrix as a batch against a restored snapshot, then restore again.
+What the first run found, against the tree with all sixteen accepted changes
+applied, so these are residual costs:
 
-**This is a screening pass, not a regression gate.** 1200 measurements do not belong in the
-inner loop -- that stays at 38 scenarios. Run this occasionally; its output is a ranked list
-of where to point the next investigation.
+| endpoint | q/object | duplicates | rows |
+|---|---:|---:|---:|
+| `dcim.cabletocabletermination?depth=1` | 19.5 | 473 | 6,556 |
+| `dcim.interfaceconnections` | 14.4 | 345 | 2,780 |
+| `vpn.vpntunnelendpoint?depth=1` | 9.8 | 226 | 37 |
+| `circuits.circuit?depth=1` | 7.3 | 169 | 38 |
+| `ipam.ipaddresstointerface?depth=1` | 5.9 | 130 | 2,937 |
+
+Two of those are worse per object than anything the inner loop has measured.
+`api.interface.depth1` at its original worst was 12.3 queries per object, and it
+absorbed most of this branch's effort.
+
+`dcim.interfaceconnections` is the more interesting one: 359 queries at depth 0
+and 359 at depth 1, identical. A cost that does not move with depth is not the
+nested-serializer class this branch has spent its length on, so none of the
+accepted fixes touch it and it needs its own attribution. `powerconnections` and
+`consoleconnections` share the signature.
+
+**A screening pass, not a regression gate.** 518 measurements do not belong in
+the inner loop, which stays at 38 scenarios. Run this occasionally; its output is
+a ranked list of where to point the next investigation. It also weights every
+endpoint equally, which is a selection-free sample rather than a usage-weighted
+one -- whether anyone lists `cabletocabletermination` at `?depth=1` in practice
+is a product question, not a measurement one.
+
+Writes remain unbuilt. create/update need schema-valid payloads per model, which
+databot generates from the OpenAPI schema and OPTIONS metadata. The open problem
+is isolation: REST writes cross the process boundary, so the rolled-back
+transactions `tier1w_writes.py` relies on do not apply. Run the write matrix as a
+batch against a restored snapshot, then restore again.
 
 ## Environment quick reference
 
