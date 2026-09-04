@@ -286,12 +286,16 @@ It is a ranking instrument, not a gate; the inner loop stays at 38 scenarios.
 
 ## Caveats
 
-- **The full test suite has not yet completed on this branch.** Targeted tests pass throughout
-  — including `dcim.tests.test_api` (1,673) and `ipam.tests.test_views` (596) — but the one
-  whole-suite attempt died in Django's parallel runner with a pickling error *and exited 0*.
-  A serial run (`invoke tests --no-parallel`) is the gating item before any of this becomes a
-  pull request. Note that `test_get_docs_url` fails across ~35 dcim model tests whenever
-  `--skip-docs-build` is passed, on a clean tree too.
+- **The full test suite passes.** `invoke tests --no-parallel` ran all **17,504 tests in
+  2h 15m** against the tree with every accepted change applied: **OK, 663 skipped, 1 expected
+  failure, zero failures and zero errors**. This closes what had been the branch's largest
+  open item — a whole-suite run had never completed, and the one attempt died in Django's
+  parallel runner with a pickling error *and exited 0*. Serial was the fix, so a worker
+  exception would surface instead of being swallowed. The run built docs rather than passing
+  `--skip-docs-build`, which is what makes `test_get_docs_url` fail across ~35 dcim model
+  tests even on a clean tree; it does not appear here. Note it used `--keepdb
+  --cache-test-fixtures`, so a result that ever smells like stale fixture state should be
+  re-run with `--no-keepdb`.
 - **No changelog fragments, deliberately.** Nothing here reaches a release in its current
   shape: anything upstreamed would go through review and very likely change, so a fragment
   written now would describe a change that no longer exists. The commit messages and the
