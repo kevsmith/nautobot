@@ -22,7 +22,6 @@ from django.contrib.auth import get_user_model  # noqa: E402
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tier1w_writes as t1w  # noqa: E402
 
-from nautobot.core.models import utils as model_utils  # noqa: E402
 from nautobot.extras.models import change_logging  # noqa: E402
 
 stats = {"v1_calls": 0, "v1_s": 0.0, "v2_calls": 0, "v2_s": 0.0}
@@ -49,9 +48,7 @@ wrap(change_logging, "serialize_object_v2", "v2")
 user_model = get_user_model()
 user = user_model.objects.filter(username=t1w.PERF_USER).first()
 if user is None:
-    user = user_model.objects.create(
-        username=t1w.PERF_USER, is_superuser=True, is_staff=True, is_active=True
-    )
+    user = user_model.objects.create(username=t1w.PERF_USER, is_superuser=True, is_staff=True, is_active=True)
 fixtures = t1w.fixtures()
 
 TARGETS = {
@@ -71,7 +68,9 @@ for name, fn in t1w.OPERATIONS:
     wall = rec["wall_ms"]
     v1_ms = stats["v1_s"] * 1000.0
     v2_ms = stats["v2_s"] * 1000.0
-    print(f"{name:40s} {wall:8.1f}ms {stats['v1_calls']:9d} {v1_ms:7.1f}ms "
-          f"{(v1_ms / wall * 100.0) if wall else 0:6.1f}% {v2_ms:7.1f}ms")
+    print(
+        f"{name:40s} {wall:8.1f}ms {stats['v1_calls']:9d} {v1_ms:7.1f}ms "
+        f"{(v1_ms / wall * 100.0) if wall else 0:6.1f}% {v2_ms:7.1f}ms"
+    )
 
 print("\nv1 is the half this experiment would remove; v2 is the half that stays.")
