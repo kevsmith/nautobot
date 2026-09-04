@@ -54,4 +54,12 @@ note: 'Found by attribution, and attribution also killed the obvious version of 
 
   Rollout candidates: the other PathEndpointMixin viewsets -- FrontPort, RearPort, ConsolePort,
   PowerPort -- serialize peers the same way and share the same helper. Left for a follow-up
-  so this commit''s number stays attributable.'
+  so this commit''s number stays attributable.
+
+
+  **Follow-up the screening pass exposed.** The depth guard withholds this fix from dcim.interface-connections,
+  which ignores `depth` and so never satisfies `depth > 0`, yet calls _first_cable_path and
+  _destination 50 times each on a page of 25 -- 100 of that endpoint''s 359 queries. The guard
+  is measured and correct for api.interface.list, where it saves 56ms; it is wrong there.
+  Keying it on whether peers will actually be serialized, rather than on the depth parameter,
+  would fix both. See finding 30.'
