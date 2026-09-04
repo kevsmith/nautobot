@@ -1,0 +1,45 @@
+---
+seq: 31
+id: null
+commit: null
+status: proposed
+behaviour: A
+migration: '-'
+flags: []
+title: Fix the tag cache in serialize_object, which can never fire for an untagged object
+site: nautobot/core/models/utils.py:220
+summary: "serialize_object reads a cached tag list if one is present on the instance:\n\n\
+  \    tags = getattr(obj, \"_tags\", []) or obj.tags.only(\"name\")\n\n`[] or X` evaluates\
+  \ X, so an object whose cached tag list is empty falls through and queries anyway. Most\
+  \ objects in a bulk write have no tags, so the cache can never fire for the common case."
+result:
+  queries: 20 interfaces cost 40 queries as-is and 20 with a truthy _tags -- half; the extras_tag
+    lookup disappears entirely
+  expected: 1 of the 2 queries per ObjectChange record, without touching object_data
+wall_clock: −50% serialize_object (4.59 → 2.30ms per object)
+wall_clock_detail: 'serialize_object over 20 Interfaces, measured directly: 4.59ms per object
+  as-is, 4.13ms with _tags set to [] (unchanged, because the falsy check defeats it), and
+  2.30ms with a truthy _tags -- a 50% reduction, matching the 40-to-20 query drop.
+
+
+  Not a full experiment yet: this measures the ceiling of fixing the check, not a change written
+  and gated. The remaining ipam_vlan query per object is Django''s serializer fetching the
+  tagged_vlans M2M, which is inherent to serialize("json") rather than avoidable here.'
+controls: null
+tests: null
+caveat: null
+note: 'This is the Tier A route to roughly half of what finding 22 measured. Finding 22 removes
+  the whole v1 serialization for 2 queries per record and is Tier C -- it changes the REST
+  and GraphQL payload and needs 13 test updates. This removes 1 of those 2 queries and half
+  the serialization time, changes no payload, and breaks nothing, because it makes an existing
+  cache work as written rather than removing what it feeds.
+
+
+  Two parts to the change: `getattr(obj, "_tags", None) is not None` instead of the falsy
+  `or`, and populating `_tags = []` where the caller knows there are none. The create path
+  in signals.py qualifies -- to_objectchange runs immediately after save and tags are assigned
+  afterwards, so a newly created object provably has none.
+
+
+  Found by asking why serialize_object costs what it does, which is a question I should have
+  asked before proposing to delete its output.'
