@@ -22,4 +22,9 @@ perf/dc.sh exec -T db psql -U nautobot -d nautobot -q < "$SNAPSHOT"
 # would exit 1 on its last line. `up -d` creates what is missing and starts
 # what is present, which is correct in both cases.
 perf/dc.sh up -d nautobot celery_worker celery_beat >/dev/null 2>&1
+# The snapshot predates any migration written after it was taken, so a restore
+# alone leaves the schema behind the code. Migrations are in scope on this branch
+# now (see the taxonomy in perf/README.md), so the restore has to end with one.
+# A no-op on an already-current schema.
+perf/dc.sh exec -T nautobot nautobot-server migrate --no-input >/dev/null 2>&1
 echo "restored."
