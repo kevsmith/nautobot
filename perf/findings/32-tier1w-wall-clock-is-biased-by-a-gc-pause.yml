@@ -1,0 +1,57 @@
+---
+seq: 32
+id: null
+commit: d52169a34
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: Tier 1W's wall clock is biased by a GC pause that three alternating rounds cannot cancel
+site: perf/tier1w_writes.py - perf/probe_f31_wall.py
+summary: tier1w_writes.py runs a warmup plus three reps of each operation and reports the wall
+  clock of the LAST rep. A gen-2 cyclic garbage collection costs about 200ms in this process
+  and recurs on a period set by allocation count -- which is deterministic for a given tree.
+  So the pause lands on the reported rep for one arm and not the other, and it does so in every
+  independent run of that arm. The arm-reversal rule cancels monotonic drift; it cannot cancel
+  a bias that is not random.
+result:
+  incident: 'finding 31 read create.device at 89/89/89ms unpatched and 241/250/248ms patched,
+    three rounds, both orderings -- a 179% regression that reproduced perfectly and was not
+    real. The same operation measured over nine reps costs 83.7ms and 79.8ms. db_ms was flat
+    at ~24ms in both arms, which is what said the cost was not in the database.'
+  mechanism: '24 consecutive calls, gc counters read between each: 329ms on the cold first call,
+    122ms typical, and one 323ms call carrying a gen-2 collection. Median 122ms, min 111ms,
+    max 329ms.'
+  exposure: '~200ms on operations tier1w reports between 25ms and 300ms, where it is up to 8x
+    the true cost; ~6-7% on the ~3s bulk operations.'
+wall_clock: not applicable — a measurement artifact, not a change
+wall_clock_detail: 'The fix is an instrument, not an edit to tier1w: perf/probe_f31_wall.py
+  runs nine reps of each write operation and reports the median, min, max and per-rep timings,
+  so one pause cannot move the answer. Observed round-to-round spread on that instrument is
+  6-13% max-to-min within a round, and the round medians agree to about 2.6% across rounds --
+  which is the noise floor finding 31''s controls independently reported.'
+controls: null
+tests: n/a; a measurement artifact, no product code involved
+caveat: null
+note: 'Query counts are untouched by this. The collector issues no SQL, so every deterministic
+  counter this branch has published stands, including the ones taken with tier1w. Only its per-operation
+  wall_ms is affected.
+
+
+  Two earlier findings are worth re-reading in this light, and both survive. Finding 24 measured
+  dropping all 17 non-unique ObjectChange indexes at −59ms on a 3358ms operation and called
+  the real cost indistinguishable from zero; a ~200ms artifact makes that conclusion stronger,
+  not weaker. Finding 29 measured commit against rollback at 31ms on a 3.3-second operation
+  and called it inside variance; same. Neither claimed a win that this would erase. What this
+  does retire is the idea that any tier1w wall figure smaller than a few hundred milliseconds
+  meant anything.
+
+
+  tier1w_writes.py is deliberately left alone. Changing it to report a median would silently
+  redefine every wall figure in the committed baselines, and its job is the deterministic counters,
+  which are correct. The wall-clock instrument is separate and says so.
+
+
+  Found by refusing to average away a regression. The honest reading of 89ms against 248ms,
+  three rounds, both orderings, is that the change made create.device three times slower -- and
+  the branch''s own rule is to explain a tripwire rather than accept or dismiss it.'
