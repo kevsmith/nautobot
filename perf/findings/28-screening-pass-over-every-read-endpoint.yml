@@ -1,8 +1,8 @@
 ---
 seq: 28
 id: null
-commit: null
-status: proposed
+commit: fddc2fc80
+status: accepted
 behaviour: A
 migration: '-'
 flags: []
@@ -21,9 +21,9 @@ result:
     14.4 q/obj (359 queries, 345 duplicates, 777ms, 2780 rows, and a clean 9 + 14n fit against
     page size); vpn.vpntunnelendpoint?depth=1 9.8; circuits.circuit?depth=1 7.3; dcim.interfaceredundancygroupassociation?depth=1
     6.6; ipam.ipaddresstointerface?depth=1 5.9'
-wall_clock: not measured — a screening pass ranks targets, it does not measure a change
+wall_clock: not applicable — an instrument, not a change
 controls: null
-tests: null
+tests: n/a; reads only, no mutation, safe to re-run
 caveat: null
 note: 'Two of these are worse per object than anything the inner loop has ever measured, and
   neither was in it.
