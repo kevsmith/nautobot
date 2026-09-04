@@ -114,7 +114,7 @@ REQUIRED = ("seq", "status", "behaviour", "migration", "title", "summary", "wall
 # A wall-clock headline is a signed percentage, or an explicit statement that there
 # is none. Absolutes mixed in among percentages make the column incomparable row to
 # row, so one is only allowed alongside a percentage, in parentheses.
-WALL_OK = re.compile(r"^(?:[+−-]|≈[+−-]?)\d|^not measured|^not applicable|^no measurable")
+WALL_OK = re.compile(r"^(?:[+−-]|≈[+−-]?)\d|^not measured|^not applicable|^no measurable")  # noqa: RUF001 -- U+2212 is deliberate in rendered output
 
 
 def validate(findings):
@@ -138,8 +138,13 @@ def validate(findings):
             )
         if f.get("behaviour") not in ("A", "B1", "B2", "C"):
             problems.append(f"finding {f['seq']}: behaviour {f.get('behaviour')!r} not a tier")
+        # A caveat is a release note for something being adopted. A finding that
+        # is not being done does not need one -- its `reason` carries the
+        # explanation instead. Exempting only "rejected" and not "not-taken"
+        # made the two statuses inconsistent here while group_of already treated
+        # them as the same thing.
         needs = f.get("behaviour") in ("B2", "C") or f.get("migration", "-") != "-"
-        if needs and not f.get("caveat") and f.get("status") != "rejected":
+        if needs and not f.get("caveat") and f.get("status") not in ("rejected", "not-taken"):
             problems.append(f"finding {f['seq']}: {f['behaviour']}/{f['migration']} needs a caveat")
     return problems
 
