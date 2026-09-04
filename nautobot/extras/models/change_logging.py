@@ -7,7 +7,7 @@ from django.urls import NoReverseMatch, reverse
 
 from nautobot.core.celery import NautobotKombuJSONEncoder
 from nautobot.core.models import BaseModel
-from nautobot.core.models.utils import serialize_object, serialize_object_v2
+from nautobot.core.models.utils import serialize_object_v2
 from nautobot.core.utils.data import shallow_compare_dict
 from nautobot.core.utils.lookup import get_route_for_model
 from nautobot.extras.choices import ObjectChangeActionChoices, ObjectChangeEventContextChoices
@@ -42,7 +42,10 @@ class ChangeLoggedModel(models.Model):
             changed_object=self,
             object_repr=str(self)[:CHANGELOG_MAX_OBJECT_REPR],
             action=action,
-            object_data=serialize_object(self, extra=object_data_extra, exclude=object_data_exclude),
+            # object_data, the legacy v1 snapshot, is deliberately not populated. Every current
+            # consumer reads object_data_v2 and falls back to v1 only where v1 is all a record
+            # has, which is true of rows written before object_data_v2 existed and false of
+            # anything written from here on. See migration 0146.
             object_data_v2=serialize_object_v2(self),
             related_object=related_object,
         )
@@ -105,7 +108,7 @@ class ObjectChange(SavedViewMixin, BaseModel):
     related_object_id = models.UUIDField(blank=True, null=True)
     related_object = GenericForeignKey(ct_field="related_object_type", fk_field="related_object_id")
     object_repr = models.CharField(max_length=CHANGELOG_MAX_OBJECT_REPR, editable=False)
-    object_data = models.JSONField(encoder=DjangoJSONEncoder, editable=False)
+    object_data = models.JSONField(encoder=DjangoJSONEncoder, editable=False, null=True, blank=True)
     object_data_v2 = models.JSONField(encoder=NautobotKombuJSONEncoder, editable=False, null=True, blank=True)
 
     documentation_static_path = "docs/user-guide/platform-functionality/change-logging.html"
@@ -236,10 +239,25 @@ class ObjectChange(SavedViewMixin, BaseModel):
             if postchange is None:
                 postchange = self.object_data
 
+        # A v1 snapshot and a v2 snapshot are different shapes and cannot be diffed against each
+        # other. While both were written for every record, dropping both sides to v1 was always
+        # possible. It no longer is: a record written after object_data stopped being populated
+        # has only v2, so a prior change predating object_data_v2 has no comparable counterpart.
+        # Where both v1 snapshots exist, compare those as before; where only one side has v1,
+        # report the current state with no prechange rather than diffing incomparable shapes.
         if prechange and postchange:
-            if self.object_data_v2 is None or (prior_change and prior_change.object_data_v2 is None):
-                prechange = prior_change.object_data
-                postchange = self.object_data
+            if self.object_data_v2 is None or (prior_change is not None and prior_change.object_data_v2 is None):
+                if (
+                    prior_change is not None
+                    and prior_change.object_data is not None
+                    and self.object_data is not None
+                ):
+                    prechange = prior_change.object_data
+                    postchange = self.object_data
+                else:
+                    prechange = None
+
+        if prechange and postchange:
             diff_added = shallow_compare_dict(prechange, postchange, exclude=["last_updated"])
             diff_removed = {x: prechange.get(x) for x in diff_added}
         elif prechange and not postchange:
