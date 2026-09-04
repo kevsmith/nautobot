@@ -1,45 +1,106 @@
 ---
 seq: 31
 id: null
-commit: null
-status: proposed
-behaviour: A
+commit: d52169a34
+status: accepted
+behaviour: C
 migration: '-'
 flags: []
 title: Fix the tag cache in serialize_object, which can never fire for an untagged object
-site: nautobot/core/models/utils.py:220
-summary: "serialize_object reads a cached tag list if one is present on the instance:\n\n\
-  \    tags = getattr(obj, \"_tags\", []) or obj.tags.only(\"name\")\n\n`[] or X` evaluates\
-  \ X, so an object whose cached tag list is empty falls through and queries anyway. Most\
-  \ objects in a bulk write have no tags, so the cache can never fire for the common case."
+site: nautobot/core/models/utils.py:225 - nautobot/extras/api/mixins.py:30 - nautobot/extras/signals.py
+  - nautobot/extras/context_managers.py
+summary: "serialize_object read a cached tag list if one was present on the instance:\n\n \
+  \   tags = getattr(obj, \"_tags\", []) or obj.tags.only(\"name\")\n\n`[] or X` evaluates\
+  \ X, so an object whose cached tag list was empty fell through and queried anyway. Most objects\
+  \ in a bulk write have no tags, so the cache could never fire for the common case. Testing\
+  \ for presence instead of truth makes it fire, and two callers can then populate it: a just-created\
+  \ object provably has no tags, and the deferred change-logging flush can read the whole batch's\
+  \ tags in one query instead of one per record."
 result:
-  queries: 20 interfaces cost 40 queries as-is and 20 with a truthy _tags -- half; the extras_tag
-    lookup disappears entirely
-  expected: 1 of the 2 queries per ObjectChange record, without touching object_data
-wall_clock: −50% serialize_object (4.59 → 2.30ms per object)
-wall_clock_detail: 'serialize_object over 20 Interfaces, measured directly: 4.59ms per object
-  as-is, 4.13ms with _tags set to [] (unchanged, because the falsy check defeats it), and
-  2.30ms with a truthy _tags -- a 50% reduction, matching the 40-to-20 query drop.
+  queries: 'per Tier 1W operation, identical across three rounds each arm: bulk.create.x100.loop
+    1404 -> 1304 (-100), bulk.create.x100.deferred 1307 -> 1208 (-99), bulk.update.x100.deferred
+    1472 -> 1424 (-48), create.interfaces.x50 704 -> 654 (-50), create.device 34 -> 33, create.interface
+    18 -> 17, create.ipaddress 22 -> 21'
+  read path: unchanged -- Tier 1 total 695 -> 695, no endpoint moved by a single query
+  serialize_object: 40 queries for 20 Interfaces -> 20; the extras_tag lookup disappears entirely
+  not improved: bulk.delete.x100 stays at 2019. Django clears an instance's pk on delete, so
+    at flush time there is nothing to look the tags up by, and the batch warm skips those rows.
+wall_clock: −6.9% bulk.create.x100.loop, −5.6% deferred
+wall_clock_detail: 'Three alternating rounds (B/A, A/B, B/A), snapshot restore and container
+  restart before every arm, each round the median of nine reps. Round medians then A / B / delta:
+  bulk.create.x100.loop 3256/3218/3110 -> 3218 against 3047/2926/2994 -> 2994, −6.9%. bulk.create.x100.deferred
+  3108/3111/3090 -> 3108 against 2933/2817/2990 -> 2933, −5.6%. create.interfaces.x50 1573 ->
+  1499, −4.7%. create.interface 48.9 -> 45.1, −7.6%. create.device 83.7 -> 79.8, −4.7%.
 
 
-  Not a full experiment yet: this measures the ceiling of fixing the check, not a change written
-  and gated. The remaining ipam_vlan query per object is Django''s serializer fetching the
-  tagged_vlans M2M, which is inherent to serialize("json") rather than avoidable here.'
-controls: null
-tests: null
-caveat: null
-note: 'This is the Tier A route to roughly half of what finding 22 measured. Finding 22 removes
-  the whole v1 serialization for 2 queries per record and is Tier C -- it changes the REST
-  and GraphQL payload and needs 13 test updates. This removes 1 of those 2 queries and half
-  the serialization time, changes no payload, and breaks nothing, because it makes an existing
-  cache work as written rather than removing what it feeds.
+  bulk.update.x100.deferred is the interesting non-result: −48 queries and −0.8% wall, inside
+  the noise floor. The tag lookups it removes are point selects on an empty table, so removing
+  them buys nothing there, and the operation is another entry in this branch''s ledger of query
+  count misranking a change.
 
 
-  Two parts to the change: `getattr(obj, "_tags", None) is not None` instead of the falsy
-  `or`, and populating `_tags = []` where the caller knows there are none. The create path
-  in signals.py qualifies -- to_objectchange runs immediately after save and tags are assigned
-  afterwards, so a newly created object provably has none.
+  The nine-rep median is a new instrument, and the reason for it is finding 32: tier1w_writes.py
+  reports the LAST of its reps, and a gen-2 GC collection costing ~200ms recurs on a period
+  that is deterministic for a given tree. It landed on the reported rep of create.device for
+  this change and not for its baseline, in all three rounds, reading 89ms against 248ms for
+  an operation that actually costs ~84ms either way. Three alternating rounds cannot cancel
+  a bias that is not random. See finding 32.'
+controls: 'bulk.create.x100.bulk_create, which skips change logging entirely, −2.2%; bulk.delete.x100,
+  whose query count does not move, +2.6%. Those two set the noise floor at about ±2.6%, which
+  every claimed figure above clears. Read path: all 38 Tier 1 scenarios 200/302, no query count
+  changed, no query_count_stable went false.'
+tests: 4027 OK across five suites and no failures -- extras test_changelog + extras test_tags
+  + core test_utils 113 OK; extras test_api + circuits test_api + core test_api 1698 OK (74
+  skipped); dcim test_api + ipam test_api 2216 OK (59 skipped)
+caveat: 'One observable change, and it is a correction. Clearing every tag from an object through
+  the REST API previously recorded the object''s pre-clear tags in its change-log entry: TaggedModelSerializerMixin.update
+  set `instance._tags = []` before saving, exactly so change logging would see the new (empty)
+  tag list, and the falsy check then discarded that and queried the database, which still held
+  the old tags. The change record now says the tags were removed, because they were. Anything
+  reading ObjectChange.object_data["tags"] for a tag-clearing PATCH -- the changelog UI diff,
+  the REST /extras/object-changes/ payload, GraphQL, and webhook snapshots -- sees the corrected
+  value from now on. Historical rows are not rewritten, so a changelog spanning the upgrade
+  shows the old behaviour before it and the new behaviour after.
 
 
-  Found by asking why serialize_object costs what it does, which is a question I should have
-  asked before proposing to delete its output.'
+  No other path changes. Seven change-logging paths were serialized in both arms and diffed:
+  inline create, tags added after create, deferred create, deferred create with tags assigned
+  before the flush, an ORM update of a tagged object, a REST PATCH that omits tags, and deleting
+  a tagged object. All seven are byte-identical; the tag-clearing PATCH is the only line that
+  differs.'
+note: 'Three parts, and the first is not optional. `getattr(obj, "_tags", None) is not None`
+  in serialize_object makes the cache fire. But TaggedModelSerializerMixin.update already wrote
+  `instance._tags = tags or []` unconditionally, and `tags` is None whenever the payload does
+  not mention tags -- so fixing the check alone would have made every REST PATCH that leaves
+  tags alone log the object as untagged. The mixin now sets the cache only when the request
+  actually carried tags. This is the trap the falsy check was accidentally covering, and it
+  is why the check and the mixin have to change together.
+
+
+  Then the two populate sites. A just-created object provably has no tags: the row must exist
+  before a TaggedItem can reference it, assigning tags fires its own m2m_changed and its own
+  ObjectChange, and deleting an object deletes its TaggedItem rows with it -- verified -- so
+  a recycled primary key cannot leave stale ones. The deferred flush cannot make that assumption,
+  because it serializes later, so it reads the whole batch''s tags in one query instead. Both
+  caches are dropped again at the end of the scope that knew they were true.
+
+
+  This is the Tier A route to roughly half of what finding 22 measured, and it arrives at Tier
+  C for a reason finding 22 does not share: 22 changes the API payload by removing data, this
+  one changes a single logged value by correcting it. 22 needs a deprecation cycle and 13 test
+  updates; this needs neither, and no test asserted the old behaviour -- 1,811 tests pass unchanged.
+
+
+  The obvious follow-up is bulk.delete, and it is probably not worth taking. Warming `_tags`
+  to an empty list for an instance whose row is gone would remove its remaining 50 tag queries,
+  and it would be correct -- the TaggedItem rows are deleted with the object, so both paths return
+  nothing. But the comparable case is already measured: bulk.update.x100.deferred lost 48 queries
+  of exactly this kind and moved 0.8%, inside the noise floor. Priced before it is built rather
+  than after.
+
+
+  Supersedes this record''s own earlier claim of −50% on serialize_object (4.59 -> 2.30ms per
+  object). That figure is still what the isolated probe measures and it reproduced exactly (40
+  / 40 / 20 queries, 4.88 -> 2.49ms per object), but it is the ceiling of the serializer in
+  isolation, not what the change is worth in a write: the operations it sits inside improve
+  by 5-7%, not 50%.'
