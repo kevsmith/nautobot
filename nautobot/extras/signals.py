@@ -360,6 +360,15 @@ def _create_or_update_object_change(change_context, instance, action):
         # to prevent unexpected behavior when chaining multiple signal handlers
         original_cache = instance._state.fields_cache.copy()
 
+        # A just-created object provably has no tags: the row has to exist before a TaggedItem can
+        # reference it, and assigning tags fires its own m2m_changed and its own ObjectChange. So
+        # tell serialize_object rather than making it ask, which is one query per created object.
+        # A recycled primary key cannot leave stale rows behind either -- deleting an object
+        # deletes its TaggedItem rows with it.
+        cached_tags_set = action == ObjectChangeActionChoices.ACTION_CREATE
+        if cached_tags_set:
+            instance._tags = []
+
         changed_object_type = ContentType.objects.get_for_model(instance)
         changed_object_id = instance.id
 
@@ -409,6 +418,10 @@ def _create_or_update_object_change(change_context, instance, action):
 
         # restore field cache
         instance._state.fields_cache = original_cache
+        # Drop the tag cache with the scope that knew it was true. The deferred path serializes
+        # later, when it no longer is, and warms its own cache from the database at flush time.
+        if cached_tags_set:
+            instance.__dict__.pop("_tags", None)
 
 
 def _record_m2m_side_object_changes(change_context, through_instance, side_field_names):
