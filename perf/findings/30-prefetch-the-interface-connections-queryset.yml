@@ -1,0 +1,44 @@
+---
+seq: 30
+id: null
+commit: null
+status: proposed
+behaviour: B1
+migration: '-'
+flags: []
+title: Prefetch the interface-connections queryset, which prefetches nothing
+site: nautobot/dcim/api/views.py InterfaceConnectionViewSet
+summary: 'The largest untouched N+1 the read screening pass found: 9 fixed queries plus 14
+  per returned object, exactly linear against page size, on a 2,780-row endpoint. InterfaceConnectionViewSet
+  sets queryset = CablePath.interface_connections() with no select_related and no prefetch_related
+  of any kind.'
+result:
+  queries: 359 for 25 objects; attribution accounts for 350 of them as seven call sites at
+    exactly 50 queries each -- 2 per row, because each connection serializes both ends
+  expected: unmeasured; the seven sites are individually addressable
+wall_clock: not measured — attribution only, no change written yet
+controls: null
+tests: null
+caveat: null
+note: "The seven sites, 50 queries each on a page of 25:\n\n    dcim/models/device_components.py:367\
+  \ cable        dcim_cabletocabletermination\n    dcim/models/device_components.py:368 cable\
+  \        dcim_cable\n    dcim/models/device_components.py:466 _get_cable_peer_rows  dcim_cabletocabletermination\n\
+  \    dcim/models/cables.py:1308 termination            dcim_interface\n    dcim/api/serializers.py:261\
+  \ _first_cable_path      dcim_cablepath\n    dcim/api/serializers.py:270 _destination  \
+  \         dcim_interface\n    core/api/serializers.py:619 to_representation      extras_tag\n\
+  \nThe first two are prescribed by the code itself. `.cable`'s docstring reads: 'Issues up\
+  \ to two queries on first access (one for the join-table row, one for the cable). Use select_related(\"\
+  cable_termination__cable\") on the parent queryset to avoid the queries.' Nothing does.\n\
+  \n**Finding 26's depth guard prevents its own fix from reaching here, and that is the interesting\
+  \ part.** Sites 5 and 6 -- _first_cable_path and _destination -- are exactly the two that\
+  \ finding 26 collapsed for api.interface.depth1, 100 of the 350 queries. But _warm_peer_cable_paths\
+  \ is gated on `depth > 0`, and this endpoint ignores depth entirely, so the warm never runs.\
+  \ The guard was measured and correct for api.interface.list, where it saves 56ms; it is\
+  \ wrong here, where it withholds a fix that would apply. The guard should key on whether\
+  \ peers will actually be serialized rather than on the depth parameter.\n\nNot attempted\
+  \ yet because the prefetch paths have to be expressed from CablePath rather than from Interface\
+  \ -- the serializer adapts a CablePath row into the interface_a / interface_b shape this\
+  \ endpoint has historically exposed -- so it is a larger change than the one-line joins\
+  \ that fixed findings 25 and 26, and it wants its own session.\n\npowerconnections and consoleconnections\
+  \ read 5.4 q/obj and are almost certainly the same viewset shape, so one fix plausibly covers\
+  \ three endpoints."

@@ -25,14 +25,18 @@ from django.db import connection  # noqa: E402
 from tier1_queries import get_perf_client  # noqa: E402
 import workload as workload_mod  # noqa: E402
 
-scenario = sys.argv[1] if len(sys.argv) > 1 else "api.interface.depth1"
-resolved, _ = workload_mod.resolve(os.path.join(os.path.dirname(os.path.abspath(__file__)), "workload.yml"))
-urls = {r["id"]: r["url"] for r in resolved}
-if scenario not in urls:
-    sys.exit(f"unknown scenario {scenario}")
+if len(sys.argv) > 2 and sys.argv[1] == "--url":
+    scenario = target = sys.argv[2]
+else:
+    scenario = sys.argv[1] if len(sys.argv) > 1 else "api.interface.depth1"
+    resolved, _ = workload_mod.resolve(os.path.join(os.path.dirname(os.path.abspath(__file__)), "workload.yml"))
+    urls = {r["id"]: r["url"] for r in resolved}
+    if scenario not in urls:
+        sys.exit(f"unknown scenario {scenario}; use --url <path> for anything outside workload.yml")
+    target = urls[scenario]
 
 client = get_perf_client()
-client.get(urls[scenario])  # warm caches so cold-start work is not attributed
+client.get(target)  # warm caches so cold-start work is not attributed
 
 by_table = collections.Counter()
 by_site = collections.Counter()
@@ -56,7 +60,7 @@ def wrapper(execute, sql, params, many, context):
 
 
 with connection.execute_wrapper(wrapper):
-    resp = client.get(urls[scenario])
+    resp = client.get(target)
 
 print(f"{scenario}: status {resp.status_code}, {sum(by_table.values())} queries\n")
 print("--- by table ---")
