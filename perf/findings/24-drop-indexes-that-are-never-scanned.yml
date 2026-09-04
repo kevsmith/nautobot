@@ -1,41 +1,48 @@
 ---
 seq: 24
 commit: null
-status: proposed
+status: not-taken
 behaviour: A
 migration: M0
 flags: []
-title: Index maintenance on extras_objectchange, the hottest insert path
+title: Index maintenance on extras_objectchange, priced at a ~0 ceiling
 site: to be determined from pg_stat_user_indexes
 summary: 'extras_objectchange carries at least eleven indexes, every one maintained on every
   insert, and it is the highest-insert-volume table in Nautobot. The write path is where the
   remaining cost sits: bulk.create.x100 is still 1,404 queries dominated by those inserts,
   and nothing on this branch has looked at index maintenance as a cost.'
 result:
-  observed: '11+ indexes on extras_objectchange totalling ~12MB at this dataset size: time_request_id_changed_uniq
-    2432kB, triple_idx 2136kB, user_changed_object_idx 1472kB, user_name_changed_object_idx
-    1288kB, changed_object_idx 1088kB, changed_object_id 904kB, time 816kB, rtime_idx 816kB,
-    related_object_idx 392kB, double_idx 304kB, request_id 296kB'
-  unmeasured: the insert-side cost of maintaining them
-wall_clock: not measured — the open question
-wall_clock_detail: not measured -- the insert-side cost of maintaining eleven indexes is the
-  open question
-caveat: Dropping any index needs evidence from a workload that exercises the queries it serves.
-  Coverage here is ~5% of the API surface, so scan counts from this workload under-represent
-  real usage and cannot by themselves justify a removal.
-note: '**Correction: an earlier reading of this was a measurement artifact.** A pg_stat_user_indexes
-  query reported 1,205 of 1,234 indexes never scanned, which looked dramatic and meant nothing:
-  those counters reset when the database is dropped and recreated, and restore_snapshot.sh
-  had run seconds earlier. After actually running the workload the figure is 1,050 of 1,234
-  -- still not evidence for removal at 5% coverage, but at least a real measurement.
+  ceiling: 'dropping all 17 non-unique indexes: wall 3358 -> 3300ms median, -59ms (-1.7%),
+    db_ms 776 -> 752ms, on bulk.create.interfaces.x100.deferred'
+  observed: 18 non-primary indexes on extras_objectchange, 17 of them non-unique
+wall_clock: −1.7% ceiling, inside the ordering artifact
+wall_clock_detail: 'Three rounds each way, snapshot restore before every arm, arm order reversed
+  between rounds: with 3434/3307/3358ms, without 3296/3414/3300ms.
 
 
-  Adding indexes remains a dead end here, and that is measured rather than assumed: 325,152
+  The medians differ by 59ms, and in all three rounds the arm that ran SECOND was faster by
+  60-130ms regardless of which arm it was. The difference and the artifact are the same size,
+  so the real cost of index maintenance here is indistinguishable from zero.
+
+
+  Consistent with the rest of the branch: db_ms is only ~780ms of a 3358ms operation, and
+  index maintenance is a fraction of that. The cost on this path is Python-side.'
+caveat: null
+note: 'Scoped to non-unique indexes deliberately, and the reason is worth keeping. The first
+  attempt tried to drop all 18 and failed: extras_objectchange_time_request_id_changed__f5f870cc_uniq
+  backs a UNIQUE constraint, and PostgreSQL refuses to drop such an index directly. That is
+  the right boundary rather than an obstacle -- a unique index is a constraint, not an optimization,
+  so dropping one removes a guarantee and is a behaviour change rather than index tidying.
+
+
+  It also corrects the count this record used to carry. It said eleven indexes; that was the
+  never-scanned subset from a pg_stat reading. The table has 18 non-primary indexes, 17 non-unique.
+
+
+  Adding indexes remains a dead end here and that stays measured rather than assumed: 325,152
   queries totalling 4.6 seconds, mean 0.014ms, and query count fell 57% while total DB time
-  went 601ms to 602ms. api.prefix.list even spends 13.7ms planning a query that executes in
-  1.3ms, where an index makes planning worse.
-
-
-  Nautobot has no AddIndexConcurrently or RemoveIndexConcurrently anywhere in its migrations,
-  so every existing index migration takes a table lock. Doing anything here safely on a large
-  table means introducing that pattern.'
+  went 601ms to 602ms. Both directions on this table are now priced.'
+reason: Measured at a 1.7% ceiling that is the same magnitude as the run-ordering artifact,
+  from dropping every non-unique index on the table. There is nothing to win, so the question
+  of which indexes are safe to drop -- which our 3.6% endpoint coverage makes hard to answer
+  -- does not need answering.
