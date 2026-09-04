@@ -29,6 +29,15 @@ load, so they work as a regression gate even on a small dataset where wall-clock
 differences are buried in noise. This is where N+1 patterns and missing
 `select_related`/`prefetch_related` show up.
 
+**On the rolled-back transactions.** Measured, because the box being dedicated
+makes restore-based isolation affordable and the question deserved a number:
+committing rather than rolling back `bulk.create.x100.deferred` costs **−0.9%**,
+inside variance, over three rounds each way with a restore before every arm.
+Rollback's figures stand, and it stays because it keeps Tier 1W fast enough for
+the inner loop. What it omits is qualitative -- `transaction.on_commit`
+callbacks never fire, and Nautobot uses them in five places -- so an experiment
+that changed commit-time behaviour would measure zero under it. See finding 29.
+
 **Tier 1W (`tier1w_writes.py`) — write-path query profiling.** Tier 1 only
 exercises GET, so change logging, signals and validation are invisible to it.
 Each operation runs inside `web_request_context` (change logging and webhook
@@ -400,11 +409,21 @@ Two of those are worse per object than anything the inner loop has measured.
 `api.interface.depth1` at its original worst was 12.3 queries per object, and it
 absorbed most of this branch's effort.
 
-`dcim.interfaceconnections` is the more interesting one: 359 queries at depth 0
-and 359 at depth 1, identical. A cost that does not move with depth is not the
-nested-serializer class this branch has spent its length on, so none of the
-accepted fixes touch it and it needs its own attribution. `powerconnections` and
-`consoleconnections` share the signature.
+`dcim.interfaceconnections` is a clean N+1: page-size sensitivity gives an exact
+**9 + 14n** fit -- 23 queries at limit 1, 79 at 5, 149 at 10, 359 at 25, 709 at
+50 -- so 14 queries per row on a 2,780-row table. That makes it the largest
+untouched N+1 the screen found.
+
+An earlier version of this section read more into it than the data supports. It
+said the endpoint showed "a different cost class" because its query count is
+identical at depth 0 and depth 1. It is not: the endpoint simply **ignores
+`depth`**. Diffing the two responses shows the only difference is the pagination
+`next` link echoing `depth=1` -- exactly 8 bytes at every page size, which is
+why the delta does not scale with object count. Identical counts across depth
+therefore say nothing about cost class, and this is the ordinary per-row N+1
+class the branch has been fixing all along. `powerconnections` and
+`consoleconnections` share the shape at 5.4 q/obj and presumably the
+explanation.
 
 **A screening pass, not a regression gate.** 518 measurements do not belong in
 the inner loop, which stays at 38 scenarios. Run this occasionally; its output is
