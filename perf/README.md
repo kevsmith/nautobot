@@ -344,34 +344,28 @@ Caveat to carry forward: demo workflows over-represent the narratively interesti
 under-represent boring bulk -- integration polling, a list view left open. Useful for "does
 Nautobot feel good in the situations we sell on", not a complete picture of load.
 
-## Open: the full test suite has never completed
+## Closed: the full test suite passes
 
-`invoke tests` (whole suite) has not run to completion on this branch. The one attempt
-died with:
+`invoke tests --no-parallel` ran the whole suite against the tree with every
+accepted change applied:
 
-    multiprocessing.pool.MaybeEncodingError: Error sending result:
-    '<multiprocessing.pool.ExceptionWithTraceback object ...>'
+    Ran 17504 tests in 8082.723s
+    OK (skipped=663, expected failures=1)
 
-That is Django's parallel runner failing to pickle a worker exception back to the parent --
-a harness failure, not a test failure, and it hides whatever the underlying exception was.
-**It exited with code 0**, which is the third time on this branch that a pipeline's exit
-status has masked a failure; check the output, not `$?`.
+Zero failures, zero errors, and no `test_get_docs_url` at all -- the run builds
+docs rather than passing `--skip-docs-build`, which is what makes those ~35 dcim
+model tests fail even on a clean tree.
 
-To get a real answer:
+This had been the largest open item on the branch. The earlier attempt died in
+Django's parallel runner with a pickling error that hid the underlying exception
+and **exited 0**; `--no-parallel` is what makes a worker exception surface
+directly, and it is the only way this run should be repeated.
 
-    invoke tests --no-parallel          # serial, so worker exceptions surface directly
-
-Two things to know before reading the result:
-
-- The Tier C commit (`object_data={}`, `43db1b018`) knowingly breaks 13 tests in
-  `nautobot.extras.tests.test_changelog`. It is **not** in the working tree -- it was
-  reverted in `a8f7dbd60` and never restored -- so a clean run is expected. If those 13
-  reappear, something restored it.
-- `test_get_docs_url` fails across ~35 dcim model tests whenever `--skip-docs-build` is
-  passed, on a clean tree too. Run without that flag, or discount those specifically.
-
-Per-experiment targeted tests have all passed, including `nautobot.dcim.tests.test_api`
-(1673) and `nautobot.ipam.tests.test_views` (596). The gap is a single whole-suite run.
+Two things to carry forward. The run used `--keepdb --cache-test-fixtures`, so
+anything that later smells like stale fixture state should be re-run with
+`--no-keepdb`. And it took 2h15m on the measurement host, which is a background
+job rather than an inner-loop check -- targeted per-module runs stay the fast
+signal during an experiment.
 
 ## Open: systematic CRUD/list coverage matrix
 
