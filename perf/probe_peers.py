@@ -13,7 +13,6 @@ anything:
 
 import os
 import re
-import sys
 
 import nautobot
 
@@ -49,12 +48,13 @@ peers = count("get_cable_peer() on all 100", lambda: [i.get_cable_peer() for i i
 peers = [p for p in peers if p is not None]
 page_pks = {(i._meta.concrete_model, i.pk) for i in page}
 on_page = sum(1 for p in peers if (p._meta.concrete_model, p.pk) in page_pks)
-print(f"   {len(peers)} peers, {on_page} of them already page members, "
-      f"{len(peers) - on_page} not")
+print(f"   {len(peers)} peers, {on_page} of them already page members, {len(peers) - on_page} not")
 
 print("\n2. what the serializer does today, per peer")
-count("cable_paths.first() + .destination on each peer",
-      lambda: [(lambda p: p and p.destination)(x.cable_paths.first()) for x in peers])
+count(
+    "cable_paths.first() + .destination on each peer",
+    lambda: [(lambda p: p and p.destination)(x.cable_paths.first()) for x in peers],
+)
 
 print("\n3. one batched prefetch over the peers instead")
 page2 = list(qs[:100])
@@ -63,10 +63,15 @@ peers2 = [p for p in peers2 if p is not None]
 by_model = {}
 for p in peers2:
     by_model.setdefault(p._meta.concrete_model, []).append(p)
+
+
 def batched():
     for model, group in by_model.items():
         models.prefetch_related_objects(group, "cable_paths__destination")
-count(f"prefetch_related_objects over {len(peers2)} peers "
-      f"({len(by_model)} model group(s))", batched)
-count("cable_paths.first() + .destination after prefetch",
-      lambda: [(lambda p: p and p.destination)(x.cable_paths.first()) for x in peers2])
+
+
+count(f"prefetch_related_objects over {len(peers2)} peers ({len(by_model)} model group(s))", batched)
+count(
+    "cable_paths.first() + .destination after prefetch",
+    lambda: [(lambda p: p and p.destination)(x.cable_paths.first()) for x in peers2],
+)
