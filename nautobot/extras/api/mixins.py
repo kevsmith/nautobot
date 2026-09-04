@@ -26,8 +26,11 @@ class TaggedModelSerializerMixin(BaseModelSerializer):
     def update(self, instance, validated_data):
         tags = validated_data.pop("tags", None)
 
-        # Cache tags on instance for change logging
-        instance._tags = tags or []
+        # Cache tags on instance for change logging. Only when the request carried them:
+        # `tags is None` means the payload did not mention tags, so the object's existing tags
+        # are unchanged and change logging has to read them from the database as before.
+        if tags is not None:
+            instance._tags = tags
 
         instance = super().update(instance, validated_data)
 
