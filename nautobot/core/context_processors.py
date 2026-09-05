@@ -59,6 +59,37 @@ class NavMenuDict(dict):
 def nav_menu(request):
     """
     Expose nav menu data for navigation and global search.
+
+    The UI component framework renders a detail page by calling
+    `nautobot.core.ui.utils.render_component_template()` once per component per pass, and each of
+    those calls hands `request` to `Template.render()`. Django answers by building a fresh
+    `RequestContext` and re-running every context processor -- 70 times on a rack detail page,
+    81 on a device detail page -- so this function and its ~176 permission checks were repeated
+    for a result that cannot change within a single request.
+
+    Memoize on the request object. The menu is a pure function of `registry["nav_menu"]`,
+    `settings.PLUGINS`, `request.user`, `request.resolver_match` and the request's URL. The first
+    two are fixed for the life of the process; the rest are fixed for the life of the request.
+    Storing the result on the request instance scopes the cache to exactly one request and
+    therefore exactly one user: nothing is keyed by user ID, nothing is stored on the user, the
+    module, or a shared cache, and no entry outlives the response. Two users cannot observe each
+    other's menu.
+    """
+    cached = getattr(request, "_nautobot_nav_menu_context", None)
+    if cached is not None:
+        return cached
+    result = _build_nav_menu(request)
+    try:
+        request._nautobot_nav_menu_context = result
+    except AttributeError:  # pragma: no cover - exotic request objects that reject attributes
+        pass
+    return result
+
+
+def _build_nav_menu(request):
+    """
+    Build the nav menu context for this request. See `nav_menu()`, which memoizes this.
+
     Also, indicate whether `"nautobot_version_control"` app is installed in order to render branch picker in nav menu.
     """
     active_link = (None, None, None)
