@@ -3,6 +3,8 @@ from django.urls import reverse
 from django.utils.html import format_html
 import django_tables2 as tables
 
+from nautobot.core.tables import TemplateColumn
+
 
 class InstalledAppsTable(tables.Table):
     """
@@ -15,7 +17,7 @@ class InstalledAppsTable(tables.Table):
     author_email = tables.Column()
     headline = tables.Column()
     version = tables.Column()
-    actions = tables.TemplateColumn(
+    actions = TemplateColumn(
         template_code="""
             {% if record.home_url %}
                 <a href="{% url record.home_url %}" class="btn btn-primary btn-xs" title="Home">
