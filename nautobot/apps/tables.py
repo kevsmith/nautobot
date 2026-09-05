@@ -13,6 +13,7 @@ from nautobot.core.tables import (
     LinkedCountColumn,
     RelationshipColumn,
     TagColumn,
+    TemplateColumn,
     ToggleColumn,
 )
 from nautobot.extras.plugins import TableExtension
@@ -34,5 +35,6 @@ __all__ = (
     "StatusTableMixin",
     "TableExtension",
     "TagColumn",
+    "TemplateColumn",
     "ToggleColumn",
 )
