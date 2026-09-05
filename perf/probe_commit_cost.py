@@ -13,8 +13,10 @@ byte-identical state.
 
 One arm per process is not a stylistic choice. A restore stops the container this
 runs in, so the alternation has to be orchestrated from outside -- which is
-exactly the isolation model the write screening matrix needs, and which a 20-second
-restore makes affordable.
+exactly the isolation model the write screening matrix needs. The "20-second
+restore" this comment used to cite was never measured: restore_snapshot.sh is 49
+seconds, and perf/reset_db.sh does the same job in 1.3 by cloning a template.
+See finding 33.
 
     perf/dc.sh exec -T nautobot python /source/perf/probe_commit_cost.py --arm rollback
 """
