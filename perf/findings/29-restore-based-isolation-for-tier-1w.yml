@@ -11,7 +11,7 @@ site: perf/tier1w_writes.py - perf/probe_commit_cost.py
 summary: Tier 1W runs each operation inside transaction.atomic() and raises to unwind it,
   which buys identical starting state -- the bulk triple depends on it, since all three create
   the same 100 rows with the same names -- at the cost of never committing. With a dedicated
-  measurement host and a 20-second snapshot restore, restore-based isolation is affordable
+  measurement host and a fast snapshot restore, restore-based isolation is affordable
   and would measure real committed writes.
 result:
   queries: rollback 1323, commit 1321 -- a 2-query difference, the ROLLBACK/COMMIT statement
@@ -34,8 +34,20 @@ caveat: null
 reason: Not worth changing, because the thing it would fix is not costing anything measurable.
   Rollback under-reports wall clock by 0.9% on a bulk create, inside variance, so Tier 1W's
   existing figures stand. Rollback also keeps Tier 1W fast enough to sit inside run_experiment.sh
-  --writes as an inner-loop gate, where restore-based isolation would add ~70 seconds per
-  arm.
+  --writes as an inner-loop gate.
+
+
+  **The second half of this reason was wrong, and finding 33 falsified it.** It said restore-based
+  isolation would add ~70 seconds per arm. That priced the restore at restore_snapshot.sh,
+  which is 49 seconds and does four things per iteration a measurement loop does not need. A
+  template clone returns the database to baseline in 1.3 seconds plus one discarded warmup
+  request, so the true cost is under 3 seconds per arm, not 70.
+
+
+  The finding stands anyway, because cost was never the primary reason. The primary reason is
+  the first half and it is unchanged -- commit against rollback is -0.9% on a bulk create, inside
+  variance, so there is nothing quantitative to gain by switching. What the cheap clone changes
+  is that the option is now available for free if the qualitative gap below ever matters.
 note: 'What rollback omits is qualitative rather than quantitative, and that part is still
   true: transaction.on_commit callbacks never fire, and Nautobot uses them in five places
   including custom-field job enqueueing at extras/customfields.py:744. An experiment that
@@ -48,4 +60,6 @@ note: 'What rollback omits is qualitative rather than quantitative, and that par
   It also does not follow that rollback is fine for the write screening matrix. REST writes
   cross the process boundary, so a rolled-back transaction in the harness cannot isolate them
   at all. This result narrows that build rather than blocking it: the in-process ORM half
-  can keep using rollback for speed, and only the REST half needs restore-based orchestration.'
+  can keep using rollback for speed, and only the REST half needs restore-based orchestration.
+  With finding 33 that orchestration costs 1.3 seconds an iteration, so the matrix can afford it
+  for every operation rather than only where it is unavoidable.'
