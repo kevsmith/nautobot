@@ -7,7 +7,7 @@ from django.db import transaction
 from django.test.client import RequestFactory
 
 from nautobot.core.events import publish_event
-from nautobot.core.models.utils import cache_natural_key_field_lookups
+from nautobot.core.models.utils import cache_natural_key_field_lookups, tag_cache_warmed
 from nautobot.core.utils.otel import traced_span
 from nautobot.extras.choices import ObjectChangeEventContextChoices
 from nautobot.extras.constants import CHANGELOG_MAX_CHANGE_CONTEXT_DETAIL
@@ -111,23 +111,32 @@ class ChangeContext:
     def create_object_changes(self, batch_size=1000):
         while self.deferred_object_changes:
             create_object_changes = []
-            for key in self._object_change_batch(batch_size):
-                for entry in self.deferred_object_changes[key]:
-                    objectchange = entry["instance"].to_objectchange(entry["action"])
-                    if objectchange is not None:
-                        objectchange.user = entry["user"]
-                        objectchange.user_name = objectchange.user.username
-                        objectchange.request_id = self.change_id
-                        objectchange.change_context = self.context
-                        objectchange.change_context_detail = self.context_detail[:CHANGELOG_MAX_CHANGE_CONTEXT_DETAIL]
-                        if not objectchange.changed_object_id:  # changed_object was deleted
-                            # Clear out the GenericForeignKey to keep Django from complaining about an unsaved object:
-                            objectchange.changed_object = None
-                            # Set the component fields individually:
-                            objectchange.changed_object_id = entry.get("changed_object_id")
-                            objectchange.changed_object_type = entry.get("changed_object_type")
-                        create_object_changes.append(objectchange)
-                self.deferred_object_changes.pop(key, None)
+            keys = self._object_change_batch(batch_size)
+            # One tag query for the batch instead of one per object change. Warming here reads the
+            # same database state each fallback query would have read, because nothing between
+            # here and the end of the loop changes any object's tags.
+            batch_instances = [entry["instance"] for key in keys for entry in self.deferred_object_changes[key]]
+            with tag_cache_warmed(batch_instances):
+                for key in keys:
+                    for entry in self.deferred_object_changes[key]:
+                        objectchange = entry["instance"].to_objectchange(entry["action"])
+                        if objectchange is not None:
+                            objectchange.user = entry["user"]
+                            objectchange.user_name = objectchange.user.username
+                            objectchange.request_id = self.change_id
+                            objectchange.change_context = self.context
+                            objectchange.change_context_detail = self.context_detail[
+                                :CHANGELOG_MAX_CHANGE_CONTEXT_DETAIL
+                            ]
+                            if not objectchange.changed_object_id:  # changed_object was deleted
+                                # Clear out the GenericForeignKey to keep Django from complaining about an
+                                # unsaved object:
+                                objectchange.changed_object = None
+                                # Set the component fields individually:
+                                objectchange.changed_object_id = entry.get("changed_object_id")
+                                objectchange.changed_object_type = entry.get("changed_object_type")
+                            create_object_changes.append(objectchange)
+                    self.deferred_object_changes.pop(key, None)
             ObjectChange.objects.bulk_create(create_object_changes, batch_size=batch_size)
 
 

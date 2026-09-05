@@ -3,6 +3,7 @@ import contextvars
 import functools
 from itertools import count, groupby
 import json
+from typing import NamedTuple
 import unicodedata
 from urllib.parse import quote_plus, unquote_plus
 
@@ -201,6 +202,52 @@ def pretty_print_query(query):
     return pretty_str(query)
 
 
+class CachedTag(NamedTuple):
+    """A tag in the `_tags` cache, which is only ever read for its name."""
+
+    name: str
+
+
+@contextlib.contextmanager
+def tag_cache_warmed(objects):
+    """
+    Populate `_tags` on every taggable object in `objects` with one query for the whole set.
+
+    `serialize_object` reads `_tags` when it is present, so warming it turns one tag query per
+    serialized object into one query per batch. The cache is dropped again on exit: it is a
+    snapshot taken at the top of this block and nothing invalidates it, so nothing may outlive
+    the block that knows it is still true.
+
+    Objects without a primary key -- a deleted instance kept only for its change record -- are
+    left alone, because there is nothing to look up for them.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from nautobot.extras.models import TaggedItem
+
+    by_key = {}
+    for obj in objects:
+        if obj.pk is None or not is_taggable(obj):
+            continue
+        obj._tags = []
+        by_key[(ContentType.objects.get_for_model(obj).pk, str(obj.pk))] = obj
+
+    try:
+        if by_key:
+            rows = TaggedItem.objects.filter(
+                content_type_id__in={content_type_id for content_type_id, _ in by_key},
+                object_id__in={object_id for _, object_id in by_key},
+            ).values_list("content_type_id", "object_id", "tag__name")
+            for content_type_id, object_id, name in rows:
+                obj = by_key.get((content_type_id, str(object_id)))
+                if obj is not None:
+                    obj._tags.append(CachedTag(name))
+        yield
+    finally:
+        for obj in by_key.values():
+            obj.__dict__.pop("_tags", None)
+
+
 def serialize_object(obj, extra=None, exclude=None):
     """
     Return a generic JSON representation of an object using Django's built-in serializer. (This is used for things like
@@ -222,7 +269,11 @@ def serialize_object(obj, extra=None, exclude=None):
         # This can be problematic (see issue #6952) as the Tag records in the DB still have `created` as a `DateField`,
         # but the 2.x code expects this to be a `DateTimeField` (as it will be after the upgrade completes in full).
         # We "cleverly" bypass that issue by using `.only("name")` since that's the only actual Tag field we need here.
-        tags = getattr(obj, "_tags", []) or obj.tags.only("name")
+        # `_tags` is a cache the caller sets when it already knows the answer. Test it for
+        # presence, not truth: an untagged object caches an empty list, and `getattr(...) or ...`
+        # treated that as a miss, so the cache could never fire for the common case.
+        cached_tags = getattr(obj, "_tags", None)
+        tags = obj.tags.only("name") if cached_tags is None else cached_tags
         data["tags"] = [tag.name for tag in tags]
 
     # Append any extra data
