@@ -36,8 +36,8 @@ ENDPOINTS = [
     ("console-connections", "/api/dcim/console-connections/"),
     ("ui.interface-connections", "/dcim/interface-connections/"),
 ]
-PAGE_SIZES = [5, 25, 50]
-REPS = 5
+PAGE_SIZES = [int(x) for x in os.environ.get("PERF_PAGE_SIZES", "5,25,50").split(",")]
+REPS = int(os.environ.get("PERF_REPS", "5"))
 
 
 class Counter:
