@@ -727,6 +727,35 @@ class InterfaceConnectionPermissions(TokenPermissions):
         return ["dcim.view_interface"]
 
 
+def _interface_connection_endpoint_queryset():
+    """The Interface queryset behind each end of an interface connection.
+
+    `InterfaceConnectionSerializer` embeds a full `InterfaceSerializer` for both ends, so each row
+    renders two complete interfaces -- and every per-interface lookup is therefore paid twice per
+    row. Attribution of a page of 25 found 350 of its 359 queries in seven call sites at exactly
+    50 each; these prefetches are those seven sites, in order:
+
+    - `.cable` reads the join-table row and then the cable. Its own docstring prescribes the fix:
+      "Use select_related("cable_termination__cable") on the parent queryset to avoid the queries."
+    - `_get_cable_peer_rows` walks `cable.terminations`, and resolving each row's `termination`
+      reads whichever per-type FK is set, hence the `select_related` on the prefetched rows.
+    - `_first_cable_path` and `_destination` need the endpoint's `CablePath` and that path's
+      destination, which is a GenericForeignKey.
+    - the serializer renders `tags`.
+    """
+    from nautobot.dcim.constants import TERMINATION_CABLE_COLUMN_FK_FIELDS
+    from nautobot.dcim.models.cables import CableToCableTermination
+
+    return Interface.objects.select_related("device", "cable_termination__cable").prefetch_related(
+        Prefetch(
+            "cable_termination__cable__terminations",
+            queryset=CableToCableTermination.objects.select_related(*TERMINATION_CABLE_COLUMN_FK_FIELDS),
+        ),
+        "cable_paths__destination",
+        "tags",
+    )
+
+
 class InterfaceConnectionViewSet(ListModelMixin, GenericViewSet):
     """
     Lists interface-to-interface connections.
@@ -749,7 +778,9 @@ class InterfaceConnectionViewSet(ListModelMixin, GenericViewSet):
         # `InterfaceConnectionsListView.has_permission()`. Restricting on the CablePath model itself
         # isn't meaningful here (its object permissions aren't expected to be relevant to anyone).
         visible_ifaces = Interface.objects.restrict(self.request.user, "view").values("pk")
-        return super().get_queryset().filter(origin_id__in=visible_ifaces, destination_id__in=visible_ifaces)
+        return CablePath.interface_connections(
+            endpoint_queryset=_interface_connection_endpoint_queryset()
+        ).filter(origin_id__in=visible_ifaces, destination_id__in=visible_ifaces)
 
 
 #
