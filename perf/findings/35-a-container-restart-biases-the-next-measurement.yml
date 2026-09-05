@@ -1,0 +1,61 @@
+---
+seq: 35
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: A container restart biases the measurement that follows it, and arm alternation does not cancel it
+site: perf/sync.sh - perf/probe_ui_only.py
+summary: 'perf/dc.sh restart returns when the container has started, not when it is ready.
+  uwsgi then forks three workers that each import Nautobot, and the nautobot container is
+  pinned to two physical cores (cpuset 0,1,4,5). An in-process probe launched into that
+  window competes with those imports for the cores it is being measured on. The result is
+  bimodal: the same view reads either ~99ms or ~165ms depending on where the probe lands,
+  the mode is set at process start and then holds for the whole arm, and three alternating
+  rounds does not cancel it.'
+result:
+  no_restart: '18 measurements of ui.interface-connections across 6 consecutive runs with no
+    restart between them -- 94.5-106.6ms, a 1.13x spread, query count stable at 8 every time'
+  with_restart: '99-177ms on the same probe when each run followed a restart, bimodal rather
+    than spread, and the query count went unstable too -- 8, 12 and 13 at the same page size'
+  same_arm_twice: 'arm B six times gave 99.1-176.7ms; arm A six times gave 98.5-174.0ms. Both
+    arms reach both modes, so the arm is not the variable.'
+wall_clock: not applicable — an instrument defect, not a change
+controls: 'found on an endpoint that was a control in the finding 34 experiment, whose code
+  path that change never touches. It read +73% with an identical query count, consistently,
+  across three alternating rounds.'
+tests: n/a; harness only, no product code
+caveat: null
+note: 'How it was nearly believed. In the finding 34 A/B the control read +73% in the patched
+  arm at all three page sizes, with 8 queries in both arms, in all three rounds. Consistency
+  read as signal. It was not -- rerunning the same arm six times reproduces the full 99-177ms
+  range without changing a line of code, and the first A/B simply landed arm B in the fast
+  mode three times and arm A in the slow mode three times.
+
+
+  This is the second time on this branch that a deterministic-looking bias survived arm
+  alternation. Finding 32 was the first, a gen-2 GC pause recurring on a period fixed per
+  tree, so it lands on the reported rep for one arm and not the other in every independent
+  run. Both share a shape worth naming -- arm reversal cancels drift, and cancels nothing
+  keyed to something other than time.
+
+
+  Two fixes, and the first is the real one. An in-process probe never needed the restart.
+  Tier 1 and Tier 1W spawn a fresh Python process per run and pick up synced code without
+  one; only uwsgi-served measurement needs a restart, because uwsgi holds imported modules.
+  The A/B that produced this was restarting between arms for no reason and paying a bimodal
+  artifact for it.
+
+
+  Second, sync.sh --restart now waits for the container to report healthy and then for the
+  load average to fall under the ceiling before returning, and fails rather than handing back
+  a host that is not measurable. Verified -- it refused during an unrelated test run at
+  loadavg 1.71.
+
+
+  What this does not settle is whether earlier numbers on this branch are affected. Any
+  wall-clock figure taken through an in-process probe shortly after a restart carries the
+  risk. Query counts are unaffected, which is most of the branch evidence, and the affected
+  figures would have to be re-taken to know.'

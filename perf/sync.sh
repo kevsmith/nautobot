@@ -95,5 +95,39 @@ echo "== trees match: ${HERE:0:16} =="
 if [ "$RESTART" -eq 1 ]; then
   echo "== restarting nautobot =="
   ssh -o BatchMode=yes "$PERF_HOST" "cd '$PERF_PATH' && perf/dc.sh restart nautobot" >/dev/null
-  echo "   restarted."
+  # `restart` returns when the container has STARTED, not when it is ready. uwsgi
+  # then forks three worker processes that each import Nautobot, and the nautobot
+  # container is pinned to two physical cores (cpuset 0,1,4,5). An in-process
+  # probe launched into that window competes with those imports for the cores it
+  # is being measured on.
+  #
+  # Measured: a UI list view read 94.5-106.6ms across 18 runs with no restart, and
+  # 99-177ms bimodally when each run followed a restart -- with the query count
+  # going unstable too (8, 12, 13). Three alternating rounds does NOT cancel it,
+  # because the mode is set per process start and then holds for a whole arm. It
+  # is how a control endpoint this change never touched read +73%.
+  #
+  # So: wait for healthy, then wait for the load the workers generate to fall.
+  echo "   waiting for readiness ..."
+  ssh -o BatchMode=yes "$PERF_HOST" "cd '$PERF_PATH' && bash -s" <<'REMOTE'
+set -u
+for i in $(seq 1 60); do
+  status="$(perf/dc.sh ps --format '{{.Name}} {{.Status}}' 2>/dev/null | grep -c 'nautobot-1.*healthy')"
+  [ "$status" = "1" ] && break
+  sleep 2
+done
+[ "$status" = "1" ] || { echo "   !! nautobot did not become healthy" >&2; exit 1; }
+ceiling="${PERF_MAX_LOAD:-1.0}"
+for i in $(seq 1 60); do
+  load="$(cut -d' ' -f1 /proc/loadavg)"
+  if [ "$(awk -v l="$load" -v c="$ceiling" 'BEGIN{print (l<=c)?1:0}')" = "1" ]; then
+    echo "   ready (loadavg $load)"; exit 0
+  fi
+  sleep 2
+done
+echo "   !! load did not settle (loadavg $load, ceiling $ceiling) -- wall clock from here is noise" >&2
+exit 1
+REMOTE
+  rc=$?
+  [ "$rc" -eq 0 ] || { echo "restart did not reach a measurable state" >&2; exit 1; }
 fi
