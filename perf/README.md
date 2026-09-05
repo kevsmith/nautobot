@@ -376,6 +376,40 @@ anything that later smells like stale fixture state should be re-run with
 job rather than an inner-loop check -- targeted per-module runs stay the fast
 signal during an experiment.
 
+## Built: a one-second database reset
+
+`perf/reset_db.sh` returns the database to baseline by cloning a pristine template
+(`CREATE DATABASE ... TEMPLATE`) rather than replaying the snapshot. 1.3 seconds
+against `restore_snapshot.sh`'s 49, with the app left running -- `DROP DATABASE ...
+WITH (FORCE)` evicts the pooled connections and Django reconnects on the next
+request. celery survives it too.
+
+    perf/restore_snapshot.sh        # establish baseline (the authority, 49s)
+    perf/reset_db.sh --build        # build the template from it (one time, 3.7s)
+    perf/reset_db.sh                # reset (1.3s) -- as often as you like
+
+Two things this buys and one it costs.
+
+It makes per-operation isolation affordable, which is what the write matrix needs.
+It also re-prices finding 29, which declined restore-based isolation for Tier 1W
+partly because it "would add ~70 seconds per arm" -- a figure taken from the slow
+path. The finding still stands, but on its other reason: commit against rollback
+is -0.9%, inside variance, so there is nothing to gain by switching.
+
+The cost is one request. The clone's files are cold in PostgreSQL's shared buffers,
+so the first request after a reset ran 981.8ms median against a 706.4ms warm
+control, and varied 719.6 / 981.8 / 1138.9ms across rounds. The second request is
+already indistinguishable from warm. **Discard exactly one request after a reset.**
+Without that, every model in the write matrix carries a variable few-hundred-
+millisecond bias, in the instrument built to make those numbers trustworthy.
+
+`restore_snapshot.sh` remains the authority. The template is a database at a fixed
+schema, so `reset_db.sh` fingerprints the tree's migration files -- names and
+contents -- and refuses to clone when they do not match what the template recorded.
+It refuses rather than falling back to the slow path: a reset that is 1s most of the
+time and 49s occasionally would put a 48-second spike inside a measurement loop at a
+moment nobody chose.
+
 ## Built: the read screening matrix
 
 `perf/screen_reads.py` enumerates every REST list endpoint from the URL resolver
@@ -433,10 +467,17 @@ one -- whether anyone lists `cabletocabletermination` at `?depth=1` in practice
 is a product question, not a measurement one.
 
 Writes remain unbuilt. create/update need schema-valid payloads per model, which
-databot generates from the OpenAPI schema and OPTIONS metadata. The open problem
-is isolation: REST writes cross the process boundary, so the rolled-back
-transactions `tier1w_writes.py` relies on do not apply. Run the write matrix as a
-batch against a restored snapshot, then restore again.
+databot generates from the OpenAPI schema and OPTIONS metadata. That is now the
+only open problem, because the other one is solved: REST writes cross the process
+boundary, so the rolled-back transactions `tier1w_writes.py` relies on cannot
+isolate them -- but `perf/reset_db.sh` resets the database in 1.3 seconds, so the
+matrix can afford a reset per operation rather than having to batch around one.
+
+The payload half is where a write matrix can lie in a way the read one cannot. A
+model whose generated payload fails validation drops out of the run silently and
+reads as "not a problem" rather than "not measured". The output has to carry
+attempted / valid-payload / measured counts per model, or it repeats the failure
+that put "330 endpoints, roughly 5%" in this file for weeks.
 
 ## Environment quick reference
 
@@ -447,7 +488,8 @@ batch against a restored snapshot, then restore again.
 | celery_worker | 8181; Postgres and Redis are not published to the host |
 | Compose project | `nautobot-perf-3-3` (all commands via `perf/dc.sh`) |
 | Dataset | databot `enterprise-campus / large / seed 42`, 24,091 objects |
-| Restore | `perf/restore_snapshot.sh` (uses `perf/snapshot-large.sql`, gitignored) |
+| Reset (fast) | `perf/reset_db.sh` — 1.3s template clone; discard one request after |
+| Restore (authority) | `perf/restore_snapshot.sh` (uses `perf/snapshot-large.sql`, gitignored) — 49s |
 
 ## Parity checklist for an apples-to-apples environment comparison
 

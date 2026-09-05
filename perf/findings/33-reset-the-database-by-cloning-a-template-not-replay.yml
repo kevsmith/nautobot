@@ -1,0 +1,59 @@
+---
+seq: 33
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: Reset the database by cloning a template, not by replaying the snapshot
+site: perf/reset_db.sh - perf/probe_clone_warmup.sh
+summary: restore_snapshot.sh takes 49 seconds, and four of its five phases are things a
+  measurement loop does not need every iteration. CREATE DATABASE ... TEMPLATE copies the
+  files instead, which returns the database to baseline in 1.3 seconds with the app left
+  running. Per-operation isolation stops being something to design around and becomes
+  something to buy every iteration.
+result:
+  phases: 'restore_snapshot.sh measured by phase: container stop 5.9s, drop/create 0.5s,
+    psql replay 19.1s, container up 12.8s, migrate no-op 9.6s -- 49s total. The clone
+    replaces all but the drop/create.'
+  clone: 1.41 / 1.33 / 1.23s over three runs; template build is a one-time 3.7s
+  warmup: 'cold-cache penalty is confined to the first request after a clone and nothing
+    after it. Position 1 median 981.8ms against a 706.4ms warm control (+275.4ms); position
+    2 onward is indistinguishable, deltas within ±40ms on a ~710ms operation. Per-round
+    position 1 was 719.6 / 981.8 / 1138.9ms -- highly variable, which fits connection
+    re-establishment plus buffer warming rather than a fixed cost.'
+wall_clock: not applicable — an instrument, not a change
+controls: 'app survives the swap with no restart: DROP DATABASE ... WITH (FORCE) evicts the
+  pooled connections and Django reconnects on the next request despite CONN_MAX_AGE=300, two
+  consecutive 200s immediately after a clone. celery_worker and celery_beat both return to
+  healthy after a clone with zero errors in the logs. Every request in the warmup probe is
+  status-checked, so a clone that left the app unable to reach the database would fail the
+  probe rather than read as a fast 500.'
+tests: n/a; harness only, no product code
+caveat: null
+note: 'The warmup convention that follows from the measurement: discard exactly one request
+  after a clone. One throwaway request costs about a second and removes the whole effect,
+  and without it every model in the write matrix would carry a variable few-hundred-millisecond
+  bias -- in the instrument built specifically to make those numbers trustworthy.
+
+
+  restore_snapshot.sh remains the authority and the slow path. It is what establishes the
+  state the template copies, and what to run when the template is missing or stale.
+
+
+  **The staleness hazard is the reason this needs a guard rather than just a script.** The
+  template is a database at a fixed schema. restore_snapshot.sh defends against schema drift
+  by always running migrate, which is 9.6 of its 49 seconds; a clone that skipped that check
+  would silently hand back a schema behind the code. reset_db.sh fingerprints the migration
+  files in the tree -- names and contents, since names alone would miss a file edited in
+  place -- and refuses to clone when the fingerprint does not match the one recorded on the
+  template. The fingerprint is stored as a comment on the template database rather than in
+  a table, because database comments are not copied by CREATE DATABASE ... TEMPLATE, so the
+  clones stay free of anything the harness added. Verified to fire on both a new migration
+  file and one edited in place, exiting non-zero in each case and recovering afterwards.
+
+
+  It refuses rather than falling back to the slow path. A reset that takes 1s most of the
+  time and 49s occasionally would put a 48-second spike inside a measurement loop at a moment
+  nobody chose.'
