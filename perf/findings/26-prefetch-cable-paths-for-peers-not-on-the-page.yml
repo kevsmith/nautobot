@@ -57,9 +57,13 @@ note: 'Found by attribution, and attribution also killed the obvious version of 
   so this commit''s number stays attributable.
 
 
-  **Follow-up the screening pass exposed.** The depth guard withholds this fix from dcim.interface-connections,
-  which ignores `depth` and so never satisfies `depth > 0`, yet calls _first_cable_path and
-  _destination 50 times each on a page of 25 -- 100 of that endpoint''s 359 queries. The guard
-  is measured and correct for api.interface.list, where it saves 56ms; it is wrong there.
-  Keying it on whether peers will actually be serialized, rather than on the depth parameter,
-  would fix both. See finding 30.'
+  **Retracted follow-up, and finding 30 is what retracts it.** This record used to claim that
+  the depth guard withholds this fix from dcim.interface-connections -- that the endpoint
+  ignores `depth`, never satisfies `depth > 0`, and so pays _first_cable_path and _destination
+  50 times each on a page of 25, and that re-keying the guard on whether peers are serialized
+  would fix both endpoints. It would not. With the guard deleted outright on an otherwise
+  unchanged tree, interface-connections still costs 359 queries and those two sites still cost
+  50 each: its page is CablePath rows, CablePath has no get_cable_peer, and _warm_peer_cable_paths
+  therefore skips every row whatever the guard says. The guard here is measured, correct, and
+  not involved in that endpoint at all. What actually fixed it was prefetching both ends of the
+  connection from the viewset -- see finding 30, which carries the measurement.'
