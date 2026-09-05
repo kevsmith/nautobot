@@ -119,6 +119,36 @@ from nautobot.extras.api.mixins import (
 from nautobot.extras.utils import FeatureQuery
 
 
+def _canonical_termination(serializer, obj):
+    """Return the request-scoped canonical instance for `obj`'s row, or `obj` itself if none is available.
+
+    A directly-cabled termination's `cable_peer` and its `connected_endpoint` are the same row, and on a list
+    page both ends of a cable are very often both present. Each reference is otherwise fetched as its own Python
+    instance with an empty FK cache, and each then re-walks `device -> tenant / location -> parent...` from cold
+    when its `natural_key()` is rendered. Collapsing them onto one instance shares one warmed cache, and seeding
+    the map with the page's own objects means a peer that is also on the page inherits the view's prefetches and
+    costs nothing.
+    """
+    if obj is None:
+        return None
+    request = serializer.context.get("request")
+    if request is None:
+        return obj
+    identity_map = getattr(request, "_termination_identity_map", None)
+    if identity_map is None:
+        identity_map = {}
+        try:
+            request._termination_identity_map = identity_map
+        except AttributeError:
+            # Some stand-ins for a request don't accept new attributes; fall back to per-reference instances.
+            return obj
+        page = getattr(serializer.parent, "instance", None)
+        if isinstance(page, (list, tuple)):
+            for instance in page:
+                identity_map.setdefault((instance._meta.concrete_model, instance.pk), instance)
+    return identity_map.setdefault((obj._meta.concrete_model, obj.pk), obj)
+
+
 class CableTerminationModelSerializerMixin(serializers.ModelSerializer):
     cable = serializers.SerializerMethodField(read_only=True)
     cable_peer_type = serializers.SerializerMethodField(read_only=True)
@@ -133,9 +163,18 @@ class CableTerminationModelSerializerMixin(serializers.ModelSerializer):
         depth = get_nested_serializer_depth(self)
         return return_nested_serializer_data_based_on_depth(self, depth, obj, cable, "cable")
 
+    def _cable_peer(self, obj):
+        """Return `obj.get_cable_peer()`, memoized on the instance and canonicalized for this request.
+
+        Both fields below need the same peer; without the memo the lane-mapping walk runs twice per object.
+        """
+        if not hasattr(obj, "_cable_peer_cache"):
+            obj._cable_peer_cache = _canonical_termination(self, obj.get_cable_peer())
+        return obj._cable_peer_cache
+
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_cable_peer_type(self, obj):
-        peer = obj.get_cable_peer()
+        peer = self._cable_peer(obj)
         if peer is not None:
             return f"{peer._meta.app_label}.{peer._meta.model_name}"
         return None
@@ -154,7 +193,7 @@ class CableTerminationModelSerializerMixin(serializers.ModelSerializer):
 
         For breakout/multi-termination cables, returns the first peer.
         """
-        peer = obj.get_cable_peer()
+        peer = self._cable_peer(obj)
         if peer is not None:
             depth = get_nested_serializer_depth(self)
             return return_nested_serializer_data_based_on_depth(self, depth, obj, peer, "cable_peer")
@@ -176,12 +215,21 @@ class PathEndpointModelSerializerMixin(ValidatedModelSerializer):
             obj._first_cable_path_cache = obj.cable_paths.first()
         return obj._first_cable_path_cache
 
+    def _destination(self, obj):
+        """Return this endpoint's path destination, canonicalized for this request. See `_canonical_termination`."""
+        path_obj = self._first_cable_path(obj)
+        if path_obj is None:
+            return None
+        if not hasattr(path_obj, "_canonical_destination_cache"):
+            path_obj._canonical_destination_cache = _canonical_termination(self, path_obj.destination)
+        return path_obj._canonical_destination_cache
+
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_connected_endpoint_type(self, obj):
         with contextlib.suppress(CablePath.DoesNotExist):
-            path_obj = self._first_cable_path(obj)
-            if path_obj is not None and path_obj.destination is not None:
-                return f"{path_obj.destination._meta.app_label}.{path_obj.destination._meta.model_name}"
+            destination = self._destination(obj)
+            if destination is not None:
+                return f"{destination._meta.app_label}.{destination._meta.model_name}"
         return None
 
     @extend_schema_field(
@@ -197,11 +245,11 @@ class PathEndpointModelSerializerMixin(ValidatedModelSerializer):
         Return the appropriate serializer for the type of connected object.
         """
         with contextlib.suppress(CablePath.DoesNotExist):
-            path_obj = self._first_cable_path(obj)
-            if path_obj is not None and path_obj.destination is not None:
+            destination = self._destination(obj)
+            if destination is not None:
                 depth = get_nested_serializer_depth(self)
                 return return_nested_serializer_data_based_on_depth(
-                    self, depth, obj, path_obj.destination, "connected_endpoint"
+                    self, depth, obj, destination, "connected_endpoint"
                 )
         return None
 
