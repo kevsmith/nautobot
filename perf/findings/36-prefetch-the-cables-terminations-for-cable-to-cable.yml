@@ -1,0 +1,70 @@
+---
+seq: 36
+id: null
+commit: null
+status: accepted
+behaviour: B1
+migration: '-'
+flags: []
+title: Prefetch the cable's terminations for cable-to-cable-terminations at depth 1
+site: nautobot/dcim/api/views.py CableToCableTerminationViewSet
+summary: 'The largest untouched target the read screening pass found: 19.5 queries per returned
+  object over 6,556 rows, an exact ~19n + 12 fit against page size. At depth 1 the nested
+  CableSerializer renders termination_a and termination_b, each of which calls
+  Cable._get_termination_attr, which walks self.terminations.all(). Nothing on the viewset
+  prefetched that relation, so all twelve calls per row went to the database. Two prefetches on
+  the queryset make it constant.'
+result:
+  attribution: 'a page of 25 put 475 of its 487 queries in six call sites -- cables.py:623
+    _get_termination_attr 300 (12 per row), cables.py:1308 termination 75 (3 per row),
+    cables.py:799 connected_lanes 25, device_components.py:466 _get_cable_peer_rows 25,
+    api/serializers.py:261 _first_cable_path 25, api/serializers.py:270 _destination 25'
+  queries: 'linear before, constant after. depth=1 at limits 1/5/10/25/50: 31/107/202/487/976
+    (~19n + 12) becomes 15/15/15/15/33. Duplicates at limit 25: 473 -> 1; at limit 50: 958 -> 14.'
+  staged: 'the cable__terminations prefetch alone took a page of 25 from 487 to 63 and removed
+    four of the six call sites; the nine per-type cable_paths prefetches removed the remaining
+    two, 63 -> 15'
+  residual: 'at limit 50, 29 of the 33 queries are inside paginate_queryset -- the prefetch
+    machinery evaluating -- and the table breakdown is 15 dcim_location, 3 dcim_cablepath, 3
+    dcim_device, 3 tenancy_tenant. No per-row N+1 remains; what is left scales with the number
+    of distinct locations on the page rather than with rows.'
+  response: byte-identical between arms at every page size -- same digest and same byte count
+    (94,901 bytes at limit 25, 188,450 at limit 50)
+  read path: Tier 1 total 695 -> 695, gate PASS
+wall_clock: −75.6% at limit 50, −68.1% at limit 25
+wall_clock_detail: 'Three alternating rounds (A/C, C/A, A/C), each round the median of nine
+  reps, on a quiesced host, with no container restart between arms (see finding 35). Limit 25:
+  1227/1160/1181 against 380/377/369, -68.1%. Limit 50: 2161/2162/2212 against 524/528/533,
+  -75.6%. No overlap between arms, and each arm''s three rounds sit within 1.06x.
+
+
+  Controls, both untouched by this change and both with identical query counts in each arm:
+  interface-connections +2.1% at limit 25 and +0.9% at limit 50; power-connections -2.8% and
+  +0.2%. That sets the floor at about 2.8%, which the two wins clear by roughly 25x.'
+controls: interface-connections (17 queries both arms) and power-connections (12 both arms),
+  wall clock within ±2.8%
+tests: dcim test_api 1673 OK (41 skipped) in 324.0s; dcim test_cablepaths 68 OK. 1741 in total, no failures and no errors, both labels confirmed resolved. Run with --no-keepdb, because an earlier --keepdb run was killed mid-flight. Findings 34 and 36 were tested together in one tree, so this evidence covers both.
+caveat: null
+note: 'The generalization is Kevin''s and it is better than the one this record first carried.
+  I described `_get_termination_attr` as code diverging from its docstring. It does not. The
+  docstring says iterating `.all()` rather than `.filter()` means a prefetched cache IS HONORED
+  IF ONE EXISTS -- it never claims one always exists. The method is written correctly and
+  deliberately to be prefetch-friendly, and this fix works precisely because its authors wrote
+  it that way.
+
+
+  The actual pattern is an affordance added without its call sites being updated to use it, and
+  this branch has already paid for the same thing once: finding 7 built a caching TemplateColumn
+  and finding 11 existed only because just the device tables had been switched over to it.
+  TERMINATION_PARENT_FK_FIELDS is a third instance waiting to be checked -- its own comment says
+  it exists "to extend select_related so that rendering termination.parent ... stays query-free
+  per row", which is an affordance with a stated purpose and an unaudited adoption list.
+
+
+  That reframing is worth more than this fix, because it is predictive rather than descriptive.
+  Screening endpoints by cost finds symptoms; screening affordances by adoption finds causes,
+  over a far smaller search space than 166 endpoints. Proposed as an instrument, not yet built.
+
+
+  Risk tier B1, no migration. The new state is prefetch caches on a queryset, which live and die
+  with the request.'
