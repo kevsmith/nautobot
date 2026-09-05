@@ -278,16 +278,30 @@ a server nobody ships.
 > gap to be all instrument, but it should be re-measured now that both sides can be taken at
 > concurrency 1 under uwsgi.
 
-**Coverage is ~5%.** 38 hand-picked scenarios against a surface of 330 API list endpoints, 320
-detail endpoints and 127 UI list views. `api.interface.depth1` — now a 76% query reduction —
-was found by guessing that interfaces is the biggest table. A screening pass over reads for
-every model, normalized to cost per object, is designed in `perf/README.md` and not yet built.
-It is a ranking instrument, not a gate; the inner loop stays at 38 scenarios.
+**Read coverage was 3.6%, and the screening pass is now built.** This section used to claim a
+surface of 330 API list endpoints and coverage of "roughly 5%". Both figures were wrong. The URL
+resolver reports **166 API list endpoints**, of which **6** are named in `workload.yml` — real
+coverage of **3.6%**. `api.interface.depth1`, now a 76% query reduction, was found by guessing
+that interfaces is the biggest table.
+
+`perf/screen_reads.py` replaces the guessing. It enumerates every REST list endpoint from the
+resolver at run time — never from a list in a file, so it cannot rot as models come and go — and
+measures `list`, `list?depth=1`, `detail` and `detail?depth=1` for each: 518 measurements in 84
+seconds, normalized to cost per *returned object* rather than per request. It is a ranking
+instrument, not a gate; the inner loop stays at 38 scenarios. Two of its top five were worse per
+object than anything the inner loop had ever measured, and it has already produced two accepted
+fixes (findings 30 and 31). `dcim.cabletocabletermination?depth=1` at 19.5 queries per object
+over 6,556 rows is the largest target it found that nothing has yet touched.
+
+**Writes have no equivalent instrument.** Tier 1W is 11 hand-picked ORM operations across four
+models, which is a narrower sample than reads had before the screen, and every write finding on
+this branch came out of it. A write screening matrix is designed in `perf/README.md` and not yet
+built.
 
 ## Caveats
 
 - **The full test suite passes.** `invoke tests --no-parallel` ran all **17,504 tests in
-  2h 15m** against the tree with every accepted change applied: **OK, 663 skipped, 1 expected
+  2h 15m** against the tree at `2d1326e86`: **OK, 663 skipped, 1 expected
   failure, zero failures and zero errors**. This closes what had been the branch's largest
   open item — a whole-suite run had never completed, and the one attempt died in Django's
   parallel runner with a pickling error *and exited 0*. Serial was the fix, so a worker
@@ -295,7 +309,9 @@ It is a ranking instrument, not a gate; the inner loop stays at 38 scenarios.
   `--skip-docs-build`, which is what makes `test_get_docs_url` fail across ~35 dcim model
   tests even on a clean tree; it does not appear here. Note it used `--keepdb
   --cache-test-fixtures`, so a result that ever smells like stale fixture state should be
-  re-run with `--no-keepdb`.
+  re-run with `--no-keepdb`. **It does not cover the current tree.** Findings 30 and 31 landed
+  after that run; each has a targeted suite behind it — 5,308 and 4,027 tests, no failures — but
+  no whole-suite run has been taken against the tree as it now stands.
 - **No changelog fragments, deliberately.** Nothing here reaches a release in its current
   shape: anything upstreamed would go through review and very likely change, so a fragment
   written now would describe a change that no longer exists. The commit messages and the
