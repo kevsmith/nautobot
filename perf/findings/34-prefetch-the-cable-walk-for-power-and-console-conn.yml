@@ -1,0 +1,71 @@
+---
+seq: 34
+id: null
+commit: null
+status: accepted
+behaviour: B1
+migration: '-'
+flags: []
+title: Prefetch the cable walk for power- and console-connections, the two endpoints finding 30 left
+site: nautobot/dcim/api/views.py ConsoleConnectionViewSet, PowerConnectionViewSet, _with_connection_prefetches
+summary: 'Finding 30 fixed interface-connections and explicitly declined to assume the other
+  two were the same viewset shape. They are not -- separate viewsets over ConsolePort and
+  PowerPort, serialized by the full component serializers rather than a connection-specific
+  one -- but attribution shows five of the same seven call sites, at exactly one query per
+  rendered component. The same prefetches apply, so the helper finding 30 added now takes a
+  queryset and all three endpoints share it.'
+result:
+  attribution: 'a page of 25 put 125 of power-connections'' 135 queries in five call sites at
+    exactly 25 each -- device_components.py:367 and :368 (.cable, reading the join row then
+    the cable), device_components.py:466 (_get_cable_peer_rows), cables.py:1308 (termination,
+    resolving the per-type FK), and core/api/serializers.py:619 (tags). console-connections is
+    identical.'
+  queries: 'linear before, constant after. power-connections 34/135/260 at limits 5/25/50
+    (10 + 5n) becomes 11/12/12; console-connections 34/134/259 (9 + 5n) becomes 11/11/11.
+    Duplicates at limit 50: 244 -> 0 and 245 -> 0.'
+  response: byte-identical between arms -- the same sha256 for both endpoints at all three page
+    sizes across all six arms of the A/B
+  read path: Tier 1 total 695 -> 695, gate PASS, no endpoint moved by a single query
+wall_clock: −51.0% power-connections at limit 50, −42.7% at limit 25
+wall_clock_detail: 'Three alternating rounds (B/A, A/B, B/A), each round the median of five
+  reps, on a quiesced host. power-connections limit 50: B 541/517/520 against A 254/253/257,
+  -51.0%. Limit 25: B 299/317/284 against A 170/178/171, -42.7%. console-connections limit 50:
+  B 510/536/510 against A 248/246/248, -51.4%. Limit 25: B 275/272/290 against A 164/164/167,
+  -40.4%. No overlap between arms on any of the four, and every arm''s three rounds sit within
+  1.1x of each other.
+
+
+  The controls set the noise floor. interface-connections, which this change does not touch,
+  read 17 queries in both arms and +0.2% at limit 25 and +0.4% at limit 50; the UI
+  interface-connections list view read 8 queries in both arms and -1.5% and -3.3%. So the
+  floor is about 3.3% and the four wins clear it by an order of magnitude.
+
+
+  These are the second set of numbers taken for this change. The first set was measured with a
+  container restart between arms and is void -- see finding 35, which that measurement is what
+  found.'
+controls: 'interface-connections and the UI interface-connections list view, both untouched by
+  this change: query counts identical in both arms, wall clock within +-3.3%'
+tests: dcim test_api 1673 OK (41 skipped) in 324.0s; dcim test_cablepaths 68 OK. 1741 in total, no failures and no errors, both labels confirmed resolved. Run with --no-keepdb, because an earlier --keepdb run was killed mid-flight. Findings 34 and 36 were tested together in one tree, so this evidence covers both.
+caveat: null
+note: 'Finding 30 is why this was cheap, and specifically the part of it that refused a
+  guess. Its record originally read that power- and console-connections were "almost certainly
+  the same viewset shape, so one fix plausibly covers three endpoints"; the commit corrected
+  that to "one fix covers one endpoint, the other two are a named follow-up, not a freebie".
+  Both halves of the correction turned out to matter. The viewsets really are different, so
+  the fix is not a copy -- but the underlying cost really is the same five call sites, so the
+  prefetch set transfers exactly. Attribution settled in one command what neither guess would
+  have.
+
+
+  The shared helper is the whole change. `_interface_connection_endpoint_queryset()` became
+  `_with_connection_prefetches(queryset)`, taking the queryset instead of building one, with
+  the interface caller kept as a one-line wrapper so finding 30''s path is provably unchanged
+  -- and its 17-query count in both arms of this experiment is that proof. Two of the seven
+  sites (`_first_cable_path` and `_destination`) are paid only by interface-connections,
+  whose serializer resolves each end''s cable path; prefetching `cable_paths__destination` for
+  all three costs the other two nothing, since they already had it.
+
+
+  Risk tier B1, no migration. The new state is prefetch caches on a queryset, which live and
+  die with the request.'
