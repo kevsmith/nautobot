@@ -23,7 +23,7 @@ from nautobot.core.models.utils import (
     construct_natural_slug,
     deconstruct_composite_key,
 )
-from nautobot.core.utils.cache import construct_cache_key
+from nautobot.core.utils.cache import construct_cache_key, get_request_cache
 from nautobot.core.utils.lookup import get_route_for_model
 
 __all__ = (
@@ -41,6 +41,35 @@ __all__ = (
 
 
 _UNSET = object()
+
+#: Upper bound on the number of rows a model may have and still participate in the natural-key map cache
+#: (see `BaseModel.natural_key_map`). The map is held whole in memory and in a single cache entry, so this
+#: exists to keep an unexpectedly large table from turning a small reference cache into a large one.
+NATURAL_KEY_MAP_MAX_ROWS = 5000
+
+#: Memo of `(model, lookup) -> (fk_attname, related_model)` for FK hops that can be resolved from a
+#: natural-key map, or `None` for hops that cannot. Purely derived from model metadata and the static
+#: `natural_key_map_enabled` flag, so it is safe to keep for the life of the process.
+_natural_key_map_plans = {}
+
+
+def _natural_key_map_plan(model, lookup):
+    """Return `(fk_attname, related_model)` if `model.<lookup>` is an FK into a natural-key-mapped model."""
+    key = (model, lookup)
+    try:
+        return _natural_key_map_plans[key]
+    except KeyError:
+        pass
+    plan = None
+    try:
+        field = model._meta.get_field(lookup)
+    except FieldDoesNotExist:
+        field = None
+    if field is not None and field.is_relation and field.many_to_one and field.concrete:
+        if getattr(field.related_model, "natural_key_map_enabled", False):
+            plan = (field.attname, field.related_model)
+    _natural_key_map_plans[key] = plan
+    return plan
 
 
 class BaseModel(models.Model):
@@ -64,6 +93,9 @@ class BaseModel(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, unique=True, editable=False)
 
     objects = BaseManager.from_queryset(RestrictedQuerySet)()
+    #: Set to True on small reference models (see `BaseModel.natural_key_map`) whose natural keys are
+    #: repeatedly resolved as part of *other* models' natural keys.
+    natural_key_map_enabled = False
     is_contact_associable_model = False  # ContactMixin overrides this to default True
     is_dynamic_group_associable_model = False  # DynamicGroupMixin overrides this to default True
     is_metadata_associable_model = True
@@ -168,17 +200,92 @@ class BaseModel(models.Model):
 
     validated_save.alters_data = True
 
+    @classmethod
+    def _build_natural_key_map(cls, lookups):
+        """Load `{pk: natural key values}` for every instance of this model in a single values-only query."""
+        queryset = cls.objects.all()
+        # Tree models default to fetching tree fields, which we neither need nor want to pay a recursive CTE for.
+        without_tree_fields = getattr(queryset, "without_tree_fields", None)
+        if without_tree_fields is not None:
+            queryset = without_tree_fields()
+        # `values_list` rather than model instances on purpose: this is one flat row per object, no model
+        # instantiation, and the joins it does are over a small reference table.
+        rows = list(queryset.values_list("pk", *lookups)[: NATURAL_KEY_MAP_MAX_ROWS + 1])
+        if len(rows) > NATURAL_KEY_MAP_MAX_ROWS:
+            # Not a small reference table after all. Cache the fact so we don't re-check on every request;
+            # `natural_key()` falls back to per-object attribute traversal.
+            return False
+        return {
+            row[0]: tuple(value if is_protected_type(value) else str(value) for value in row[1:])
+            for row in rows
+        }
+
+    @classmethod
+    def natural_key_map(cls):
+        """
+        `{pk: natural key values}` for all instances of this model, or `None` if this model doesn't provide one.
+
+        Only models that opt in via `natural_key_map_enabled` provide a map. It exists for small reference
+        models -- Location above all -- whose natural keys are embedded in *other* models' natural key field
+        lookups: serializing one page of Interfaces otherwise walks `device -> location -> parent -> parent...`
+        with an uncached attribute access, and therefore a query, at every hop of every object.
+
+        The map is built at most once per `request_cache()` scope -- a single values-only query for the whole
+        table, rather than a cache read per object -- and is discarded when that scope exits. It therefore
+        cannot be stale relative to anything else the same request read, and needs no invalidation. Outside
+        such a scope (a management command, a test) this returns `None` and `natural_key()` traverses
+        attributes exactly as it did before.
+
+        Values are returned unstripped -- one entry per lookup in `natural_key_field_lookups`, including
+        trailing `None`s -- so that a caller resolving a single lookup can index into the tuple directly.
+        """
+        if not cls.natural_key_map_enabled:
+            return None
+        request_local_cache = get_request_cache()
+        if request_local_cache is None:
+            return None
+        lookups = cls.natural_key_field_lookups
+        cache_key = construct_cache_key(
+            cls.objects, method_name="natural_key_map", branch_aware=False, lookups=",".join(lookups)
+        )
+        if cache_key not in request_local_cache:
+            request_local_cache[cache_key] = cls._build_natural_key_map(lookups)
+        return request_local_cache[cache_key] or None  # `False` is the "too many rows to cache" sentinel
+
     def natural_key(self) -> list:
         """
         Smarter default implementation of natural key construction.
 
         1. Handles nullable foreign keys (https://github.com/wq/django-natural-keys/issues/18)
         2. Handles variadic natural-keys (e.g. Location model - [name, parent__name, parent__parent__name, ...].)
+        3. Resolves foreign-key hops into small reference models from `natural_key_map()` rather than by
+           fetching the related object, when the related object isn't already loaded in memory.
         """
         vals = []
         for lookups in [lookup.split("__") for lookup in self.natural_key_field_lookups]:
             val = self
-            for lookup in lookups:
+            last_index = len(lookups) - 1
+            for index, lookup in enumerate(lookups):
+                if index < last_index:
+                    plan = _natural_key_map_plan(type(val), lookup)
+                    # If the related object is already loaded (e.g. via select_related), keep using it: it is
+                    # free to traverse, and it -- not the database -- is what the caller expects to be read.
+                    if plan is not None and lookup not in val._state.fields_cache:
+                        fk_attname, related_model = plan
+                        related_pk = getattr(val, fk_attname)
+                        if related_pk is None:
+                            val = None
+                            break
+                        natural_key_map = related_model.natural_key_map()
+                        if natural_key_map is not None:
+                            row = natural_key_map.get(related_pk)
+                            related_lookups = related_model.natural_key_field_lookups
+                            remaining_lookup = "__".join(lookups[index + 1 :])
+                            if row is not None and remaining_lookup in related_lookups:
+                                val = row[related_lookups.index(remaining_lookup)]
+                                break
+                        # Anything else (stale map, dangling FK, a lookup that isn't part of the related
+                        # model's own natural key) falls through to the general traversal below.
                 val = getattr(val, lookup)
                 if val is None:
                     break
