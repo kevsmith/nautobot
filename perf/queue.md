@@ -102,38 +102,98 @@ is affordable, re-run rather than adjust.
 
 ---
 
-## 1. Investigate the top of the write ranking
+## The write path has no big lever left, and that sets the bar
 
-The screen produced a ranked list and stopped there, which is what a screen is
-for. This is the work it points at.
+The branch has already taken **−33.7%** whole-workflow on the write path. What is
+left is a long tail: a cable create touches **62 distinct call sites** through the
+ORM and **86** through REST, and the top four together are **29%**. Nothing below
+is a 40% fix, and the list is ordered on that understanding.
 
-**Start with `dcim.cable`, now measured at ~220 queries per object** — finding
-40 established that the screen's 44.9 is a payload artifact (generated cables
-have null terminations and skip every path walk). It is the most expensive
-per-object create anywhere on the write surface, 1,648 rows in the datacenter
-dataset, and 0.34 seconds each.
+**Stopping rule.** Anything under ~5% of the write surface gets a measurement, not
+a day. The cost of ignoring this rule is on the record twice today: a natural-key
+change that spot-checked at −7.8% measured **−0.4%** across the write surface
+(finding 41), and cable-path computation — the mechanism everyone assumed was the
+cost, including this queue — measured **3–5%** of a cable create.
 
-**Then `ipam.ipaddresstointerface` (65.6 marginal q/obj).** Both have a single SQL shape repeated far out of proportion to the
-work — cable repeats one `SELECT` on `dcim_cabletocabletermination` **280 times
-per ten cables**, which is the same table finding 36 just prefetched on the read
-side. That is a strong hint the write path has an analogue of the read fix, and
-it is the cheapest thing on this list to test.
+### Closed by measurement — do not reopen without new evidence
 
-**`dcim.device` at 40.0 is the one with the most leverage** — it is the model a
-real bulk import creates most of, and it carries 309ms of database time on ten
-objects. `dcim.interface` at 23.8 is second on the same reasoning.
+| item | verdict |
+|---|---|
+| cable path recomputation | 3–5% of a cable create (finding 40 attribution) |
+| natural-key map on 3 more models | −0.4% across the write surface (finding 41) |
+| Redis-backed natural-key map | +0–2%, inside variance (finding 17) |
+| eager `select_related` over the key chain | −666 queries, **+62% slower** (finding 15) |
+| stored fragment / materialized path | blocked twice — see finding 41's note |
 
-**Rank on database time as well as on queries.** Exactly the gap finding 37 found
-in the read screen, present here for the same reason and fixable the same way:
-`db_ms` is already recorded per measurement, so it is a sort key, not a re-run.
+### 1. `full_clean()` re-validates every foreign key
 
-**Raise coverage where it is cheap.** 19 of the 47 unmeasured models are
-unmeasurable only because this dataset has no rows of a required related model —
-cluster, moduletype, cloudnetwork, virtualserver, savedview. Seeding a handful of
-rows converts them from "not measured" to measured without touching the payload
-builder. The other 28 are model validation and are not worth chasing.
+**18 of 178 queries per cable created (10%)**, and 4 of 64 on
+`ipam.ipaddresstointerface`. Django's `ForeignKey.validate()` issues one
+`SELECT 1 … LIMIT 1` per FK, and `full_clean()` runs it across every FK on the
+model — 27 distinct SQL shapes for one cable.
 
-## 2. Affordance-adoption screen
+Nautobot opts into this twice, neither required by Django, whose `save()` never
+validates: `validated_save()` (`core/models/__init__.py:198`) and
+`BaseModelSerializer.validate()` (`core/api/serializers.py:769`). On the API path
+the serializer has **already resolved every FK from the database** and then asks
+the database whether those rows exist.
+
+`full_clean(exclude=…)` and `clean_fields(exclude=…)` are supported Django call
+signatures, so skipping re-validation of FKs the serializer just resolved is not a
+hack. **Universal — every `validated_save()` in the product.**
+
+*Next step, ~10 minutes:* split the 18 by phase — `clean_fields` against
+`validate_unique` against `validate_constraints`. `perf/probe_full_clean.py`
+already counts the phases; it needs to attribute queries to them.
+
+### 2. Change-log serialization
+
+**6% of a cable create, 15% of an `ipam.ipaddresstointerface` create.** Already
+three findings deep (13, 22, 31), and it is the same API serializer the response
+uses, at depth 1, per object.
+
+*Next step:* establish whether depth is reducible for change logging specifically.
+Findings 16 and 22 attacked what is *written*; nothing has attacked how deeply it
+is *serialized*.
+
+### 3. The REST create path does not defer cable path rebuilds
+
+`defer_cable_path_rebuilds()` exists, is documented "for use when making multiple
+CableToCableTermination table updates", and coalesces per-row signals into one
+rebuild. `dcim/forms.py:4900` adopted it. `dcim/models/cables.py:1023` adopted it.
+`CableSerializer._apply_terminations()` writes two rows in a loop without it.
+
+Bounded to ~3% by the attribution above, but it is one line and it is the **fourth
+instance** of the same shape on this branch (findings 7/11, 34, 36). *Cheapest
+item on the list.*
+
+### 4. `django-tree-queries` is already a dependency and `natural_key()` ignores it
+
+Location is a `TreeModel`; the library answers "this node and its ancestors" with
+one recursive CTE. `natural_key()` walks `val = getattr(val, lookup)` instead, one
+lazy foreign-key load per hop. Finding 15 tried `select_related` and produced an
+eight-way join that ran 62% slower — a CTE is a different shape: one query, one
+table, ancestors as rows rather than columns.
+
+No schema change, no invalidation, no staleness. **Unmeasured**, and the caveat
+that matters is that a CTE is one query *per object* where the whole-table map is
+one query *per table* — so it may beat the map on a single write and lose badly on
+a page of 100.
+
+*Next step:* probe it before believing it.
+
+### Deferred by decision, not by measurement
+
+The whole-table map returns `None` outside a `request_cache()` scope, so Jobs,
+data migrations and nbshell pay the full hop-by-hop walk that HTTP callers stopped
+paying at finding 14. Extending the scope to `web_request_context()` was built and
+measured (it took an ORM cable create 178 → 166) and then **withdrawn**: a Job
+holds that scope for minutes rather than milliseconds, which turns the map's
+accepted staleness window into a real one, and `QuerySet.update()` emits no signal
+that could invalidate it. Revisit only with an invalidation story that survives
+`update()`.
+
+## 5. Affordance-adoption screen
 
 **Kevin's reframing, and it is better than the one it replaced.** I had called
 `Cable._get_termination_attr` a case of code diverging from its docstring. It
@@ -164,7 +224,7 @@ now has a ranked list pointing at specific endpoints where this has none.** On
 expected value per hour this may still beat it, and it is cheaper. Reasonable to
 swap.
 
-## 3. Finding 35 audit — undecided, needs a call
+## 6. Finding 35 audit — undecided, needs a call
 
 Finding 35 established that a container restart biases the in-process
 measurement that follows it: bimodal ~99ms or ~165ms, set at process start and
@@ -186,7 +246,7 @@ may move.
 currently noted in finding 35 and nowhere else.
 
 
-## 4. Read-side leftovers, now explicitly ranked below the write path
+## 7. Read-side leftovers, now explicitly ranked below the write path
 
 Kept as one item rather than four, because finding 37 established that none of
 it competes with items 1–3. Ordered within itself by what it would teach.

@@ -1,0 +1,18 @@
+Your report supports a narrower claim than the one you made, and one of its own findings undercuts the route you took to it.
+
+The undercut first. Your methodology section says five hypotheses formed by reading code were wrong, each corrected by instrumentation, and three of your own conclusions got overturned by measurement. You end that section with "measure first; read code to explain a measurement, never to predict one." Then you spent four days reading core and predicted something about the organization. Same inference class. You have no measurement of the org: no attribution of when these were introduced, by whom, or under what review. Finding 01 (getattr evaluating its default eagerly) is a Python footgun that gets past competent reviewers everywhere and says nothing about anyone. Finding 02 (prefetch inspection skipping any source with a dot in it) is someone's deliberate scoping decision that nobody revisited. Those have different causes and only one of them is organizational.
+
+What the report does support: nobody was measuring wall clock, and the proxy in use was actively misleading. That is well evidenced. The rejected FK pre-warm removing 666 queries while running 62% slower is the cleanest possible demonstration that the gate everyone trusted was pointing away from the prize.
+
+The one finding that generalizes to how the org works, rather than to what a file does, is the affordance-adoption note: three findings exist only because an affordance was added and its call sites were never updated. That is a repeatable pattern with a repeatable cause. If you are going to make an org argument, that is the evidence, not the aggregate query count.
+
+Two things cut the other way:
+
+- Your own environment note. The demo instance is 4.7× slower on `prefixes`, an endpoint this branch barely touches. If the largest measured gap is environment, the code-quality story is not the dominant explanation for anything a customer perceives. You flagged the instrument mismatch there yourself, so it needs re-measuring before it can carry weight in either direction.
+- Query-count gates existing at all is a sign of some discipline, just aimed wrong. Orgs with no maturity do not have deterministic query assertions to be misled by. (I am inferring the gate was institutional rather than ad hoc; if it was never enforced anywhere, this point dissolves.)
+
+Problems inside the document:
+
+- **"Accepted changes to Nautobot: 21"** in the header table. Accepted by you, on your branch. Your own caveat says anything upstreamed would go through review and very likely change. A reader who does not reach line 1505 will read that row as upstream acceptance, and it is the first number on the page.
+- **The headline metric contradicts the thesis.** You lead with `2,235 → 695 (-68.9%)` queries, then devote a full section to arguing query count is the gate and not the objective, with the largest read-path win removing zero queries. Pick one. The cumulative wall-clock figure exists in the Cumulative section; promote that instead and demote queries to the gate row it is.
+- **Aggregate caching risk is understated relative to the test gap.** You note 21 accepted changes with a lot of new request-scoped state, and separately that no full-suite run has happened since finding 22 and 37 through 40. Those combine worse than either reads alone: request-scoped caches in a framework where third-party apps hold references and call into the same paths. Findings 07 and 11 are already tagged `third-party-coupled`, and a django-tables2 upgrade breaking that assumption fails as a correctness bug, not a slow page.
