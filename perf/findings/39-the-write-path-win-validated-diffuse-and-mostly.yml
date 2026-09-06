@@ -33,12 +33,20 @@ result:
     dcim.interfacevdcassignment −47.5%, ipam.ipaddresstointerface −29.3%, the device-component
     family (powerport, poweroutlet, consoleport, consoleserverport) −36.6% each, dcim.interface
     −24.1%. 40 models contribute; the top three are 75% of the query saving.'
-  adjusted: 'both arms waste an identical ~480s on the databot cable timeout in finding 40 --
-    16 batches, 30s each, counted in all three arm logs. Removing that constant gives 970s
-    against 1631s, or −40.5%. Kevin''s −37% falls between the raw and adjusted figures, which
-    fits: his box is roughly twice this one, so a 100-cable batch would take ~18s there and
-    never trip the timeout, making his the undiluted measurement.'
-wall_clock: −31.3% on a whole datacenter apply (−40.5% adjusted for the timeout constant in finding 40)
+  after_the_client_fix: 're-run against a rebuilt databot whose write timeout is 120s rather
+    than 30s, so neither arm hits the cable fallback (0 in both logs, against 16 in every arm
+    before): stock next 1967s / 850,278 queries / 34,445ms, perf/verified 1304s / 723,075
+    queries / 31,100ms. **−33.7% wall, −15.0% queries, −9.7% server execution.** This is the
+    figure to quote -- same box, same dataset, same client, neither arm distorted. Kevin''s
+    −37% on his own hardware and this −33.7% are now the same claim measured twice.'
+  retracted: 'an earlier version of this finding carried an "adjusted −40.5%", built by
+    subtracting 16 x 30s of supposedly-discarded work from both arms. It was wrong twice over.
+    The timed-out batches were not discarded -- the server committed them and the client
+    confirmed rather than re-created them (see finding 40) -- so there was nothing to subtract,
+    and the measured cost of the client fix is 146s on the perf arm (1450 -> 1304), not 480s.
+    The arithmetic looked clean, which is exactly why it got published. Superseded by the
+    measured pair above.'
+wall_clock: −33.7% on a whole datacenter apply (−31.3% on the earlier pair, before the client fix in finding 40)
 controls: 'Arms alternated (pilot A, B, A, B) and the tree proved different before each run by
   hashing nautobot/**/*.py, not by trusting the checkout -- the rule that exists because a git
   stash A/B once silently measured identical code six times. Only nautobot/ is swapped, since
@@ -67,8 +75,11 @@ note: 'The queue proposed answering this by reverting finding 13 alone and re-ti
   report both or it will undervalue exactly the kind of fix this branch is best at.
 
 
-  **What is still not measured.** Both applies here carry the finding 40 timeout waste, so the
-  raw −31.3% is diluted by a constant that has nothing to do with Nautobot. The adjusted −40.5%
-  is arithmetic on a counted constant (16 fallbacks x 30s), not a measured quantity. databot now
-  defaults to a 120s write timeout, so re-running the A/B against a rebuilt databot would replace
-  the inference with a measurement. Worth doing; nothing else on the branch depends on it.'
+  **The inference this finding originally carried was wrong, and the way it was wrong is the
+  lesson.** The first pair of applies both hit a client-side timeout on 16 cable batches. I
+  modelled that as 480 seconds of work thrown away on each arm and subtracted it, producing a
+  tidy "adjusted −40.5%". Two things were wrong: the work was not thrown away (the server
+  committed and the client confirmed), and the real cost was 146s rather than 480s. The measured
+  post-fix pair is −33.7%. An adjustment computed from a counted constant still rests on a story
+  about what the constant means, and that story was never checked. Where a re-run is affordable,
+  re-run rather than adjust.'
