@@ -28,14 +28,19 @@ result:
   the_timeout: 'databot''s httpx client defaulted to timeout=30.0 (discovery/fetch.py:80). At
     0.356s per cable over HTTP the break-even batch is 84 cables and databot batches at 100, so
     the failure was deterministic rather than intermittent: exactly 16 fallbacks in all three
-    arm logs, 1,648 cables being 16 full batches plus a 48-cable remainder that fits. ~480s per
-    apply spent waiting and then discarding the work.'
+    arm logs, 1,648 cables being 16 full batches plus a 48-cable remainder that fits.'
+  what_it_actually_cost: '146 seconds, measured -- 1450s before the client fix against 1304s
+    after, on the same tree and dataset. **Not the ~480s an earlier version of this finding
+    claimed.** The timed-out batches were not wasted: the server finished its ~35s and committed,
+    and databot -- which write-aheads every row to the state sidecar before POSTing -- then found
+    all 100 present and confirmed them instead of re-creating them. That is the "skipped 1,600
+    (resumed)" in every pre-fix arm log, and 1,600 is exactly 16 batches x 100. The cost is the
+    difference between giving up at 30s and the confirmation round-trips, not the work itself.'
   not_a_nautobot_fault: 'a capture proxy between databot and Nautobot recorded **zero 5xx from
     Nautobot** across a whole cable phase, and logged BrokenPipeError writing back to databot.
     Reproduced exactly with curl --max-time 30 on the same payload: exit 28 at 30.0019s, and the
-    server logs the identical hr_write(): Broken pipe. Nautobot completes the request; the client
-    stops listening, the response write fails, the transaction rolls back, and databot retries
-    per row.'
+    server logs the identical hr_write(): Broken pipe. Nautobot completes the request and
+    commits it; the client has stopped listening by then, so only the response write fails.'
 wall_clock: not applicable — a cost measurement and a client-side defect, no product change
 controls: 'Every probe POST runs in a rolled-back transaction and the database is reset from the
   template afterwards. The 25/50/96 curve was taken in one process without resets between sizes,
@@ -65,6 +70,14 @@ note: 'Three wrong turns, and each was wrong in a way worth writing down.
   these and Nautobot''s exception middleware renders the traceback into a 246-byte body, so
   neither the container log nor databot''s warning ever says what broke. The capture proxy exists
   because the only copy of the evidence was in flight between two processes.
+
+
+  **A fourth wrong turn, caught by Kevin rather than by me.** I read the clean final row counts
+  -- exactly 1,648 cables, no duplicates -- as evidence that the timed-out transactions rolled
+  back. They are equally consistent with commit-then-confirm, which is what the "skipped 1,600
+  (resumed)" line said all along and what actually happened. Having decided on rollback, I then
+  costed the timeouts as 480s of discarded work and published an adjusted figure built on it.
+  The row count was real evidence for a claim it did not distinguish between.
 
 
   **Consequences.** databot now defaults to a 120s write timeout with a --write-timeout flag.
