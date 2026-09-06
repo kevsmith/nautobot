@@ -466,18 +466,114 @@ endpoint equally, which is a selection-free sample rather than a usage-weighted
 one -- whether anyone lists `cabletocabletermination` at `?depth=1` in practice
 is a product question, not a measurement one.
 
-Writes remain unbuilt. create/update need schema-valid payloads per model, which
-databot generates from the OpenAPI schema and OPTIONS metadata. That is now the
-only open problem, because the other one is solved: REST writes cross the process
-boundary, so the rolled-back transactions `tier1w_writes.py` relies on cannot
-isolate them -- but `perf/reset_db.sh` resets the database in 1.3 seconds, so the
-matrix can afford a reset per operation rather than having to batch around one.
+## Built: the write screening matrix
 
-The payload half is where a write matrix can lie in a way the read one cannot. A
-model whose generated payload fails validation drops out of the run silently and
-reads as "not a problem" rather than "not measured". The output has to carry
-attempted / valid-payload / measured counts per model, or it repeats the failure
-that put "330 endpoints, roughly 5%" in this file for weeks.
+`perf/screen_writes.py` is the read screen's counterpart, built to the same three
+rules. It enumerates from the URL resolver at run time; it takes writability from
+the DRF router's own action map on the URL callback rather than inferring it from
+the viewset class; and it normalizes to cost per *created* object. 152 of the 166
+API list endpoints accept POST. 105 were measured across `create.x1`,
+`create.x10` and `update.x1` — 257 measurements in 211 seconds. See finding 38.
+
+    perf/dc.sh exec -T nautobot python /source/perf/screen_writes.py \
+        --out /source/perf/results/screen-writes.json
+    # --dry-run   build payloads and report coverage; issue no requests
+    # --isolation reset   commit for real, then reset_db.sh + one discarded request
+
+**What it found.** The marginal cost of one more object — `(x10 - x1) / 9` — has a
+median of **12 queries** across 98 models and a minimum of 3.0. The read screen's
+median is 0.28 queries per returned object, and its worst endpoint anywhere is
+19.5. The cheapest create on the whole write surface is more expensive per object
+than 47 of the 49 read endpoints that return a full page.
+
+| endpoint | marginal q/obj | x1 | x10 | duplicates |
+|---|---:|---:|---:|---:|
+| `ipam.ipaddresstointerface` | 65.6 | 77 | 667 | 627 |
+| `dcim.interfaceredundancygroupassociation` | 46.2 | 55 | 471 | 430 |
+| `dcim.cable` | 44.9 | 54 | 458 | 381 |
+| `dcim.device` | 40.0 | 49 | 409 | 364 |
+| `ipam.prefix` | 30.0 | 38 | 308 | 254 |
+| `dcim.interface` | 23.8 | 35 | 249 | 219 |
+
+`create.x1` alone would rank almost nothing: 9 queries at its cheapest and 20 at
+the median, most of it fixed overhead. The bulk arm is what separates fixed cost
+from per-row work, and Nautobot's API takes a JSON list on a list endpoint, so it
+costs one extra request per model to get it.
+
+**Coverage, which is the part that had to be built rather than measured.** 152
+attempted / 130 payloads built / 105 accepted / 105 measured — and of the 105,
+**82 came from field metadata alone and 23 needed an entry in a hand-maintained
+exception list**. Both halves are printed, every run. A write screen can
+under-report in a way the read screen cannot: a model whose payload is rejected
+drops out and reads as *not a problem* rather than *not measured*, which is the
+failure that left "330 endpoints, roughly 5%" in this file for weeks. So every
+model lands in exactly one bucket with the reason it stopped there. The 47 that
+did not make it are 21 rejected by model validation no generated payload can
+satisfy, 19 whose required related model has no rows in this dataset, 4 whose
+uniqueness constraint spans foreign keys over tables of fewer than ten rows, 2
+returning HTTP 500, and 1 with no derivable value.
+
+**Where the payloads come from.** `perf/payloads.py`, from `serializer.fields` —
+the same source DRF's OPTIONS metadata is built from, read directly rather than
+over HTTP so the field *objects* are available. That matters: a related field's
+`queryset` and the model field's `limit_choices_to` are what make it possible to
+pick a value that will validate. Three things were not obvious and all three are
+now the difference between 70% coverage and 40%:
+
+- `ForeignKeyLimitedByContentTypes.get_limit_choices_to()` returns a **dict**, and
+  `queryset.filter(dict)` is a `FieldError`. Getting this wrong took out every
+  model with a status or a role — 22 of 152, including device, interface, prefix,
+  ipaddress, cable, location, circuit and rack.
+- DRF's `required` is not the model's `blank`. A `blank=False` field with no
+  default is still `required=False` on the serializer whenever the column is
+  nullable, and `full_clean` then rejects what the payload omitted.
+- A many-related field's child is not always a plain relation. `content_types`
+  wants `"app_label.model"` strings, not primary keys.
+
+**Isolation is rollback, and it was measured against the alternative.** Every
+measured request runs inside `transaction.atomic()` that is rolled back — possible
+at all only because the requests go through the Django test client and stay
+in-process, where finding 29's "REST writes cross the process boundary" does not
+apply. Row counts on seven tables are byte-identical before and after a full run
+of 257 writes.
+
+`--isolation reset` is the control, and it was run: both modes over the five
+`dcim.device*` models, three rounds each way with the arms alternated. **Query
+counts differ by exactly −2 on all 13 operations in every round** — the
+SAVEPOINT/RELEASE pair, the same difference finding 29 measured on bulk create.
+Wall clock is **+3.0% median for the committed arm**, which is an upper bound
+rather than an estimate, because that arm carries the residual cold-buffer cost of
+the clone before it.
+
+Reset mode needed three corrections before it was a control rather than a trap,
+and each is a way a write screen can produce confident wrong numbers:
+
+- It cannot shell out to `reset_db.sh` — this runs inside the container and that
+  script drives `docker compose` from the host. The clone goes over a second
+  psycopg2 connection instead, carrying a reimplementation of the migration
+  fingerprint. `--verify-reset` checks it against the shell one; they agree byte
+  for byte.
+- `force_login` writes a `django_session` row, and the clone replaces the database
+  that row is in. Without re-logging-in after every reset, every subsequent
+  request is anonymous.
+- The post-clone throwaway request must be **rolled back even in reset mode**. A
+  committed throwaway collides with the measured request on every unique name,
+  which reads as a rejected payload rather than as a broken protocol.
+
+**A rolled-back transaction restores the database, not the process.** The first
+full run had 47 of 252 measurements with *unstable query counts*, nearly all
+updates, because the natural-key and tag caches are cold only on the first pass
+and survive the rollback that resets everything else. One discarded warmup run per
+operation takes that to 1 of 257. Same discipline as finding 33's post-clone
+warmup, arriving from the opposite direction — there the cold thing was
+PostgreSQL's shared buffers, here it is the Python process.
+
+**Two limits, stated rather than discovered later.** The ranking is queries per
+object, so it is blind to a small number of expensive queries exactly as the read
+screen was; `db_ms` is recorded per measurement, so that second ranking costs
+nothing to add. And the payloads are minimal — required fields only — so every
+figure is the *floor* cost of a create. Tags, custom field data and relationships
+are omitted and they are write work.
 
 ## Environment quick reference
 
