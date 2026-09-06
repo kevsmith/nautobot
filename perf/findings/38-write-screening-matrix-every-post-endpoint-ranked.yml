@@ -1,0 +1,146 @@
+---
+seq: 38
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: The write screening matrix — every POST endpoint, ranked on cost per created object
+site: perf/screen_writes.py - perf/payloads.py
+summary: 'The read screen''s counterpart, built to the same rules: enumerate from the URL
+  resolver at run time, normalize to cost per object, and never let an unmeasured model read
+  as a cheap one. 152 of the resolver''s 166 API list endpoints accept POST; 105 were measured
+  across create.x1, create.x10 and update.x1, for 257 measurements in 211 seconds. The
+  headline is the comparison it makes possible: the *median* marginal cost of creating one
+  object is 12 queries, against a median read cost of 0.28 queries per returned object, and
+  the cheapest create on the entire surface (3.0) is more expensive per object than 47 of the
+  49 read endpoints that return a full page.'
+result:
+  surface: '166 API list endpoints, 152 of which accept POST and 14 of which are read-only.
+    Writability is read from the DRF router''s own action map on the URL callback, not
+    inferred from the viewset class, so the resolver stays the authority for writes as it is
+    for reads.'
+  coverage: '152 attempted / 130 payloads built / 105 payloads accepted / 105 measured. Of the
+    105, **82 were built from field metadata alone** and 23 needed an entry in the
+    hand-maintained exception list in payloads.py. The 47 unmeasured models break down as: 21
+    rejected by model validation no generated payload can satisfy ("A Location of type Wing
+    must have a parent Location", "Racks may not associate to locations of type Office"), 19
+    unbuildable because this dataset has no rows of a required related model (cluster,
+    moduletype, cloudnetwork, virtualserver, savedview), 4 rejected on a uniqueness constraint
+    over foreign keys whose tables hold fewer than ten rows, 2 HTTP 500 (see note), and 1 with
+    no derivable value.'
+  ranking: 'marginal queries per additional object, (x10 - x1) / 9, over the 98 models whose
+    bulk create was accepted: ipam.ipaddresstointerface 65.6 (x1 77, x10 667, 627 duplicates,
+    372ms db); dcim.interfaceredundancygroupassociation 46.2 (55 / 471, 430 dup);
+    dcim.cable 44.9 (54 / 458, 381 dup, one SELECT on dcim_cabletocabletermination repeated
+    280 times); dcim.device 40.0 (49 / 409, 364 dup, 309ms db); ipam.prefixlocationassignment
+    36.4; ipam.vlanlocationassignment 30.1; ipam.prefix 30.0; extras.configcontext 30.0.
+    dcim.interface is 23.8. Distribution: min 3.0, median 12.0, max 65.6.'
+  fixed_cost: 'create.x1 is 9 queries at its cheapest, 20 at the median and 86 at its worst,
+    so a single-object POST is mostly fixed overhead and the x1 figure alone would rank the
+    surface almost uselessly. update.x1 is 15 / 24 / 77 over 51 models, worst dcim.cable.'
+  determinism: '256 of 257 measurements had identical query counts across all three reps. The
+    one exception is ipam.vlanlocationassignment create.x10 at [307, 308].'
+  isolation_verified: 'row counts on dcim_device, dcim_interface, dcim_cable, ipam_prefix,
+    ipam_ipaddress, ipam_namespace and extras_objectchange are byte-identical before and after
+    a full run: 2902 / 8925 / 3278 / 595 / 2937 / 1 / 36552. 257 measured writes, nothing left
+    behind.'
+wall_clock: not applicable — an instrument, not a change
+controls: 'Rollback isolation was measured against the alternative rather than assumed from
+  finding 29. Both modes were run over the five measured dcim.device* models, three rounds each
+  way with the arms alternated (rb, rs, rb, rs, rs, rb), 13 operations compared on medians.
+
+
+  **Query counts differ by exactly -2 on all 13 operations, in every round.** That is the
+  SAVEPOINT/RELEASE pair the outer transaction adds and nothing else -- the same 2-query
+  difference finding 29 measured on bulk create at a completely different scale. The write
+  path itself does not change shape when the transaction commits.
+
+
+  **Wall clock: the committed arm is +3.0% median (range -2.2% to +11.4%).** That is an upper
+  bound on what rollback under-reports, not an estimate of it, because the reset arm carries
+  the residual cold-buffer cost of the clone that precedes it. Finding 29 measured -0.9% on
+  bulk create with a restore before every arm; this is the same answer at the same order of
+  magnitude.
+
+
+  Rollback is available at all only because the requests go through the Django test client and
+  stay in-process. Finding 29''s "REST writes cross the process boundary" is true of a real
+  HTTP client against uwsgi and not of this one.
+
+
+  **Change logging is not hidden by the rollback**, and this was checked rather than inherited:
+  Nautobot records ObjectChanges from synchronous post_save receivers, ObjectChangeMiddleware
+  flushes them inside the same request, and there is no transaction.on_commit anywhere on that
+  path. What rollback does omit is the five on_commit callbacks elsewhere in Nautobot,
+  including custom-field job enqueueing at extras/customfields.py:744.
+
+
+  **--isolation reset needed three corrections before it was a control rather than a trap**,
+  and each is a way a write screen can produce confident wrong numbers. It cannot shell out to
+  perf/reset_db.sh, because this runs inside the container and that script drives docker
+  compose from the host -- so the clone is issued over a second psycopg2 connection, carrying a
+  reimplementation of the migration fingerprint that --verify-reset checks against the shell
+  one (they agree byte for byte). force_login writes a django_session row, so the client has to
+  be logged in again after every clone or every subsequent request is anonymous. And the
+  post-clone throwaway request has to be rolled back even in reset mode: a committed throwaway
+  collides with the measured request on every unique name, which reads as a rejected payload.'
+tests: n/a; harness only, no product code
+caveat: null
+note: 'Three things this cost more than expected, each of which is now a property of the
+  instrument rather than a fact about one run.
+
+
+  **A rolled-back transaction restores the database, not the process.** The first full run had
+  47 of 252 measurements with *unstable query counts*, nearly all updates. The cause is
+  process-level caches -- the natural-key field lookups and the tag cache -- which are cold
+  only on the first pass and survive the rollback that resets everything else. One discarded
+  warmup run per operation takes the unstable count from 47 to 1. This is the same discipline
+  finding 33 established for a database clone, arriving from the opposite direction: there the
+  cold thing was PostgreSQL''s shared buffers, here it is the Python process, and in both cases
+  the fix is one throwaway request and the cost of skipping it is a number that moves for
+  reasons nobody chose.
+
+
+  **DRF''s `required` is not the model''s `blank`.** A model field with `blank=False` and no
+  default is still `required=False` on the serializer whenever the column is nullable, and
+  `full_clean` then rejects the value the payload left out. Five models -- configcontext,
+  configcontextschema, secret, rackreservation, service -- were being reported as rejected
+  payloads while the builder was doing exactly what the serializer told it. Reading the model
+  field alongside the serializer field is what fixed them.
+
+
+  **A many-related field''s child is not always a plain relation.** `content_types` is a
+  many-related field over `ContentTypeField`, whose value is the string "app_label.model"; the
+  first version handed it a UUID and nine models -- status, role, tag, webhook, customfield,
+  metadatatype, jobbutton, cloudresourcetype, objectpermission -- were unmeasurable as a
+  result. Dispatching on the child field rather than assuming a primary key recovered all nine.
+
+
+  **The exception list is counted, deliberately.** 23 of the 105 measured models only got there
+  via an entry in `MODEL_SEEDS`, and the coverage summary reports "82 from field metadata
+  alone, 23 needing a seed entry" rather than one number. The list holds two kinds of knowledge
+  and nothing else: `force`, which names optional fields a `clean()` requires ("Either device or
+  module must be set" -- 14 models, including dcim.interface), and `values`, which supplies the
+  three IPAM addresses that have to fall inside a real prefix in the right namespace. A model
+  is not added to make a number look better.
+
+
+  **A product defect, found as a byproduct.** POST to `vpn.vpnprofilephase1policyassignment` or
+  `vpn.vpnprofilephase2policyassignment` returns HTTP 500 -- "got unexpected keyword arguments:
+  `_custom_field_data`". Both models are plain `BaseModel` and support no custom fields; both
+  serializers are `NautobotModelSerializer`, which puts `custom_fields` in validated_data with
+  a default and passes it to the model constructor. The payload never mentions custom fields,
+  so this is unconditional: those two endpoints cannot be written to at all. Correctness, not
+  performance, and out of scope for this branch -- recorded here because nothing else on the
+  branch would have found it.
+
+
+  **What the ranking cannot see, stated in advance this time.** It is queries per object, so it
+  is blind to a small number of expensive queries exactly as the read screen was -- finding 37
+  had to discover that after the fact with dcim.device. `db_ms` is recorded per measurement, so
+  the same second ranking is available here without re-running anything. And the payloads are
+  minimal: only required fields are populated, so every figure is the *floor* cost of a create.
+  Tags, custom field data and relationships are omitted, and they are write work. A populated
+  create costs more than anything reported here, never less.'
