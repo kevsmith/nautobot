@@ -1,35 +1,36 @@
 # Work queue
 
-As of 2026-09-05. Ordered, with the reasoning that produced the order — so the
+As of 2026-09-06. Ordered, with the reasoning that produced the order — so the
 sequence can be argued with rather than just followed.
 
-**Branch state.** `perf/experiments` at `bd786e8b7`. `perf/verified` at
-`e29a09f28`, app-code tree byte-identical to `perf/experiments`
-(`git rev-parse perf/verified:nautobot` matches). Full suite green on the
-current tree: 17,504 tests, `OK (skipped=663, expected failures=1)`, zero
-failures, zero errors. 24 accepted findings, of which 4 (seq 28, 32, 33, 35) are instruments or measurement results rather than product changes.
+**Branch state.** `perf/experiments` at `4a925fb43` plus this commit.
+`perf/verified` at `e29a09f28`, app-code tree byte-identical to
+`perf/experiments` (`git rev-parse perf/verified:nautobot` matches). Full suite
+green on the current tree: 17,504 tests, `OK (skipped=663, expected failures=1)`,
+zero failures, zero errors. 25 accepted findings, of which 5 (seq 28, 32, 33, 35,
+37) are instruments or measurement results rather than product changes.
 
 ---
 
-## 1. Re-run the read screening pass
+## Done: the read screening pass was re-run (finding 37)
 
-    perf/dc.sh exec -T nautobot python /source/perf/screen_reads.py
+518 measurements over 166 list endpoints in 82s against `4a925fb43`, same
+instrument and same dataset as the first run, so the two compare directly.
 
-**Why first.** 84 seconds, and four fixes have landed since the screen last ran
-(findings 30, 31, 34, 36). Its output is a ranked list of where to point the
-next investigation, so a stale ranking misdirects everything below it. Cheap
-enough that not running it first is the more expensive choice.
+**The answer to the question it was asked: nothing on the read side outranks the
+write path.** Ten of 518 measurements moved and 508 are byte-identical, so the
+four fixes are surgical and the residual list is the old list with its top two
+removed. The four highest per-object costs sit on tables of 20–38 rows. Only two
+residuals sit on tables large enough to compound, both the same per-row N+1
+shape fixed four times already. **The order below stands.** What is left on the
+read side is collected as item 5.
 
-**Definition of done.** A fresh ranking, and an explicit check of whether
-anything on the read side still outranks the write path for attention. If it
-does, this queue is wrong below here and should be re-cut.
+Two things the run found that the ranking method cannot see are in that item as
+well, and they are worth more than the residual list.
 
-**Known residuals from the last run**, all still untouched:
-`vpn.vpntunnelendpoint?depth=1` 9.8 q/obj · `circuits.circuit?depth=1` 7.3 ·
-`dcim.interfaceredundancygroupassociation?depth=1` 6.6 ·
-`ipam.ipaddresstointerface?depth=1` 5.9.
+---
 
-## 2. Attribute the −37% on the write path
+## 1. Attribute the −37% on the write path
 
 Kevin measured a large datacenter dataset apply at **495s against
 `perf/verified` versus 786s against stock `next`** — his own hardware, his own
@@ -53,12 +54,12 @@ serialization path:
 it returns toward 786s the win is concentrated and the write matrix should hunt
 for finding-13-shaped work. If it barely moves, the win is diffuse across the
 natural-key work and the matrix is a breadth exercise. **That answer changes
-what item 3 is for, which is why it comes first.**
+what item 2 is for, which is why it comes first.**
 
 **Caveat to fix while here.** Both figures are single runs. Re-time at least
 once more per side.
 
-## 3. Build the write screening matrix
+## 2. Build the write screening matrix
 
 **The blocker is gone.** Finding 33 made a database reset 1.3s (template clone,
 `perf/reset_db.sh`), so the matrix can afford a reset per operation rather than
@@ -88,7 +89,7 @@ rolled-back transactions — commit vs rollback is −0.9%, inside variance. Onl
 the REST half needs restore-based orchestration, because REST writes cross the
 process boundary.
 
-## 4. Affordance-adoption screen
+## 3. Affordance-adoption screen
 
 **Kevin's reframing, and it is better than the one it replaced.** I had called
 `Cable._get_termination_attr` a case of code diverging from its docstring. It
@@ -114,11 +115,11 @@ says it exists "to extend `select_related` so that rendering
 `termination.parent` ... stays query-free per row" — an affordance with a stated
 purpose and an unaudited adoption list.
 
-**Ordered after item 3 only because writes are the unexplored axis.** On
+**Ordered after item 2 only because writes are the unexplored axis.** On
 expected value per hour this may well beat it, and it is cheaper. Reasonable to
 swap.
 
-## 5. Finding 35 audit — undecided, needs a call
+## 4. Finding 35 audit — undecided, needs a call
 
 Finding 35 established that a container restart biases the in-process
 measurement that follows it: bimodal ~99ms or ~165ms, set at process start and
@@ -138,6 +139,41 @@ may move.
 
 **Decision needed:** pay it down, or note it in the report and defer. It is
 currently noted in finding 35 and nowhere else.
+
+
+## 5. Read-side leftovers, now explicitly ranked below the write path
+
+Kept as one item rather than four, because finding 37 established that none of
+it competes with items 1–3. Ordered within itself by what it would teach.
+
+- **Rank the screen on database time, not only on queries per object.** `dcim.device`
+  list is 8 queries, zero duplicates, and **438ms of database time** on a page of
+  25 — 55ms per query, the largest read-side db-time item there is, reproducible
+  across both runs (432 / 438 / 441ms). At 0.32 q/obj the ranking puts it 100th.
+  Every read fix on this branch has been a query-count fix, and this endpoint has
+  almost no queries to remove. `db_ms` is already recorded, so the ranking change
+  is one line; the investigation behind it is not.
+- **Fix the screen's coverage accounting.** It measures 166 list endpoints and
+  exercises 49. Seventy return zero rows against this dataset — `cluster`,
+  `virtualmachine`, `vminterface`, `module` and the whole modules/templates
+  family, `tag`, `service`, `rir` — and a zero-row endpoint reads as cheap when
+  it is unmeasured. This is the failure item 2 is required to avoid, present in
+  the instrument that raised the objection. Report attempted / exercised /
+  measured separately and stop quoting 166.
+- **The two residuals on tables large enough to compound.** `dcim.cable?depth=1`
+  6.36 q/obj (159 queries, 145 duplicates, 3,278 rows) and
+  `ipam.ipaddresstointerface?depth=1` 5.92 (148 queries, 130 duplicates, 2,937
+  rows). Known shape, known fix, bounded payoff.
+- **The small-table residuals, for completeness.** `vpn.vpntunnelendpoint?depth=1`
+  9.76 q/obj (37 rows) · `circuits.circuit?depth=1` 7.32 (38) ·
+  `dcim.interfaceredundancygroupassociation?depth=1` 6.60 (20) ·
+  `vpn.vpntermination?depth=1` 6.52 (37). One page is the whole table for all
+  four.
+- **Finding 36 costs three fixed queries at depth 0** (list 5 → 8, detail 4 → 7)
+  because its prefetches are unconditional and depth-0 serialization never reads
+  them. It removed 472 at depth 1, so the trade is roughly 150:1 and the A/B
+  never saw it because it measured depth=1 only. Conditioning the prefetch on
+  requested depth is possible. Recorded rather than queued.
 
 ---
 

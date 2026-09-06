@@ -1,0 +1,88 @@
+---
+seq: 37
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: Second read screening pass — what the four fixes removed, and what the ranking cannot see
+site: perf/screen_reads.py
+summary: 'Re-run of the screen against 4a925fb43, the tree carrying findings 30, 31, 34 and 36,
+  and directly comparable to the first run: same instrument, same page size of 25, same dataset
+  (8,925 interfaces, 2,902 devices, 3,278 cables), 518 measurements over 166 list endpoints in
+  82s. Ten of the 518 changed their query count and 508 are byte-identical to the first run, so
+  the four fixes are surgical and the residual ranking below is the first one''s ranking with its
+  top two removed.'
+result:
+  removed: 'total across the 518 measurements 6,345 -> 4,687 queries (-26.1%) and 3,242 -> 1,596
+    duplicates. dcim.cabletocabletermination?depth=1 487 -> 15; dcim.interfaceconnections 359 ->
+    17; dcim.powerconnections 135 -> 12; dcim.consoleconnections 134 -> 11. Both of finding 28''s
+    headline targets are gone.'
+  surgical: 'only 10 of 518 measurements moved, all on the four fixed endpoints. Nothing else on
+    the read surface changed by a single query, which is the evidence that the four prefetches
+    have no collateral effect.'
+  regression: 'cabletocabletermination at depth 0 went 5 -> 8 queries on a page of 25 and 4 -> 7
+    on detail, with db time 169 -> 190ms. Finding 36''s prefetches are unconditional and depth-0
+    serialization never reads them. Fixed cost (three queries: cable__terminations, and the
+    cable_paths__destination pair for the one non-null termination FK on the page), not per-row.'
+  residual: 'top cost per returned object, pages of >=10, unchanged from the first run to two
+    decimals: vpn.vpntunnelendpoint?depth=1 9.76 q/obj (244 q, 226 dup, 37 rows);
+    circuits.circuit?depth=1 7.32 (183 q, 38 rows); dcim.interfaceredundancygroupassociation?depth=1
+    6.60 (132 q, 20 rows); vpn.vpntermination?depth=1 6.52 (163 q, 37 rows); dcim.cable?depth=1
+    6.36 (159 q, 145 dup, 3,278 rows); ipam.ipaddresstointerface?depth=1 5.92 (148 q, 130 dup,
+    2,937 rows)'
+  invisible_to_the_ranking: 'dcim.device list is 8 queries, zero duplicates, and 438ms of database
+    time on a page of 25 -- 55ms per query, the largest db-time item anywhere on the read side.
+    Reproducible: 432ms in the first run, 441ms at depth 1. Per object it is 0.32 q/obj, which
+    puts it nowhere near the ranking. Queries per object cannot see a small number of expensive
+    queries.'
+  coverage: '166 list endpoints attempted, 166 measured, 2 non-200 (dcim.connected-device, 400
+    without its required parameters, which is correct behaviour). But only 49 returned a full page
+    of >=10 objects. 47 returned 1-9 rows and 70 returned zero -- including cluster, virtualmachine,
+    vminterface, module and the whole modules/templates family, tag, service and rir. A zero-row
+    endpoint reads as cheap and is actually unmeasured.'
+wall_clock: not applicable — an instrument, not a change
+controls: 'nine models (jobs, contactassociation, objectchange, users, one wireless assignment)
+  returned different response bytes between the two runs. Row counts and query counts are identical
+  for all nine, so the drift is field-level -- timestamps, last_login, job metadata -- and does not
+  affect comparability.'
+tests: n/a; reads only, no mutation
+caveat: null
+note: 'The queue asked this pass to answer one question: does anything on the read side still
+  outrank the write path for attention. It does not, and the ranking above is why.
+
+
+  The four highest per-object costs sit on tables of 20 to 38 rows, where one page is the entire
+  table. Fixing them would remove a few hundred queries from a request nobody has evidence anyone
+  makes. Only two residuals sit on tables large enough for the cost to compound --
+  dcim.cable?depth=1 (3,278 rows, 145 duplicates per page) and ipam.ipaddresstointerface?depth=1
+  (2,937 rows, 130 duplicates) -- and both are the same per-row N+1 mechanism this branch has now
+  fixed four times, with a known shape and a bounded payoff per endpoint. Against that, the write
+  path has one measured 37% win at whole-workflow scale that nothing has attributed, and zero
+  screening coverage. The queue order stands.
+
+
+  Two things this run found that the ranking method itself would never surface, and both are worth
+  more than the residual list.
+
+
+  **dcim.device spends 438ms in the database over 8 queries with no duplicates.** Every read fix on
+  this branch has been a query-count fix, and this endpoint has almost no queries to remove. It is
+  the largest read-side db-time item measured and the instrument ranks it 100th. A screen that
+  normalizes to queries per object is structurally blind to a slow query, and the fix for that is
+  to rank on db time as well -- one line, since db_ms is already recorded.
+
+
+  **The screen measures 166 endpoints and exercises 49.** 70 of them return zero rows against this
+  dataset, so they contribute a measurement that says nothing while counting as coverage. This is
+  the same failure the queue''s item 3 requires the write matrix to avoid, present in the
+  instrument that raised the objection. Either seed the empty models or report attempted /
+  exercised / measured separately, and stop quoting 166.
+
+
+  On the regression. Finding 36 removed 472 queries from the depth=1 path and added 3 to the depth=0
+  path, which is a trade worth making at roughly 150:1 and was not visible in that experiment
+  because the A/B measured depth=1 only. Making the prefetch conditional on depth is possible --
+  the viewset can read the requested depth -- but it is three fixed queries on an endpoint nobody
+  has shown is hot at depth 0, so it is recorded rather than queued.'
