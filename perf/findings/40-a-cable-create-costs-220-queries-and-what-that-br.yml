@@ -81,9 +81,11 @@ note: 'Three wrong turns, and each was wrong in a way worth writing down.
 
 
   **Consequences.** databot now defaults to a 120s write timeout with a --write-timeout flag.
-  120 rather than 60 because this host is already ~2x slower than the one Kevin measured on, and
-  60s only covers a machine 1.7x slower than this one; the safe batch is roughly timeout x 0.8 /
-  0.36s / slowdown. The timeout value stops mattering if the client halves the batch and retries
+  120 rather than 60 because 60s only covers a machine 1.7x slower than this one and a CI runner
+  on shared vCPUs is easily that; the safe batch is roughly timeout x 0.8 / 0.36s / slowdown.
+  (An earlier version justified the margin by calling this host "~2x slower than the one Kevin
+  measured on". That ratio came from dividing two applies of *different datasets* and was never a
+  measurement -- withdrawn, and the sizing argument stands without it.) The timeout value stops mattering if the client halves the batch and retries
   on timeout instead of dropping straight to per-row -- recorded, not queued.
 
 

@@ -37,8 +37,15 @@ result:
     than 30s, so neither arm hits the cable fallback (0 in both logs, against 16 in every arm
     before): stock next 1967s / 850,278 queries / 34,445ms, perf/verified 1304s / 723,075
     queries / 31,100ms. **−33.7% wall, −15.0% queries, −9.7% server execution.** This is the
-    figure to quote -- same box, same dataset, same client, neither arm distorted. Kevin''s
-    −37% on his own hardware and this −33.7% are now the same claim measured twice.'
+    figure to quote -- same box, same dataset, same client, neither arm distorted.
+
+
+    **Not the same measurement as Kevin''s −37%, and an earlier version of this finding said it
+    was.** His run uses a different datacenter dataset on different hardware, so the two cannot be
+    divided into a hardware ratio and neither can be used to corroborate the other''s magnitude.
+    They are two independent results pointing the same direction. His own reproducibility is good
+    -- 487.69s against the 495s he first measured, 1.5% apart -- but that is a statement about his
+    box, not about this one.'
   retracted: 'an earlier version of this finding carried an "adjusted −40.5%", built by
     subtracting 16 x 30s of supposedly-discarded work from both arms. It was wrong twice over.
     The timed-out batches were not discarded -- the server committed them and the client
