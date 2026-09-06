@@ -91,6 +91,21 @@ def group_of(f):
     return "rejected"
 
 
+def is_product_change(f):
+    """True if the finding proposes a change to Nautobot rather than to the harness.
+
+    Read from `site`, which names the code a finding touches. A finding whose every
+    named path is under `perf/` changed an instrument, not the product -- those are
+    real results and they stay in the report, but they belong with the methodology
+    they describe rather than in a list of optimizations someone might adopt.
+
+    A `site` with no path in it at all ("an existing supported setting", "a new data
+    migration") is a product change described in prose, so the default is product.
+    """
+    paths = [part.strip() for part in re.split(r"[-\u2013,]| plus ", str(f.get("site") or "")) if "/" in part]
+    return not (paths and all(part.startswith("perf/") for part in paths))
+
+
 def load_findings():
     out = []
     for path in sorted((PERF / "findings").glob("*.yml")):
@@ -191,14 +206,16 @@ def load_runs(pattern, key):
 
 
 def render_factbar(findings):
-    accepted = sum(1 for f in findings if f["status"] == "accepted")
+    product = [f for f in findings if is_product_change(f)]
+    accepted = sum(1 for f in product if f["status"] == "accepted")
     rows = [
         ("Branch", "`next` · 3.3.0a0"),
         ("Dataset", "databot `enterprise-campus / large / seed 42` · 24,091 objects"),
         ("Read scenarios", "38"),
         ("Write operations", "13"),
         ("Findings recorded", str(len(findings))),
-        ("Accepted", str(accepted)),
+        ("Accepted changes to Nautobot", str(accepted)),
+        ("Harness findings", str(len(findings) - len(product))),
     ]
     # Three reference points: large-tier1-baseline is where the work started,
     # uwsgi-tier1-baseline is where round two started, and uwsgi-tier1-current
@@ -278,7 +295,7 @@ def render_cumulative(findings):
         return {e["id"]: e for e in json.loads(path.read_text())["endpoints"]}
 
     b, c = load(base), load(cur)
-    accepted = sum(1 for f in findings if f["status"] == "accepted")
+    accepted = sum(1 for f in findings if f["status"] == "accepted" and is_product_change(f))
 
     rows = []
     for name in sorted(c, key=lambda k: b.get(k, {}).get("query_count", 0), reverse=True):
@@ -328,42 +345,98 @@ def render_bench():
     return "\n".join(lines)
 
 
-def render_findings(findings):
-    """The section the report leads with: what was found, and what was decided.
+def render_entry(f, level, parked=False):
+    """One finding, rendered at the given heading level."""
+    out = [f"{'#' * level} {f['title']}", ""]
+    meta = [f"**{f['seq']:02d}**", tiers(f), f"status `{f['status']}`"]
+    if f.get("commit"):
+        meta.append(f"commit `{f['commit']}`")
+    if f.get("id"):
+        meta.append(f"({f['id']})")
+    out += [" \u00b7 ".join(meta), ""]
+    if f.get("site"):
+        out += [f"`{f['site']}`", ""]
+    out += [f["summary"], ""]
+    out += ["| Instrument | Result |", "|---|---|", f"| **wall clock** | {f['wall_clock']} |"]
+    for k, v in (f.get("result") or {}).items():
+        out.append(f"| {k.replace('_', ' ')} | {v} |")
+    out.append("")
+    if f.get("wall_clock_detail"):
+        out += [f"**Wall clock.** {f['wall_clock_detail']}", ""]
+    if f.get("controls"):
+        out += [f"**Controls.** {f['controls']}", ""]
+    if f.get("caveat"):
+        out += [f"> **Caveat.** {f['caveat']}", ""]
+    if f.get("reason"):
+        out += [f"**{'Why it is parked' if parked else 'Why not'}.** {f['reason']}", ""]
+    if f.get("tests"):
+        out += [f"**Tests.** {f['tests']}", ""]
+    if f.get("note"):
+        out += [f["note"], ""]
+    return out
 
-    Headings nest one level deeper than they used to -- `## Optimizations
-    identified` / `### Accepted` / `#### <title>` -- so the three decisions read
-    as divisions of one section rather than as three unrelated chapters. The
-    index-table anchors are unaffected: GitHub derives them from the heading
-    text, not its level.
+
+def render_instruments(findings):
+    """Findings that changed the harness rather than Nautobot.
+
+    Kept, because several are the reason a number elsewhere is trustworthy -- and
+    two of them (the whole-workflow A/B, and what a cable actually costs) are the
+    largest results on the branch. They are simply not things anyone would adopt
+    into Nautobot, so they do not belong in a list of optimizations.
     """
-    counts = {key: sum(1 for f in findings if group_of(f) == key) for key, _, _ in GROUPS}
-    tally = " · ".join(f"**{counts[key]}** {title.lower()}" for key, title, _ in GROUPS if counts[key])
+    members = [f for f in findings if not is_product_change(f)]
+    if not members:
+        return "_No instrument findings recorded._"
+    out = [
+        f"{len(members)} of the {len(findings)} experiments changed the harness rather than "
+        "Nautobot: new instruments, and measurements of the instruments themselves. They are "
+        "recorded to the same standard because a measurement is only as good as the thing "
+        "that took it.",
+        "",
+    ]
+    for f in members:
+        out += render_entry(f, 4)
+    return "\n".join(out)
 
+
+def render_findings(findings):
+    """The section the report leads with: what was found in Nautobot, and what was decided.
+
+    Product changes only. Findings that changed the harness are rendered by
+    render_instruments() alongside the methodology they belong to -- listing an
+    instrument as an "accepted change" invited a reader to think it was something
+    to adopt into Nautobot.
+    """
+    product = [f for f in findings if is_product_change(f)]
+    counts = {key: sum(1 for f in product if group_of(f) == key) for key, _, _ in GROUPS}
+    tally = " \u00b7 ".join(f"**{counts[key]}** {title.lower()}" for key, title, _ in GROUPS if counts[key])
     legend = ", ".join(f"`{k}` {v}" for k, v in TIER_HELP.items())
+
     out = [
         "## Optimizations identified",
         "",
-        f"{len(findings)} experiments: {tally}. Every one is listed, including the ones that "
-        "did not work -- a rejected optimization is a measurement of what an option costs, and "
-        "deleting it would invite the next person to try it again.",
+        f"{len(product)} proposed changes to Nautobot: {tally}. Every one is listed, including "
+        "the ones that did not work -- a rejected optimization is a measurement of what an "
+        "option costs, and deleting it would invite the next person to try it again.",
+        "",
+        f"A further {len(findings) - len(product)} experiments changed the measurement harness "
+        "rather than Nautobot; they are recorded under the methodology below.",
         "",
         "Each decision is a self-contained section: a summary table, then one entry per "
         "experiment. There is deliberately no combined index -- a reviewer looking at what to "
         "adopt should not have to filter a list of things nobody is proposing.",
         "",
-        f"Tiers are a price tag rather than a filter. Nothing here is disqualified for being "
+        "Tiers are a price tag rather than a filter. Nothing here is disqualified for being "
         f"expensive; it is labelled so the price is visible: {legend}. `perf/README.md` defines "
         "the taxonomy.",
         "",
     ]
 
     for key, title, blurb in GROUPS:
-        members = [f for f in findings if group_of(f) == key]
+        members = [f for f in product if group_of(f) == key]
         if not members:
             continue
         out += [f"### {title} ({len(members)})", "", blurb, ""]
-        # One summary table per decision, so each section can be read on its own.
         out += [
             "| # | Change | Tier | Wall clock | Queries | Cache reads |",
             "|---:|---|---|---|---|---|",
@@ -376,38 +449,7 @@ def render_findings(findings):
             )
         out.append("")
         for f in members:
-            out.append(f"#### {f['title']}")
-            out.append("")
-            meta = [f"**{f['seq']:02d}**", tiers(f), f"status `{f['status']}`"]
-            if f.get("commit"):
-                meta.append(f"commit `{f['commit']}`")
-            if f.get("id"):
-                meta.append(f"({f['id']})")
-            out.append(" · ".join(meta))
-            out.append("")
-            if f.get("site"):
-                out += [f"`{f['site']}`", ""]
-            out += [f["summary"], ""]
-            r = f.get("result") or {}
-            out.append("| Instrument | Result |")
-            out.append("|---|---|")
-            out.append(f"| **wall clock** | {f['wall_clock']} |")
-            for k, v in r.items():
-                out.append(f"| {k.replace('_', ' ')} | {v} |")
-            out.append("")
-            if f.get("wall_clock_detail"):
-                out += [f"**Wall clock.** {f['wall_clock_detail']}", ""]
-            if f.get("controls"):
-                out += [f"**Controls.** {f['controls']}", ""]
-            if f.get("caveat"):
-                out += [f"> **Caveat.** {f['caveat']}", ""]
-            if f.get("reason"):
-                label = "Why it is parked" if key == "parked" else "Why not"
-                out += [f"**{label}.** {f['reason']}", ""]
-            if f.get("tests"):
-                out += [f"**Tests.** {f['tests']}", ""]
-            if f.get("note"):
-                out += [f["note"], ""]
+            out += render_entry(f, 4, parked=(key == "parked"))
     return "\n".join(out)
 
 
@@ -446,6 +488,7 @@ def main():
         ("<!--GEN:provenance-->", render_provenance()),
         ("<!--GEN:findings-->", render_findings(findings)),
         ("<!--GEN:cumulative-->", render_cumulative(findings)),
+        ("<!--GEN:instruments-->", render_instruments(findings)),
         ("<!--GEN:tier2-->", render_tier2()),
         ("<!--GEN:bench-->", render_bench()),
         ("<!--GEN:endnote-->", render_endnote()),
