@@ -575,6 +575,63 @@ nothing to add. And the payloads are minimal — required fields only — so eve
 figure is the *floor* cost of a create. Tags, custom field data and relationships
 are omitted and they are write work.
 
+## Built: whole-workflow A/B on two trees
+
+`perf/arm_control.sh` and `perf/apply_arm.sh` run the same workload against two
+different versions of Nautobot on one box. Built to settle whether the −37%
+write-path win was real (finding 39); reusable for any claim that only shows up
+at whole-workflow scale.
+
+    perf/apply_arm.sh <git-ref> <label>    # empty db -> swap tree -> timed apply
+
+Four things it does that a hand-run A/B would not, each because of a rule this
+branch paid for:
+
+- **Proves the arms differ before measuring.** It hashes `nautobot/**/*.py` and
+  prints the digest per run, rather than trusting that a checkout happened. A
+  `git stash` A/B once silently measured identical code six times.
+- **Swaps `nautobot/` only, and unstages immediately.** `perf/` and
+  `development/docker-compose.perf.yml` do not exist on `next`, so a whole-tree
+  checkout deletes the harness and the compose overlay the running container was
+  created with. All 37 files that differ are modifications — no adds, no deletes
+  — so a path-scoped checkout is an exact swap both ways. It runs `git reset`
+  straight after, because a staged reversion left lying around is how five fixes
+  were undone once.
+- **Restarts the container and then waits for the load to fall.** uwsgi has no
+  autoreloader, so without a restart the next request runs the previous arm's
+  code. And per finding 35, three workers importing Nautobot on two pinned cores
+  bias a whole arm bimodally, which alternating rounds does not cancel.
+- **Counts queries server-side.** `pg_stat_statements` is reset before the run and
+  summed after, so each arm carries a deterministic counter next to its wall
+  clock. One run settles the query comparison; only the wall-clock ratio needs
+  alternating rounds.
+
+**What it found, beyond the headline.** Of the 662 seconds the branch saves on a
+datacenter apply, **2.9 are database execution time**. On the read side db time
+and query count track each other closely; on the write side they come apart
+completely, because the wins are serializer and natural-key work rather than SQL.
+A write experiment that reports query count alone will undervalue exactly the kind
+of fix this branch is best at.
+
+## Built: a capture proxy, for when the evidence is in flight
+
+`perf/capture_proxy.py` forwards every request to Nautobot unchanged and writes
+the request and response bodies to disk on any 5xx.
+
+    python perf/capture_proxy.py --listen 8199 --target http://localhost:8180
+    NAUTOBOT_URL=http://localhost:8199 databot apply ...
+
+It exists because Django logs `Internal Server Error: /path` and Nautobot's
+exception middleware renders the traceback into a short JSON body, so for a
+failure that only happens under a real client, neither the container log nor the
+client's own warning says what broke. It is not a measurement tool — it adds a
+hop and serializes requests, so nothing timed should run through it.
+
+It earned itself immediately: it recorded **zero 5xx from Nautobot** across a
+cable phase that databot reported as 16 failed bulk creates, which is what
+redirected finding 40 from "Nautobot throws on 100 cables" to "the client stops
+listening at 30 seconds".
+
 ## Environment quick reference
 
 | | |
