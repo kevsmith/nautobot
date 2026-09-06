@@ -70,6 +70,16 @@ services:
       # image's copy, which came from the same `npm ci`. This restores the
       # condition round one measured under, without syncing the tree.
       - /source/nautobot/ui/node_modules
+    environment:
+      # development/dev.env sets NAUTOBOT_ALLOWED_HOSTS=".localhost 127.0.0.1 [::1]", which is
+      # correct for a stack reached from the machine running it. This one is reached from another
+      # machine, so the browser sends `Host: hannah` (or the IP) and Django rejects the request
+      # with 400 before any view runs -- every page, including the login form. Verified against
+      # the running instance: Host localhost 200, Host hannah 400, Host 10.0.0.5 400.
+      #
+      # `environment:` wins over `env_file:`, so this replaces rather than appends to the value
+      # dev.env sets -- hence repeating the three entries from there.
+      NAUTOBOT_ALLOWED_HOSTS: ".localhost 127.0.0.1 [::1] hannah 10.0.0.5"
     cpuset: "0,1,4,5"
     deploy:
       resources:
