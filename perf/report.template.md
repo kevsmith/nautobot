@@ -71,6 +71,10 @@ tooling.
 Three alternating rounds is the minimum for any wall-clock claim. Two rounds were not enough
 twice over: a 2 ms "regression" and an 11% "regression" both dissolved on a third round.
 
+### Findings about the harness itself
+
+<!--GEN:instruments-->
+
 ### Baseline — read path
 
 Ten most expensive read scenarios of 38, on the large baseline (pristine tree, 24,091 objects).
@@ -326,9 +330,9 @@ current head of it:
   in absolute terms and far more precise. Relative comparisons hold; absolute ones do not. The
   same applies across datasets: figures taken against `enterprise-campus` and against
   `datacenter` are not interchangeable.
-- **Twenty-nine accepted changes, many of which introduce request-scoped state.** No single one
-  is unjustified, and each is measured. The aggregate is still a lot of new caching for a
-  reviewer to absorb at once, and it deserves to be read as a set.
+- **Twenty-one accepted changes to Nautobot, many of which introduce request-scoped state.** No
+  single one is unjustified, and each is measured. The aggregate is still a lot of new caching
+  for a reviewer to absorb at once, and it deserves to be read as a set.
 - **Improvements are not additive.** Several changes reduce natural-key work by different means,
   so their individual gains overlap rather than sum. Only the cumulative row is a sum.
 - **The write screen measures a floor, not a cost.** `perf/screen_writes.py` populates required

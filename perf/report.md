@@ -10,7 +10,8 @@ out of it. Every number here was produced by a reproducible harness against a fi
 | Read scenarios | 38 |
 | Write operations | 13 |
 | Findings recorded | 40 |
-| Accepted | 29 |
+| Accepted changes to Nautobot | 21 |
+| Harness findings | 9 |
 | Queries | **2,235 → 695** (-68.9%) |
 | Since the round-two baseline | 957 → 695 |
 
@@ -20,13 +21,15 @@ out of it. Every number here was produced by a reproducible harness against a fi
 
 ## Optimizations identified
 
-40 experiments: **29** accepted · **1** parked · **10** rejected. Every one is listed, including the ones that did not work -- a rejected optimization is a measurement of what an option costs, and deleting it would invite the next person to try it again.
+31 proposed changes to Nautobot: **21** accepted · **10** rejected. Every one is listed, including the ones that did not work -- a rejected optimization is a measurement of what an option costs, and deleting it would invite the next person to try it again.
+
+A further 9 experiments changed the measurement harness rather than Nautobot; they are recorded under the methodology below.
 
 Each decision is a self-contained section: a summary table, then one entry per experiment. There is deliberately no combined index -- a reviewer looking at what to adopt should not have to filter a list of things nobody is proposing.
 
 Tiers are a price tag rather than a filter. Nothing here is disqualified for being expensive; it is labelled so the price is visible: `A` no observable change, `B1` state scoped to a request, transaction or instance, `B2` state outliving its scope, needs invalidating, `C` changes observable behaviour, `M0` metadata-only migration, `M1` bounded single-pass migration, `M2` unbounded migration. `perf/README.md` defines the taxonomy.
 
-### Accepted (29)
+### Accepted (21)
 
 Measured, kept, and applied to the tree. Each entry states what it changed, what that was worth, and any caveat a release note would have to carry.
 
@@ -49,18 +52,10 @@ Measured, kept, and applied to the tree. Each entry states what it changed, what
 | 22 | [Stop writing ObjectChange.object_data, with the column made nullable](#stop-writing-objectchangeobject-data-with-the-column-made-nullable) | `C` `M0` | −0.26% on a datacenter apply, weighted — taken for storage, not for speed | exactly 2 per ObjectChange record: bulk.creat… | — |
 | 25 | [Join parent_bay when serializing nested Devices](#join-parent-bay-when-serializing-nested-devices) | `A` | −5.8% api.interface.depth1 | api.interface.depth1 292 -> 192 (-100, exactl… | — |
 | 26 | [Prefetch cable paths for peer terminations that are not on the page](#prefetch-cable-paths-for-peer-terminations-that-are-not-on-the-page) | `B1` | −14.4% api.interface.depth1 | api.interface.depth1 192 -> 30 (-162); Tier 1… | — |
-| 28 | [Screening pass over every read endpoint, and what it found](#screening-pass-over-every-read-endpoint-and-what-it-found) | `A` | not applicable — an instrument, not a change | top residual costs per returned object, page… | — |
 | 30 | [Prefetch both ends of an interface connection, which the serializer renders in full](#prefetch-both-ends-of-an-interface-connection-which-the-serializer-renders-in-full) | `B1` | −61.3% api.interface-connections at limit 50, −49.6% at limit 25 | linear before, constant after, and the fit is… | — |
 | 31 | [Fix the tag cache in serialize_object, which can never fire for an untagged object](#fix-the-tag-cache-in-serialize-object-which-can-never-fire-for-an-untagged-object) | `C` | −6.9% bulk.create.x100.loop, −5.6% deferred | per Tier 1W operation, identical across three… | — |
-| 32 | [Tier 1W's wall clock is biased by a GC pause that three alternating rounds cannot cancel](#tier-1ws-wall-clock-is-biased-by-a-gc-pause-that-three-alternating-rounds-cannot-cancel) | `A` | not applicable — a measurement artifact, not a change | — | — |
-| 33 | [Reset the database by cloning a template, not by replaying the snapshot](#reset-the-database-by-cloning-a-template-not-by-replaying-the-snapshot) | `A` | not applicable — an instrument, not a change | — | — |
 | 34 | [Prefetch the cable walk for power- and console-connections, the two endpoints finding 30 left](#prefetch-the-cable-walk-for-power--and-console-connections-the-two-endpoints-finding-30-left) | `B1` | −51.0% power-connections at limit 50, −42.7% at limit 25 | linear before, constant after. power-connecti… | — |
-| 35 | [A container restart biases the measurement that follows it, and arm alternation does not cancel it](#a-container-restart-biases-the-measurement-that-follows-it-and-arm-alternation-does-not-cancel-it) | `A` | not applicable — an instrument defect, not a change | — | — |
 | 36 | [Prefetch the cable's terminations for cable-to-cable-terminations at depth 1](#prefetch-the-cables-terminations-for-cable-to-cable-terminations-at-depth-1) | `B1` | −75.6% at limit 50, −68.1% at limit 25 | linear before, constant after. depth=1 at lim… | — |
-| 37 | [Second read screening pass — what the four fixes removed, and what the ranking cannot see](#second-read-screening-pass-what-the-four-fixes-removed-and-what-the-ranking-cannot-see) | `A` | not applicable — an instrument, not a change | — | — |
-| 38 | [The write screening matrix — every POST endpoint, ranked on cost per created object](#the-write-screening-matrix-every-post-endpoint-ranked-on-cost-per-created-object) | `A` | not applicable — an instrument, not a change | — | — |
-| 39 | [The −37% write-path win is real, diffuse, and mostly not SQL](#the-37-write-path-win-is-real-diffuse-and-mostly-not-sql) | `A` | −33.7% on a whole datacenter apply (−31.3% on the earlier pair, before the client fix in finding 40) | — | — |
-| 40 | [A cable create costs 220 queries, and what that broke downstream](#a-cable-create-costs-220-queries-and-what-that-broke-downstream) | `A` | not applicable — a cost measurement and a client-side defect, no product change | — | — |
 
 #### Make the natural-key fallback lazy, so it is not computed and discarded per row
 
@@ -452,34 +447,6 @@ Rollout candidates: the other PathEndpointMixin viewsets -- FrontPort, RearPort,
 
 **Retracted follow-up, and finding 30 is what retracts it.** This record used to claim that the depth guard withholds this fix from dcim.interface-connections -- that the endpoint ignores `depth`, never satisfies `depth > 0`, and so pays _first_cable_path and _destination 50 times each on a page of 25, and that re-keying the guard on whether peers are serialized would fix both endpoints. It would not. With the guard deleted outright on an otherwise unchanged tree, interface-connections still costs 359 queries and those two sites still cost 50 each: its page is CablePath rows, CablePath has no get_cable_peer, and _warm_peer_cable_paths therefore skips every row whatever the guard says. The guard here is measured, correct, and not involved in that endpoint at all. What actually fixed it was prefetching both ends of the connection from the viewset -- see finding 30, which carries the measurement.
 
-#### Screening pass over every read endpoint, and what it found
-
-**28** · `A` · status `accepted` · commit `fddc2fc80`
-
-`perf/screen_reads.py`
-
-The inner loop measures 38 hand-picked scenarios. This enumerates every REST list endpoint from the URL resolver at run time and measures list, list?depth=1, detail and detail?depth=1 for each, normalizing to cost per returned object so a 5-row model and a 6,556-row one are comparable. 518 measurements across 166 list endpoints in 84 seconds, against the tree with all sixteen accepted changes applied -- so these are residual costs, not costs the branch has already removed.
-
-| Instrument | Result |
-|---|---|
-| **wall clock** | not applicable — an instrument, not a change |
-| coverage | 6 of 166 API list endpoints were named in workload.yml; 160 had never been measured |
-| queries | top residual costs per returned object, page of 25: dcim.cabletocabletermination?depth=1 19.5 q/obj (487 queries, 473 duplicates, 1226ms, 6556 rows); dcim.interfaceconnections 14.4 q/obj (359 queries, 345 duplicates, 777ms, 2780 rows, and a clean 9 + 14n fit against page size); vpn.vpntunnelendpoint?depth=1 9.8; circuits.circuit?depth=1 7.3; dcim.interfaceredundancygroupassociation?depth=1 6.6; ipam.ipaddresstointerface?depth=1 5.9 |
-
-**Tests.** n/a; reads only, no mutation, safe to re-run
-
-Two of these are worse per object than anything the inner loop has ever measured, and neither was in it.
-
-**dcim.cabletocabletermination at depth 1** is the largest: 19.5 queries per returned object with 473 duplicates on a page of 25. For comparison, api.interface.depth1 at its original worst was 1,229 queries for 100 objects -- 12.3 per object -- and that endpoint absorbed most of this branch's effort.
-
-**dcim.interfaceconnections is a clean N+1: 9 fixed queries plus 14 per object.** Page-size sensitivity gives an exact linear fit -- 23 queries at limit 1, 79 at 5, 149 at 10, 359 at 25, 709 at 50 -- so the cost is per-row work rather than pagination overhead. On 2,780 rows that is the largest untouched N+1 the screen found.
-
-**Correction to an earlier reading of this record.** It said interfaceconnections showed 'a different cost class' because its query count is identical at depth 0 and depth 1, and that none of the accepted fixes would touch it. Both halves were wrong. The endpoint simply ignores `depth`: diffing the two responses shows the only difference is the pagination `next` link echoing `depth=1`, exactly 8 bytes at every page size. Identical counts across depth therefore say nothing about cost class. It is the ordinary per-row N+1 class this branch has been fixing all along, which makes it more tractable rather than less. powerconnections and consoleconnections share the shape at 5.4 q/obj and presumably the same explanation.
-
-Caveats carried from the design. This weights every endpoint equally, which is a selection-free sample rather than a usage-weighted one -- nobody may list cabletocabletermination at depth 1 in practice, and that is a product question rather than a measurement one. Per-object cost is misleading on pages of one or two objects, where fixed overhead dominates, so the ranking above is restricted to pages of ten or more. And dcim.connected-device returns 400 without its required peer_device and peer_interface parameters, which is correct behaviour for a lookup endpoint rather than a failure.
-
-It is a screening instrument, not a regression gate. 518 measurements do not belong in the inner loop, which stays at 38 scenarios.
-
 #### Prefetch both ends of an interface connection, which the serializer renders in full
 
 **30** · `B1` · status `accepted` · commit `89bb05579`
@@ -560,60 +527,6 @@ The obvious follow-up is bulk.delete, and it is probably not worth taking. Warmi
 
 Supersedes this record's own earlier claim of −50% on serialize_object (4.59 -> 2.30ms per object). That figure is still what the isolated probe measures and it reproduced exactly (40 / 40 / 20 queries, 4.88 -> 2.49ms per object), but it is the ceiling of the serializer in isolation, not what the change is worth in a write: the operations it sits inside improve by 5-7%, not 50%.
 
-#### Tier 1W's wall clock is biased by a GC pause that three alternating rounds cannot cancel
-
-**32** · `A` · status `accepted` · commit `d52169a34`
-
-`perf/tier1w_writes.py - perf/probe_f31_wall.py`
-
-tier1w_writes.py runs a warmup plus three reps of each operation and reports the wall clock of the LAST rep. A gen-2 cyclic garbage collection costs about 200ms in this process and recurs on a period set by allocation count -- which is deterministic for a given tree. So the pause lands on the reported rep for one arm and not the other, and it does so in every independent run of that arm. The arm-reversal rule cancels monotonic drift; it cannot cancel a bias that is not random.
-
-| Instrument | Result |
-|---|---|
-| **wall clock** | not applicable — a measurement artifact, not a change |
-| incident | finding 31 read create.device at 89/89/89ms unpatched and 241/250/248ms patched, three rounds, both orderings -- a 179% regression that reproduced perfectly and was not real. The same operation measured over nine reps costs 83.7ms and 79.8ms. db_ms was flat at ~24ms in both arms, which is what said the cost was not in the database. |
-| mechanism | 24 consecutive calls, gc counters read between each: 329ms on the cold first call, 122ms typical, and one 323ms call carrying a gen-2 collection. Median 122ms, min 111ms, max 329ms. |
-| exposure | ~200ms on operations tier1w reports between 25ms and 300ms, where it is up to 8x the true cost; ~6-7% on the ~3s bulk operations. |
-
-**Wall clock.** The fix is an instrument, not an edit to tier1w: perf/probe_f31_wall.py runs nine reps of each write operation and reports the median, min, max and per-rep timings, so one pause cannot move the answer. Observed round-to-round spread on that instrument is 6-13% max-to-min within a round, and the round medians agree to about 2.6% across rounds -- which is the noise floor finding 31's controls independently reported.
-
-**Tests.** n/a; a measurement artifact, no product code involved
-
-Query counts are untouched by this. The collector issues no SQL, so every deterministic counter this branch has published stands, including the ones taken with tier1w. Only its per-operation wall_ms is affected.
-
-Two earlier findings are worth re-reading in this light, and both survive. Finding 24 measured dropping all 17 non-unique ObjectChange indexes at −59ms on a 3358ms operation and called the real cost indistinguishable from zero; a ~200ms artifact makes that conclusion stronger, not weaker. Finding 29 measured commit against rollback at 31ms on a 3.3-second operation and called it inside variance; same. Neither claimed a win that this would erase. What this does retire is the idea that any tier1w wall figure smaller than a few hundred milliseconds meant anything.
-
-tier1w_writes.py is deliberately left alone. Changing it to report a median would silently redefine every wall figure in the committed baselines, and its job is the deterministic counters, which are correct. The wall-clock instrument is separate and says so.
-
-Found by refusing to average away a regression. The honest reading of 89ms against 248ms, three rounds, both orderings, is that the change made create.device three times slower -- and the branch's own rule is to explain a tripwire rather than accept or dismiss it.
-
-#### Reset the database by cloning a template, not by replaying the snapshot
-
-**33** · `A` · status `accepted`
-
-`perf/reset_db.sh - perf/probe_clone_warmup.sh`
-
-restore_snapshot.sh takes 49 seconds, and four of its five phases are things a measurement loop does not need every iteration. CREATE DATABASE ... TEMPLATE copies the files instead, which returns the database to baseline in 1.3 seconds with the app left running. Per-operation isolation stops being something to design around and becomes something to buy every iteration.
-
-| Instrument | Result |
-|---|---|
-| **wall clock** | not applicable — an instrument, not a change |
-| phases | restore_snapshot.sh measured by phase: container stop 5.9s, drop/create 0.5s, psql replay 19.1s, container up 12.8s, migrate no-op 9.6s -- 49s total. The clone replaces all but the drop/create. |
-| clone | 1.41 / 1.33 / 1.23s over three runs; template build is a one-time 3.7s |
-| warmup | cold-cache penalty is confined to the first request after a clone and nothing after it. Position 1 median 981.8ms against a 706.4ms warm control (+275.4ms); position 2 onward is indistinguishable, deltas within ±40ms on a ~710ms operation. Per-round position 1 was 719.6 / 981.8 / 1138.9ms -- highly variable, which fits connection re-establishment plus buffer warming rather than a fixed cost. |
-
-**Controls.** app survives the swap with no restart: DROP DATABASE ... WITH (FORCE) evicts the pooled connections and Django reconnects on the next request despite CONN_MAX_AGE=300, two consecutive 200s immediately after a clone. celery_worker and celery_beat both return to healthy after a clone with zero errors in the logs. Every request in the warmup probe is status-checked, so a clone that left the app unable to reach the database would fail the probe rather than read as a fast 500.
-
-**Tests.** n/a; harness only, no product code
-
-The warmup convention that follows from the measurement: discard exactly one request after a clone. One throwaway request costs about a second and removes the whole effect, and without it every model in the write matrix would carry a variable few-hundred-millisecond bias -- in the instrument built specifically to make those numbers trustworthy.
-
-restore_snapshot.sh remains the authority and the slow path. It is what establishes the state the template copies, and what to run when the template is missing or stale.
-
-**The staleness hazard is the reason this needs a guard rather than just a script.** The template is a database at a fixed schema. restore_snapshot.sh defends against schema drift by always running migrate, which is 9.6 of its 49 seconds; a clone that skipped that check would silently hand back a schema behind the code. reset_db.sh fingerprints the migration files in the tree -- names and contents, since names alone would miss a file edited in place -- and refuses to clone when the fingerprint does not match the one recorded on the template. The fingerprint is stored as a comment on the template database rather than in a table, because database comments are not copied by CREATE DATABASE ... TEMPLATE, so the clones stay free of anything the harness added. Verified to fire on both a new migration file and one edited in place, exiting non-zero in each case and recovering afterwards.
-
-It refuses rather than falling back to the slow path. A reset that takes 1s most of the time and 49s occasionally would put a 48-second spike inside a measurement loop at a moment nobody chose.
-
 #### Prefetch the cable walk for power- and console-connections, the two endpoints finding 30 left
 
 **34** · `B1` · status `accepted`
@@ -645,35 +558,6 @@ Finding 30 is why this was cheap, and specifically the part of it that refused a
 The shared helper is the whole change. `_interface_connection_endpoint_queryset()` became `_with_connection_prefetches(queryset)`, taking the queryset instead of building one, with the interface caller kept as a one-line wrapper so finding 30's path is provably unchanged -- and its 17-query count in both arms of this experiment is that proof. Two of the seven sites (`_first_cable_path` and `_destination`) are paid only by interface-connections, whose serializer resolves each end's cable path; prefetching `cable_paths__destination` for all three costs the other two nothing, since they already had it.
 
 Risk tier B1, no migration. The new state is prefetch caches on a queryset, which live and die with the request.
-
-#### A container restart biases the measurement that follows it, and arm alternation does not cancel it
-
-**35** · `A` · status `accepted`
-
-`perf/sync.sh - perf/probe_ui_only.py`
-
-perf/dc.sh restart returns when the container has started, not when it is ready. uwsgi then forks three workers that each import Nautobot, and the nautobot container is pinned to two physical cores (cpuset 0,1,4,5). An in-process probe launched into that window competes with those imports for the cores it is being measured on. The result is bimodal: the same view reads either ~99ms or ~165ms depending on where the probe lands, the mode is set at process start and then holds for the whole arm, and three alternating rounds does not cancel it.
-
-| Instrument | Result |
-|---|---|
-| **wall clock** | not applicable — an instrument defect, not a change |
-| no restart | 18 measurements of ui.interface-connections across 6 consecutive runs with no restart between them -- 94.5-106.6ms, a 1.13x spread, query count stable at 8 every time |
-| with restart | 99-177ms on the same probe when each run followed a restart, bimodal rather than spread, and the query count went unstable too -- 8, 12 and 13 at the same page size |
-| same arm twice | arm B six times gave 99.1-176.7ms; arm A six times gave 98.5-174.0ms. Both arms reach both modes, so the arm is not the variable. |
-
-**Controls.** found on an endpoint that was a control in the finding 34 experiment, whose code path that change never touches. It read +73% with an identical query count, consistently, across three alternating rounds.
-
-**Tests.** n/a; harness only, no product code
-
-How it was nearly believed. In the finding 34 A/B the control read +73% in the patched arm at all three page sizes, with 8 queries in both arms, in all three rounds. Consistency read as signal. It was not -- rerunning the same arm six times reproduces the full 99-177ms range without changing a line of code, and the first A/B simply landed arm B in the fast mode three times and arm A in the slow mode three times.
-
-This is the second time on this branch that a deterministic-looking bias survived arm alternation. Finding 32 was the first, a gen-2 GC pause recurring on a period fixed per tree, so it lands on the reported rep for one arm and not the other in every independent run. Both share a shape worth naming -- arm reversal cancels drift, and cancels nothing keyed to something other than time.
-
-Two fixes, and the first is the real one. An in-process probe never needed the restart. Tier 1 and Tier 1W spawn a fresh Python process per run and pick up synced code without one; only uwsgi-served measurement needs a restart, because uwsgi holds imported modules. The A/B that produced this was restarting between arms for no reason and paying a bimodal artifact for it.
-
-Second, sync.sh --restart now waits for the container to report healthy and then for the load average to fall under the ceiling before returning, and fails rather than handing back a host that is not measurable. Verified -- it refused during an unrelated test run at loadavg 1.71.
-
-What this does not settle is whether earlier numbers on this branch are affected. Any wall-clock figure taken through an in-process probe shortly after a restart carries the risk. Query counts are unaffected, which is most of the branch evidence, and the affected figures would have to be re-taken to know.
 
 #### Prefetch the cable's terminations for cable-to-cable-terminations at depth 1
 
@@ -709,191 +593,6 @@ That reframing is worth more than this fix, because it is predictive rather than
 
 Risk tier B1, no migration. The new state is prefetch caches on a queryset, which live and die with the request.
 
-#### Second read screening pass — what the four fixes removed, and what the ranking cannot see
-
-**37** · `A` · status `accepted`
-
-`perf/screen_reads.py`
-
-Re-run of the screen against 4a925fb43, the tree carrying findings 30, 31, 34 and 36, and directly comparable to the first run: same instrument, same page size of 25, same dataset (8,925 interfaces, 2,902 devices, 3,278 cables), 518 measurements over 166 list endpoints in 82s. Ten of the 518 changed their query count and 508 are byte-identical to the first run, so the four fixes are surgical and the residual ranking below is the first one's ranking with its top two removed.
-
-| Instrument | Result |
-|---|---|
-| **wall clock** | not applicable — an instrument, not a change |
-| removed | total across the 518 measurements 6,345 -> 4,687 queries (-26.1%) and 3,242 -> 1,596 duplicates. dcim.cabletocabletermination?depth=1 487 -> 15; dcim.interfaceconnections 359 -> 17; dcim.powerconnections 135 -> 12; dcim.consoleconnections 134 -> 11. Both of finding 28's headline targets are gone. |
-| surgical | only 10 of 518 measurements moved, all on the four fixed endpoints. Nothing else on the read surface changed by a single query, which is the evidence that the four prefetches have no collateral effect. |
-| regression | cabletocabletermination at depth 0 went 5 -> 8 queries on a page of 25 and 4 -> 7 on detail, with db time 169 -> 190ms. Finding 36's prefetches are unconditional and depth-0 serialization never reads them. Fixed cost (three queries: cable__terminations, and the cable_paths__destination pair for the one non-null termination FK on the page), not per-row. |
-| residual | top cost per returned object, pages of >=10, unchanged from the first run to two decimals: vpn.vpntunnelendpoint?depth=1 9.76 q/obj (244 q, 226 dup, 37 rows); circuits.circuit?depth=1 7.32 (183 q, 38 rows); dcim.interfaceredundancygroupassociation?depth=1 6.60 (132 q, 20 rows); vpn.vpntermination?depth=1 6.52 (163 q, 37 rows); dcim.cable?depth=1 6.36 (159 q, 145 dup, 3,278 rows); ipam.ipaddresstointerface?depth=1 5.92 (148 q, 130 dup, 2,937 rows) |
-| invisible to the ranking | dcim.device list is 8 queries, zero duplicates, and 438ms of database time on a page of 25 -- 55ms per query, the largest db-time item anywhere on the read side. Reproducible: 432ms in the first run, 441ms at depth 1. Per object it is 0.32 q/obj, which puts it nowhere near the ranking. Queries per object cannot see a small number of expensive queries. |
-| coverage | 166 list endpoints attempted, 166 measured, 2 non-200 (dcim.connected-device, 400 without its required parameters, which is correct behaviour). But only 49 returned a full page of >=10 objects. 47 returned 1-9 rows and 70 returned zero -- including cluster, virtualmachine, vminterface, module and the whole modules/templates family, tag, service and rir. A zero-row endpoint reads as cheap and is actually unmeasured. |
-
-**Controls.** nine models (jobs, contactassociation, objectchange, users, one wireless assignment) returned different response bytes between the two runs. Row counts and query counts are identical for all nine, so the drift is field-level -- timestamps, last_login, job metadata -- and does not affect comparability.
-
-**Tests.** n/a; reads only, no mutation
-
-The queue asked this pass to answer one question: does anything on the read side still outrank the write path for attention. It does not, and the ranking above is why.
-
-The four highest per-object costs sit on tables of 20 to 38 rows, where one page is the entire table. Fixing them would remove a few hundred queries from a request nobody has evidence anyone makes. Only two residuals sit on tables large enough for the cost to compound -- dcim.cable?depth=1 (3,278 rows, 145 duplicates per page) and ipam.ipaddresstointerface?depth=1 (2,937 rows, 130 duplicates) -- and both are the same per-row N+1 mechanism this branch has now fixed four times, with a known shape and a bounded payoff per endpoint. Against that, the write path has one measured 37% win at whole-workflow scale that nothing has attributed, and zero screening coverage. The queue order stands.
-
-Two things this run found that the ranking method itself would never surface, and both are worth more than the residual list.
-
-**dcim.device spends 438ms in the database over 8 queries with no duplicates.** Every read fix on this branch has been a query-count fix, and this endpoint has almost no queries to remove. It is the largest read-side db-time item measured and the instrument ranks it 100th. A screen that normalizes to queries per object is structurally blind to a slow query, and the fix for that is to rank on db time as well -- one line, since db_ms is already recorded.
-
-**The screen measures 166 endpoints and exercises 49.** 70 of them return zero rows against this dataset, so they contribute a measurement that says nothing while counting as coverage. This is the same failure the queue's item 3 requires the write matrix to avoid, present in the instrument that raised the objection. Either seed the empty models or report attempted / exercised / measured separately, and stop quoting 166.
-
-On the regression. Finding 36 removed 472 queries from the depth=1 path and added 3 to the depth=0 path, which is a trade worth making at roughly 150:1 and was not visible in that experiment because the A/B measured depth=1 only. Making the prefetch conditional on depth is possible -- the viewset can read the requested depth -- but it is three fixed queries on an endpoint nobody has shown is hot at depth 0, so it is recorded rather than queued.
-
-#### The write screening matrix — every POST endpoint, ranked on cost per created object
-
-**38** · `A` · status `accepted`
-
-`perf/screen_writes.py - perf/payloads.py`
-
-The read screen's counterpart, built to the same rules: enumerate from the URL resolver at run time, normalize to cost per object, and never let an unmeasured model read as a cheap one. 152 of the resolver's 166 API list endpoints accept POST; 105 were measured across create.x1, create.x10 and update.x1, for 257 measurements in 211 seconds. The headline is the comparison it makes possible: the *median* marginal cost of creating one object is 12 queries, against a median read cost of 0.28 queries per returned object, and the cheapest create on the entire surface (3.0) is more expensive per object than 47 of the 49 read endpoints that return a full page.
-
-| Instrument | Result |
-|---|---|
-| **wall clock** | not applicable — an instrument, not a change |
-| surface | 166 API list endpoints, 152 of which accept POST and 14 of which are read-only. Writability is read from the DRF router's own action map on the URL callback, not inferred from the viewset class, so the resolver stays the authority for writes as it is for reads. |
-| coverage | 152 attempted / 130 payloads built / 105 payloads accepted / 105 measured. Of the 105, **82 were built from field metadata alone** and 23 needed an entry in the hand-maintained exception list in payloads.py. The 47 unmeasured models break down as: 21 rejected by model validation no generated payload can satisfy ("A Location of type Wing must have a parent Location", "Racks may not associate to locations of type Office"), 19 unbuildable because this dataset has no rows of a required related model (cluster, moduletype, cloudnetwork, virtualserver, savedview), 4 rejected on a uniqueness constraint over foreign keys whose tables hold fewer than ten rows, 2 HTTP 500 (see note), and 1 with no derivable value. |
-| ranking | marginal queries per additional object, (x10 - x1) / 9, over the 98 models whose bulk create was accepted: ipam.ipaddresstointerface 65.6 (x1 77, x10 667, 627 duplicates, 372ms db); dcim.interfaceredundancygroupassociation 46.2 (55 / 471, 430 dup); dcim.cable 44.9 (54 / 458, 381 dup, one SELECT on dcim_cabletocabletermination repeated 280 times) -- **but see the correction below, the real figure is ~220**; dcim.device 40.0 (49 / 409, 364 dup, 309ms db); ipam.prefixlocationassignment 36.4; ipam.vlanlocationassignment 30.1; ipam.prefix 30.0; extras.configcontext 30.0. dcim.interface is 23.8. Distribution: min 3.0, median 12.0, max 65.6. |
-| dataset independence | the screen was re-run against a completely different dataset (datacenter/large, 11,578 rows, against enterprise-campus/large's 24,098) and the per-object costs are identical to the decimal for 9 of 11 top models -- cable 44.9, interface 23.8, device 40.0, prefix 30.0 all unchanged. Only ipam.ipaddresstointerface moved, 65.6 to 69.0. So the ranking transfers between datasets and only the weights change. Coverage rose from 85% to 92% of datacenter rows because that dataset has rearports and virtual device contexts, which the campus one has none of: dcim.interfacevdcassignment became measurable at 91.2 marginal queries per object, the most expensive create on the surface. |
-| fixed cost | create.x1 is 9 queries at its cheapest, 20 at the median and 86 at its worst, so a single-object POST is mostly fixed overhead and the x1 figure alone would rank the surface almost uselessly. update.x1 is 15 / 24 / 77 over 51 models, worst dcim.cable. |
-| determinism | 256 of 257 measurements had identical query counts across all three reps. The one exception is ipam.vlanlocationassignment create.x10 at [307, 308]. |
-| isolation verified | row counts on dcim_device, dcim_interface, dcim_cable, ipam_prefix, ipam_ipaddress, ipam_namespace and extras_objectchange are byte-identical before and after a full run: 2902 / 8925 / 3278 / 595 / 2937 / 1 / 36552. 257 measured writes, nothing left behind. |
-
-**Controls.** Rollback isolation was measured against the alternative rather than assumed from finding 29. Both modes were run over the five measured dcim.device* models, three rounds each way with the arms alternated (rb, rs, rb, rs, rs, rb), 13 operations compared on medians.
-
-**Query counts differ by exactly -2 on all 13 operations, in every round.** That is the SAVEPOINT/RELEASE pair the outer transaction adds and nothing else -- the same 2-query difference finding 29 measured on bulk create at a completely different scale. The write path itself does not change shape when the transaction commits.
-
-**Wall clock: the committed arm is +3.0% median (range -2.2% to +11.4%).** That is an upper bound on what rollback under-reports, not an estimate of it, because the reset arm carries the residual cold-buffer cost of the clone that precedes it. Finding 29 measured -0.9% on bulk create with a restore before every arm; this is the same answer at the same order of magnitude.
-
-Rollback is available at all only because the requests go through the Django test client and stay in-process. Finding 29's "REST writes cross the process boundary" is true of a real HTTP client against uwsgi and not of this one.
-
-**Change logging is not hidden by the rollback**, and this was checked rather than inherited: Nautobot records ObjectChanges from synchronous post_save receivers, ObjectChangeMiddleware flushes them inside the same request, and there is no transaction.on_commit anywhere on that path. What rollback does omit is the five on_commit callbacks elsewhere in Nautobot, including custom-field job enqueueing at extras/customfields.py:744.
-
-**--isolation reset needed three corrections before it was a control rather than a trap**, and each is a way a write screen can produce confident wrong numbers. It cannot shell out to perf/reset_db.sh, because this runs inside the container and that script drives docker compose from the host -- so the clone is issued over a second psycopg2 connection, carrying a reimplementation of the migration fingerprint that --verify-reset checks against the shell one (they agree byte for byte). force_login writes a django_session row, so the client has to be logged in again after every clone or every subsequent request is anonymous. And the post-clone throwaway request has to be rolled back even in reset mode: a committed throwaway collides with the measured request on every unique name, which reads as a rejected payload.
-
-**Tests.** n/a; harness only, no product code
-
-Three things this cost more than expected, each of which is now a property of the instrument rather than a fact about one run.
-
-**A rolled-back transaction restores the database, not the process.** The first full run had 47 of 252 measurements with *unstable query counts*, nearly all updates. The cause is process-level caches -- the natural-key field lookups and the tag cache -- which are cold only on the first pass and survive the rollback that resets everything else. One discarded warmup run per operation takes the unstable count from 47 to 1. This is the same discipline finding 33 established for a database clone, arriving from the opposite direction: there the cold thing was PostgreSQL's shared buffers, here it is the Python process, and in both cases the fix is one throwaway request and the cost of skipping it is a number that moves for reasons nobody chose.
-
-**DRF's `required` is not the model's `blank`.** A model field with `blank=False` and no default is still `required=False` on the serializer whenever the column is nullable, and `full_clean` then rejects the value the payload left out. Five models -- configcontext, configcontextschema, secret, rackreservation, service -- were being reported as rejected payloads while the builder was doing exactly what the serializer told it. Reading the model field alongside the serializer field is what fixed them.
-
-**A many-related field's child is not always a plain relation.** `content_types` is a many-related field over `ContentTypeField`, whose value is the string "app_label.model"; the first version handed it a UUID and nine models -- status, role, tag, webhook, customfield, metadatatype, jobbutton, cloudresourcetype, objectpermission -- were unmeasurable as a result. Dispatching on the child field rather than assuming a primary key recovered all nine.
-
-**The exception list is counted, deliberately.** 23 of the 105 measured models only got there via an entry in `MODEL_SEEDS`, and the coverage summary reports "82 from field metadata alone, 23 needing a seed entry" rather than one number. The list holds two kinds of knowledge and nothing else: `force`, which names optional fields a `clean()` requires ("Either device or module must be set" -- 14 models, including dcim.interface), and `values`, which supplies the three IPAM addresses that have to fall inside a real prefix in the right namespace. A model is not added to make a number look better.
-
-**A product defect, found as a byproduct.** POST to `vpn.vpnprofilephase1policyassignment` or `vpn.vpnprofilephase2policyassignment` returns HTTP 500 -- "got unexpected keyword arguments: `_custom_field_data`". Both models are plain `BaseModel` and support no custom fields; both serializers are `NautobotModelSerializer`, which puts `custom_fields` in validated_data with a default and passes it to the model constructor. The payload never mentions custom fields, so this is unconditional: those two endpoints cannot be written to at all. Correctness, not performance, and out of scope for this branch -- recorded here because nothing else on the branch would have found it.
-
-**Correction, from finding 40: dcim.cable at 44.9 is wrong by roughly 5x.** The generated payload leaves termination_a_type and termination_b_type null, because both are optional and this builder populates required fields only -- and a cable connected to nothing skips every termination check and cable-path walk. A cable with real terminations costs ~220 queries. This is the "minimal payloads measure the floor" caveat below landing on a top-four model, and it is the first evidence of how large that gap can be. Any model whose expensive work hangs off optional relations is understated here by an unknown factor, and the ranking should be read as a lower bound per model rather than an estimate.
-
-**What the ranking cannot see, stated in advance this time.** It is queries per object, so it is blind to a small number of expensive queries exactly as the read screen was -- finding 37 had to discover that after the fact with dcim.device. `db_ms` is recorded per measurement, so the same second ranking is available here without re-running anything. And the payloads are minimal: only required fields are populated, so every figure is the *floor* cost of a create. Tags, custom field data and relationships are omitted, and they are write work. A populated create costs more than anything reported here, never less.
-
-#### The −37% write-path win is real, diffuse, and mostly not SQL
-
-**39** · `A` · status `accepted`
-
-`perf/screen_writes.py - whole-workflow databot apply`
-
-Queue item 1, answered. Kevin measured a datacenter dataset apply at 495s against perf/verified versus 786s against stock next, on his own hardware, single runs. Reproduced here as a controlled A/B on the measurement host: same box, same dataset (datacenter/large, seed 42, 11,578 rows), arms alternated, and the two trees proved different by content hash before each run (a586fc5cf against e308df687). The win is real. It is spread across 40 models rather than concentrated in one finding, and 99.6% of the time it saves is not database execution time.
-
-| Instrument | Result |
-|---|---|
-| **wall clock** | −33.7% on a whole datacenter apply (−31.3% on the earlier pair, before the client fix in finding 40) |
-| applies | stock next 2114s / 2111s; perf/verified 1450s, plus a 1453s pilot before the protocol existed. Within-arm spread is 0.2% on both arms, two orders of magnitude below the effect. Every run created exactly 9,972 objects and ended with identical row counts. |
-| headline | −31.3% wall clock (1450s against 2112.5s median), −13.2% queries (756,365 against 871,171, counted server-side by pg_stat_statements), −8.0% server execution time (33,733ms against 36,648ms). |
-| where the time goes | of the 662 seconds saved, server-side execution accounts for 2.9 -- 0.44%. The branch's write-path wins are Python, not SQL, which is exactly what findings 13, 4 and 31 are: not rebuilding an API serializer per changed object, not re-resolving natural keys, and a tag cache that was never firing. Query count is a poor proxy for the value of this work. |
-| diffuse | the write screen run against both arms on the same dataset -- 260 measurements present on both sides, identical coverage -- gives −12.9% queries, −23.9% wall, −12.3% db time, with **zero measurements worse on perf** and 153 of 260 improved. Largest: dcim.interfacevdcassignment −47.5%, ipam.ipaddresstointerface −29.3%, the device-component family (powerport, poweroutlet, consoleport, consoleserverport) −36.6% each, dcim.interface −24.1%. 40 models contribute; the top three are 75% of the query saving. |
-| after the client fix | re-run against a rebuilt databot whose write timeout is 120s rather than 30s, so neither arm hits the cable fallback (0 in both logs, against 16 in every arm before): stock next 1967s / 850,278 queries / 34,445ms, perf/verified 1304s / 723,075 queries / 31,100ms. **−33.7% wall, −15.0% queries, −9.7% server execution.** This is the figure to quote -- same box, same dataset, same client, neither arm distorted.
-
-**Not the same measurement as Kevin's −37%, and an earlier version of this finding said it was.** His run uses a different datacenter dataset on different hardware, so the two cannot be divided into a hardware ratio and neither can be used to corroborate the other's magnitude. They are two independent results pointing the same direction. His own reproducibility is good -- 487.69s against the 495s he first measured, 1.5% apart -- but that is a statement about his box, not about this one. |
-| retracted | an earlier version of this finding carried an "adjusted −40.5%", built by subtracting 16 x 30s of supposedly-discarded work from both arms. It was wrong twice over. The timed-out batches were not discarded -- the server committed them and the client confirmed rather than re-created them (see finding 40) -- so there was nothing to subtract, and the measured cost of the client fix is 146s on the perf arm (1450 -> 1304), not 480s. The arithmetic looked clean, which is exactly why it got published. Superseded by the measured pair above. |
-
-**Controls.** Arms alternated (pilot A, B, A, B) and the tree proved different before each run by hashing nautobot/**/*.py, not by trusting the checkout -- the rule that exists because a git stash A/B once silently measured identical code six times. Only nautobot/ is swapped, since perf/ and development/docker-compose.perf.yml do not exist on next; all 37 differing files are modifications, no adds or deletes, so a path-scoped checkout is an exact swap both ways. The checkout is unstaged immediately, because a staged reversion left lying around is how five fixes were undone once. Each arm starts from a byte-identical empty migrated database cloned from a template, the container is restarted (uwsgi has no autoreloader, so without it the next request runs the previous arm's code), and the run waits for loadavg to fall below 0.7 before starting -- finding 35, where three uwsgi workers importing Nautobot on two pinned cores biased a whole arm bimodally.
-
-**Tests.** n/a; measurement only, no product code
-
-The queue proposed answering this by reverting finding 13 alone and re-timing. That would have given one number and a yes/no. Running the write screen against both arms instead gives the per-model breakdown above for the same machine time, and the answer it produces is not the one the yes/no would have suggested: no single finding accounts for the win, so there is no finding-13-shaped thing for the write matrix to go hunting.
-
-**The most useful number here is the one that took the longest to see.** 662 seconds saved and 2.9 of them are database execution. Every instrument on this branch until now has gated on query count, and query count would have rated this work at −13% when it is worth −31%. The read side does not behave this way -- there, db time and query count track each other closely (finding 38). The write path is where they come apart, and any future write experiment should report both or it will undervalue exactly the kind of fix this branch is best at.
-
-**The inference this finding originally carried was wrong, and the way it was wrong is the lesson.** The first pair of applies both hit a client-side timeout on 16 cable batches. I modelled that as 480 seconds of work thrown away on each arm and subtracted it, producing a tidy "adjusted −40.5%". Two things were wrong: the work was not thrown away (the server committed and the client confirmed), and the real cost was 146s rather than 480s. The measured post-fix pair is −33.7%. An adjustment computed from a counted constant still rests on a story about what the constant means, and that story was never checked. Where a re-run is affordable, re-run rather than adjust.
-
-#### A cable create costs 220 queries, and what that broke downstream
-
-**40** · `A` · status `accepted`
-
-`perf/probe_cable_bulk.py - perf/capture_proxy.py`
-
-Creating one cable with real terminations costs ~220 queries and 0.34 seconds, linear from 25 to 96 cables per request with no batching advantage in queries at all. That is five times what the write screen reports for dcim.cable, because the screen's generated payload leaves both terminations null and a cable connected to nothing skips every termination check and cable-path walk. The cost is also why every datacenter apply logged 16 failed bulk creates: 100 cables takes 35.6s over HTTP against databot's 30s client timeout.
-
-| Instrument | Result |
-|---|---|
-| **wall clock** | not applicable — a cost measurement and a client-side defect, no product change |
-| per cable | 100 real cables in one array POST: 22,003 queries, 37.1s in-process. The curve is flat per object -- 25 cables 4,750q/8.5s, 50 cables 9,474q/17.0s, 96 cables 18,169q/31.1s and 31.7s -- so 0.34s and ~190-220 queries per cable regardless of batch size. Batching cables saves round trips, not database work. |
-| screen understates it | screen_writes.py reports dcim.cable at 44.9 marginal queries per object. That payload has termination_a_type and termination_b_type null, because both are optional and the builder populates required fields only. The real figure is roughly 5x, and dcim.cable is a top-four model in the datacenter apply, so its share is understated everywhere finding 38 quotes it. |
-| the timeout | databot's httpx client defaulted to timeout=30.0 (discovery/fetch.py:80). At 0.356s per cable over HTTP the break-even batch is 84 cables and databot batches at 100, so the failure was deterministic rather than intermittent: exactly 16 fallbacks in all three arm logs, 1,648 cables being 16 full batches plus a 48-cable remainder that fits. |
-| what it actually cost | 146 seconds, measured -- 1450s before the client fix against 1304s after, on the same tree and dataset. **Not the ~480s an earlier version of this finding claimed.** The timed-out batches were not wasted: the server finished its ~35s and committed, and databot -- which write-aheads every row to the state sidecar before POSTing -- then found all 100 present and confirmed them instead of re-creating them. That is the "skipped 1,600 (resumed)" in every pre-fix arm log, and 1,600 is exactly 16 batches x 100. The cost is the difference between giving up at 30s and the confirmation round-trips, not the work itself. |
-| not a nautobot fault | a capture proxy between databot and Nautobot recorded **zero 5xx from Nautobot** across a whole cable phase, and logged BrokenPipeError writing back to databot. Reproduced exactly with curl --max-time 30 on the same payload: exit 28 at 30.0019s, and the server logs the identical hr_write(): Broken pipe. Nautobot completes the request and commits it; the client has stopped listening by then, so only the response write fails. |
-
-**Controls.** Every probe POST runs in a rolled-back transaction and the database is reset from the template afterwards. The 25/50/96 curve was taken in one process without resets between sizes, since nothing is committed. Payloads are rebuilt from cables that already exist, so terminations are real occupied-checked pairs rather than generated ones, and the source cables are deleted inside the same transaction so the terminations are free.
-
-**Tests.** n/a; probes only, no product code
-
-Three wrong turns, and each was wrong in a way worth writing down.
-
-**The first reproduction succeeded and proved nothing.** A 100-cable array POST built by the payload generator returned 201 in 7.8s, in-process and over HTTP. It was measuring a cable with no terminations. The tell was in the response -- termination_a_type: null -- and it was visible the whole time.
-
-**The second reproduction also succeeded, and the timing is what redirected it.** Real terminations gave 201 in 35.6s over HTTP. A request that takes 35s and succeeds, against a production failure that gave up at what the uwsgi log called 8.5s, looked like two different events. It was the same event: uwsgi's msecs figure is not measured from request start, and keying on it cost an hour. The client-side number -- curl exit 28 at exactly 30.0019s against a 30.0s default -- is what settled it, and it was available from the start.
-
-**Reading the server's logs could not have worked.** Django logs "Internal Server Error" for these and Nautobot's exception middleware renders the traceback into a 246-byte body, so neither the container log nor databot's warning ever says what broke. The capture proxy exists because the only copy of the evidence was in flight between two processes.
-
-**A fourth wrong turn, caught by Kevin rather than by me.** I read the clean final row counts -- exactly 1,648 cables, no duplicates -- as evidence that the timed-out transactions rolled back. They are equally consistent with commit-then-confirm, which is what the "skipped 1,600 (resumed)" line said all along and what actually happened. Having decided on rollback, I then costed the timeouts as 480s of discarded work and published an adjusted figure built on it. The row count was real evidence for a claim it did not distinguish between.
-
-**Consequences.** databot now defaults to a 120s write timeout with a --write-timeout flag. 120 rather than 60 because 60s only covers a machine 1.7x slower than this one and a CI runner on shared vCPUs is easily that; the safe batch is roughly timeout x 0.8 / 0.36s / slowdown. (An earlier version justified the margin by calling this host "~2x slower than the one Kevin measured on". That ratio came from dividing two applies of *different datasets* and was never a measurement -- withdrawn, and the sizing argument stands without it.) The timeout value stops mattering if the client halves the batch and retries on timeout instead of dropping straight to per-row -- recorded, not queued.
-
-**For Nautobot, the standing number is 220 queries per cable.** That is not a client problem and no fix on this branch touches it. It is the most expensive per-object create measured anywhere on the write surface, and it is now the strongest candidate at the top of the write ranking.
-
-### Parked (1)
-
-Measured and not rejected -- the win is real and the reason for waiting is stated. These are decisions someone can revisit, not conclusions.
-
-| # | Change | Tier | Wall clock | Queries | Cache reads |
-|---:|---|---|---|---|---|
-| 16 | [Stop double-serializing every change record by writing an empty object_data](#stop-double-serializing-every-change-record-by-writing-an-empty-object-data) | `C` | not measured — never a candidate to ship | -200 per 100 writes (-14.2% on bulk.create.lo… | — |
-
-#### Stop double-serializing every change record by writing an empty object_data
-
-**16** · `C` · status `parked` · commit `43db1b018` · (F-05)
-
-`nautobot/extras/models/change_logging.py:45-46`
-
-to_objectchange() calls both serialize_object() for v1 and serialize_object_v2(). Every current consumer reads v1 only as a fallback when v2 is null, which never happens for a newly created record.
-
-| Instrument | Result |
-|---|---|
-| **wall clock** | not measured — never a candidate to ship |
-| queries | -200 per 100 writes (-14.2% on bulk.create.loop); exactly two queries per ObjectChange record |
-
-**Wall clock.** not measured. Deterministic query counts were the point; the change was never a candidate to ship
-
-**Controls.** read path unaffected: Tier 1 total unchanged, all endpoints 200
-
-> **Caveat.** Every /api/extras/object-changes/ response would carry an empty object_data, and the GraphQL objectData field likewise, because both serialize with all fields. The Object Data panel on the ObjectChange detail page would render an em-dash instead of JSON. Historical records whose only snapshot is v1 would lose it.
-
-**Why it is parked.** Tier C on two public API contracts, and the premise did not survive measurement: the redundant serializer is the cheap one. serialize_object costs 0.73ms and two queries; serialize_object_v2 costs 8.75ms and seven queries -- twelve times more. Removing the duplication is worth ~12% of write-path queries, not half of them.
-
-**Tests.** breaks 13 tests in nautobot.extras.tests.test_changelog -- six failures and seven errors across ChangeLogAPITest, ChangeLogViewTest and ObjectChangeModelTest, including test_legacy_object_data
-
-Kept in history with its measurements rather than deleted, because the number is the deliverable.
-
-**Superseded, and by a route that landed.** Finding 22 takes the same win by making the column nullable rather than writing {} into it, and is accepted. What this version buys over that one is nothing: an empty dict makes the field present and lying, where null is the correct JSON for "not recorded". It stays on the record as the route that was tried first, not as a live option.
-
-The ~12% figure in the reason above is stale in the direction of being smaller. Finding 22 re-measured the same prize on the current tree at −7.7% on the ORM path and −2.1% on the REST path, because finding 31 had since removed one of the two queries per record.
-
 ### Rejected (10)
 
 Plausible optimizations that measurement or blast-radius analysis killed. These are results rather than omissions: they say what a tempting option actually costs.
@@ -901,6 +600,7 @@ Plausible optimizations that measurement or blast-radius analysis killed. These 
 | # | Change | Tier | Wall clock | Queries | Cache reads |
 |---:|---|---|---|---|---|
 | 15 | [Pre-warm natural-key FK chains with one select_related](#pre-warm-natural-key-fk-chains-with-one-select-related) | `A` | +62% api.interface.depth1 | 2357 -> 1359 (-666 beyond the accepted fixes) | — |
+| 16 | [Stop double-serializing every change record by writing an empty object_data](#stop-double-serializing-every-change-record-by-writing-an-empty-object-data) | `C` | not measured — never a candidate to ship | -200 per 100 writes (-14.2% on bulk.create.lo… | — |
 | 17 | [Cross-request Redis-backed natural-key map with signal invalidation](#cross-request-redis-backed-natural-key-map-with-signal-invalidation) | `B2` | +0–2%, inside variance | — | — |
 | 18 | [Enable LOCATION_NAME_AS_NATURAL_KEY](#enable-location-name-as-natural-key) | `C` | −12% api.interface.depth1 | — | — |
 | 19 | [Process-level per-user nav menu cache](#process-level-per-user-nav-menu-cache) | `B2` `security-visible` | ≈−1% detail pages (~0.6ms) | — | — |
@@ -909,7 +609,6 @@ Plausible optimizations that measurement or blast-radius analysis killed. These 
 | 23 | [Backfill object_data_v2 for historical ObjectChange rows](#backfill-object-data-v2-for-historical-objectchange-rows) | `A` `M2` | not applicable — priced by migration runtime | — | — |
 | 24 | [Index maintenance on extras_objectchange, priced at a ~0 ceiling](#index-maintenance-on-extras-objectchange-priced-at-a-0-ceiling) | `A` `M0` | −1.7% ceiling, inside the ordering artifact | — | — |
 | 27 | [Batch get_prev_change for deferred change logging](#batch-get-prev-change-for-deferred-change-logging) | `B1` | −3.1% ceiling, bulk update | — | — |
-| 29 | [Replace Tier 1W's rolled-back transactions with restore-based isolation](#replace-tier-1ws-rolled-back-transactions-with-restore-based-isolation) | `A` | −0.9% commit vs rollback, inside variance | rollback 1323, commit 1321 -- a 2-query diffe… | — |
 
 #### Pre-warm natural-key FK chains with one select_related
 
@@ -930,6 +629,35 @@ Replaces the hop-by-hop walk with a single select_related covering the whole nat
 **Why not.** Failed the gate: slower. Location's natural key is variadic on live tree depth, so with max_depth 4 it expands to eight prefixes and an 8-join, 5,420-character query per object. PostgreSQL answers it quickly, but Django then materializes wide rows across eight tables and instantiates a model object for each. It also added a per-call inspection walk to every natural_key(), slowing a depth-0 endpoint it was never meant to touch.
 
 The most useful result on the branch. The variant that looked three times better by query count was the one that regressed past the original baseline in wall time. Deeper Location trees make it worse, not better.
+
+#### Stop double-serializing every change record by writing an empty object_data
+
+**16** · `C` · status `not-taken` · commit `43db1b018` · (F-05)
+
+`nautobot/extras/models/change_logging.py:45-46`
+
+to_objectchange() calls both serialize_object() for v1 and serialize_object_v2(). Every current consumer reads v1 only as a fallback when v2 is null, which never happens for a newly created record.
+
+| Instrument | Result |
+|---|---|
+| **wall clock** | not measured — never a candidate to ship |
+| queries | -200 per 100 writes (-14.2% on bulk.create.loop); exactly two queries per ObjectChange record |
+
+**Wall clock.** not measured. Deterministic query counts were the point; the change was never a candidate to ship
+
+**Controls.** read path unaffected: Tier 1 total unchanged, all endpoints 200
+
+> **Caveat.** Every /api/extras/object-changes/ response would carry an empty object_data, and the GraphQL objectData field likewise, because both serialize with all fields. The Object Data panel on the ObjectChange detail page would render an em-dash instead of JSON. Historical records whose only snapshot is v1 would lose it.
+
+**Why not.** Tier C on two public API contracts, and the premise did not survive measurement: the redundant serializer is the cheap one. serialize_object costs 0.73ms and two queries; serialize_object_v2 costs 8.75ms and seven queries -- twelve times more. Removing the duplication is worth ~12% of write-path queries, not half of them.
+
+**Tests.** breaks 13 tests in nautobot.extras.tests.test_changelog -- six failures and seven errors across ChangeLogAPITest, ChangeLogViewTest and ObjectChangeModelTest, including test_legacy_object_data
+
+Kept in history with its measurements rather than deleted, because the number is the deliverable.
+
+**Superseded, and by a route that landed.** Finding 22 takes the same win by making the column nullable rather than writing {} into it, and is accepted. What this version buys over that one is nothing: an empty dict makes the field present and lying, where null is the correct JSON for "not recorded". It stays on the record as the route that was tried first, not as a live option.
+
+The ~12% figure in the reason above is stale in the direction of being smaller. Finding 22 re-measured the same prize on the current tree at −7.7% on the ORM path and −2.1% on the REST path, because finding 31 had since removed one of the two queries per record.
 
 #### Cross-request Redis-backed natural-key map with signal invalidation
 
@@ -1104,33 +832,6 @@ Upstream issue #6303 remains open and the TODO in context_managers.py:273 is acc
 
 Worth revisiting if the write path ever becomes latency-critical, or if the ObjectChange insert and index-maintenance costs (finding 24) are removed first, since 3% of a smaller number is a larger share.
 
-#### Replace Tier 1W's rolled-back transactions with restore-based isolation
-
-**29** · `A` · status `not-taken`
-
-`perf/tier1w_writes.py - perf/probe_commit_cost.py`
-
-Tier 1W runs each operation inside transaction.atomic() and raises to unwind it, which buys identical starting state -- the bulk triple depends on it, since all three create the same 100 rows with the same names -- at the cost of never committing. With a dedicated measurement host and a fast snapshot restore, restore-based isolation is affordable and would measure real committed writes.
-
-| Instrument | Result |
-|---|---|
-| **wall clock** | −0.9% commit vs rollback, inside variance |
-| queries | rollback 1323, commit 1321 -- a 2-query difference, the ROLLBACK/COMMIT statement itself |
-
-**Wall clock.** bulk.create.interfaces.x100.deferred, three rounds each way with a snapshot restore before every arm so each started from byte-identical state, and arm order reversed between rounds. rollback 3389/3312/3407ms, commit 3343/3358/3367ms. Medians 3389 against 3358 -- a 31ms difference on a 3.3-second operation, inside the run-to-run spread.
-
-The first attempt at this measurement was discarded, and the reason is the useful part. It ran three rollback reps then one committed rep, so the committed arm was fourth and warmest, and reported commit 5% FASTER. Reversing the arm order flipped the sign: in both round 1 and round 3 the second arm won by ~46ms regardless of which arm it was. That is pure ordering effect, and it validated the arm-reversal rule within an hour of the rule being written.
-
-**Why not.** Not worth changing, because the thing it would fix is not costing anything measurable. Rollback under-reports wall clock by 0.9% on a bulk create, inside variance, so Tier 1W's existing figures stand. Rollback also keeps Tier 1W fast enough to sit inside run_experiment.sh --writes as an inner-loop gate.
-
-**The second half of this reason was wrong, and finding 33 falsified it.** It said restore-based isolation would add ~70 seconds per arm. That priced the restore at restore_snapshot.sh, which is 49 seconds and does four things per iteration a measurement loop does not need. A template clone returns the database to baseline in 1.3 seconds plus one discarded warmup request, so the true cost is under 3 seconds per arm, not 70.
-
-The finding stands anyway, because cost was never the primary reason. The primary reason is the first half and it is unchanged -- commit against rollback is -0.9% on a bulk create, inside variance, so there is nothing quantitative to gain by switching. What the cheap clone changes is that the option is now available for free if the qualitative gap below ever matters.
-
-What rollback omits is qualitative rather than quantitative, and that part is still true: transaction.on_commit callbacks never fire, and Nautobot uses them in five places including custom-field job enqueueing at extras/customfields.py:744. An experiment that changed commit-time behaviour -- deferring constraint checks, batching index maintenance to commit -- would measure exactly zero under rollback. Nothing on this branch has done that. Finding 24 is the near miss: index maintenance happens in-transaction, so rollback does see it.
-
-It also does not follow that rollback is fine for the write screening matrix. REST writes cross the process boundary, so a rolled-back transaction in the harness cannot isolate them at all. This result narrows that build rather than blocking it: the in-process ORM half can keep using rollback for speed, and only the REST half needs restore-based orchestration. With finding 33 that orchestration costs 1.3 seconds an iteration, so the matrix can afford it for every operation rather than only where it is unavoidable.
-
 
 ## Test environment and methodology
 
@@ -1194,6 +895,297 @@ tooling.
 Three alternating rounds is the minimum for any wall-clock claim. Two rounds were not enough
 twice over: a 2 ms "regression" and an 11% "regression" both dissolved on a third round.
 
+### Findings about the harness itself
+
+9 of the 40 experiments changed the harness rather than Nautobot: new instruments, and measurements of the instruments themselves. They are recorded to the same standard because a measurement is only as good as the thing that took it.
+
+#### Screening pass over every read endpoint, and what it found
+
+**28** · `A` · status `accepted` · commit `fddc2fc80`
+
+`perf/screen_reads.py`
+
+The inner loop measures 38 hand-picked scenarios. This enumerates every REST list endpoint from the URL resolver at run time and measures list, list?depth=1, detail and detail?depth=1 for each, normalizing to cost per returned object so a 5-row model and a 6,556-row one are comparable. 518 measurements across 166 list endpoints in 84 seconds, against the tree with all sixteen accepted changes applied -- so these are residual costs, not costs the branch has already removed.
+
+| Instrument | Result |
+|---|---|
+| **wall clock** | not applicable — an instrument, not a change |
+| coverage | 6 of 166 API list endpoints were named in workload.yml; 160 had never been measured |
+| queries | top residual costs per returned object, page of 25: dcim.cabletocabletermination?depth=1 19.5 q/obj (487 queries, 473 duplicates, 1226ms, 6556 rows); dcim.interfaceconnections 14.4 q/obj (359 queries, 345 duplicates, 777ms, 2780 rows, and a clean 9 + 14n fit against page size); vpn.vpntunnelendpoint?depth=1 9.8; circuits.circuit?depth=1 7.3; dcim.interfaceredundancygroupassociation?depth=1 6.6; ipam.ipaddresstointerface?depth=1 5.9 |
+
+**Tests.** n/a; reads only, no mutation, safe to re-run
+
+Two of these are worse per object than anything the inner loop has ever measured, and neither was in it.
+
+**dcim.cabletocabletermination at depth 1** is the largest: 19.5 queries per returned object with 473 duplicates on a page of 25. For comparison, api.interface.depth1 at its original worst was 1,229 queries for 100 objects -- 12.3 per object -- and that endpoint absorbed most of this branch's effort.
+
+**dcim.interfaceconnections is a clean N+1: 9 fixed queries plus 14 per object.** Page-size sensitivity gives an exact linear fit -- 23 queries at limit 1, 79 at 5, 149 at 10, 359 at 25, 709 at 50 -- so the cost is per-row work rather than pagination overhead. On 2,780 rows that is the largest untouched N+1 the screen found.
+
+**Correction to an earlier reading of this record.** It said interfaceconnections showed 'a different cost class' because its query count is identical at depth 0 and depth 1, and that none of the accepted fixes would touch it. Both halves were wrong. The endpoint simply ignores `depth`: diffing the two responses shows the only difference is the pagination `next` link echoing `depth=1`, exactly 8 bytes at every page size. Identical counts across depth therefore say nothing about cost class. It is the ordinary per-row N+1 class this branch has been fixing all along, which makes it more tractable rather than less. powerconnections and consoleconnections share the shape at 5.4 q/obj and presumably the same explanation.
+
+Caveats carried from the design. This weights every endpoint equally, which is a selection-free sample rather than a usage-weighted one -- nobody may list cabletocabletermination at depth 1 in practice, and that is a product question rather than a measurement one. Per-object cost is misleading on pages of one or two objects, where fixed overhead dominates, so the ranking above is restricted to pages of ten or more. And dcim.connected-device returns 400 without its required peer_device and peer_interface parameters, which is correct behaviour for a lookup endpoint rather than a failure.
+
+It is a screening instrument, not a regression gate. 518 measurements do not belong in the inner loop, which stays at 38 scenarios.
+
+#### Replace Tier 1W's rolled-back transactions with restore-based isolation
+
+**29** · `A` · status `not-taken`
+
+`perf/tier1w_writes.py - perf/probe_commit_cost.py`
+
+Tier 1W runs each operation inside transaction.atomic() and raises to unwind it, which buys identical starting state -- the bulk triple depends on it, since all three create the same 100 rows with the same names -- at the cost of never committing. With a dedicated measurement host and a fast snapshot restore, restore-based isolation is affordable and would measure real committed writes.
+
+| Instrument | Result |
+|---|---|
+| **wall clock** | −0.9% commit vs rollback, inside variance |
+| queries | rollback 1323, commit 1321 -- a 2-query difference, the ROLLBACK/COMMIT statement itself |
+
+**Wall clock.** bulk.create.interfaces.x100.deferred, three rounds each way with a snapshot restore before every arm so each started from byte-identical state, and arm order reversed between rounds. rollback 3389/3312/3407ms, commit 3343/3358/3367ms. Medians 3389 against 3358 -- a 31ms difference on a 3.3-second operation, inside the run-to-run spread.
+
+The first attempt at this measurement was discarded, and the reason is the useful part. It ran three rollback reps then one committed rep, so the committed arm was fourth and warmest, and reported commit 5% FASTER. Reversing the arm order flipped the sign: in both round 1 and round 3 the second arm won by ~46ms regardless of which arm it was. That is pure ordering effect, and it validated the arm-reversal rule within an hour of the rule being written.
+
+**Why not.** Not worth changing, because the thing it would fix is not costing anything measurable. Rollback under-reports wall clock by 0.9% on a bulk create, inside variance, so Tier 1W's existing figures stand. Rollback also keeps Tier 1W fast enough to sit inside run_experiment.sh --writes as an inner-loop gate.
+
+**The second half of this reason was wrong, and finding 33 falsified it.** It said restore-based isolation would add ~70 seconds per arm. That priced the restore at restore_snapshot.sh, which is 49 seconds and does four things per iteration a measurement loop does not need. A template clone returns the database to baseline in 1.3 seconds plus one discarded warmup request, so the true cost is under 3 seconds per arm, not 70.
+
+The finding stands anyway, because cost was never the primary reason. The primary reason is the first half and it is unchanged -- commit against rollback is -0.9% on a bulk create, inside variance, so there is nothing quantitative to gain by switching. What the cheap clone changes is that the option is now available for free if the qualitative gap below ever matters.
+
+What rollback omits is qualitative rather than quantitative, and that part is still true: transaction.on_commit callbacks never fire, and Nautobot uses them in five places including custom-field job enqueueing at extras/customfields.py:744. An experiment that changed commit-time behaviour -- deferring constraint checks, batching index maintenance to commit -- would measure exactly zero under rollback. Nothing on this branch has done that. Finding 24 is the near miss: index maintenance happens in-transaction, so rollback does see it.
+
+It also does not follow that rollback is fine for the write screening matrix. REST writes cross the process boundary, so a rolled-back transaction in the harness cannot isolate them at all. This result narrows that build rather than blocking it: the in-process ORM half can keep using rollback for speed, and only the REST half needs restore-based orchestration. With finding 33 that orchestration costs 1.3 seconds an iteration, so the matrix can afford it for every operation rather than only where it is unavoidable.
+
+#### Tier 1W's wall clock is biased by a GC pause that three alternating rounds cannot cancel
+
+**32** · `A` · status `accepted` · commit `d52169a34`
+
+`perf/tier1w_writes.py - perf/probe_f31_wall.py`
+
+tier1w_writes.py runs a warmup plus three reps of each operation and reports the wall clock of the LAST rep. A gen-2 cyclic garbage collection costs about 200ms in this process and recurs on a period set by allocation count -- which is deterministic for a given tree. So the pause lands on the reported rep for one arm and not the other, and it does so in every independent run of that arm. The arm-reversal rule cancels monotonic drift; it cannot cancel a bias that is not random.
+
+| Instrument | Result |
+|---|---|
+| **wall clock** | not applicable — a measurement artifact, not a change |
+| incident | finding 31 read create.device at 89/89/89ms unpatched and 241/250/248ms patched, three rounds, both orderings -- a 179% regression that reproduced perfectly and was not real. The same operation measured over nine reps costs 83.7ms and 79.8ms. db_ms was flat at ~24ms in both arms, which is what said the cost was not in the database. |
+| mechanism | 24 consecutive calls, gc counters read between each: 329ms on the cold first call, 122ms typical, and one 323ms call carrying a gen-2 collection. Median 122ms, min 111ms, max 329ms. |
+| exposure | ~200ms on operations tier1w reports between 25ms and 300ms, where it is up to 8x the true cost; ~6-7% on the ~3s bulk operations. |
+
+**Wall clock.** The fix is an instrument, not an edit to tier1w: perf/probe_f31_wall.py runs nine reps of each write operation and reports the median, min, max and per-rep timings, so one pause cannot move the answer. Observed round-to-round spread on that instrument is 6-13% max-to-min within a round, and the round medians agree to about 2.6% across rounds -- which is the noise floor finding 31's controls independently reported.
+
+**Tests.** n/a; a measurement artifact, no product code involved
+
+Query counts are untouched by this. The collector issues no SQL, so every deterministic counter this branch has published stands, including the ones taken with tier1w. Only its per-operation wall_ms is affected.
+
+Two earlier findings are worth re-reading in this light, and both survive. Finding 24 measured dropping all 17 non-unique ObjectChange indexes at −59ms on a 3358ms operation and called the real cost indistinguishable from zero; a ~200ms artifact makes that conclusion stronger, not weaker. Finding 29 measured commit against rollback at 31ms on a 3.3-second operation and called it inside variance; same. Neither claimed a win that this would erase. What this does retire is the idea that any tier1w wall figure smaller than a few hundred milliseconds meant anything.
+
+tier1w_writes.py is deliberately left alone. Changing it to report a median would silently redefine every wall figure in the committed baselines, and its job is the deterministic counters, which are correct. The wall-clock instrument is separate and says so.
+
+Found by refusing to average away a regression. The honest reading of 89ms against 248ms, three rounds, both orderings, is that the change made create.device three times slower -- and the branch's own rule is to explain a tripwire rather than accept or dismiss it.
+
+#### Reset the database by cloning a template, not by replaying the snapshot
+
+**33** · `A` · status `accepted`
+
+`perf/reset_db.sh - perf/probe_clone_warmup.sh`
+
+restore_snapshot.sh takes 49 seconds, and four of its five phases are things a measurement loop does not need every iteration. CREATE DATABASE ... TEMPLATE copies the files instead, which returns the database to baseline in 1.3 seconds with the app left running. Per-operation isolation stops being something to design around and becomes something to buy every iteration.
+
+| Instrument | Result |
+|---|---|
+| **wall clock** | not applicable — an instrument, not a change |
+| phases | restore_snapshot.sh measured by phase: container stop 5.9s, drop/create 0.5s, psql replay 19.1s, container up 12.8s, migrate no-op 9.6s -- 49s total. The clone replaces all but the drop/create. |
+| clone | 1.41 / 1.33 / 1.23s over three runs; template build is a one-time 3.7s |
+| warmup | cold-cache penalty is confined to the first request after a clone and nothing after it. Position 1 median 981.8ms against a 706.4ms warm control (+275.4ms); position 2 onward is indistinguishable, deltas within ±40ms on a ~710ms operation. Per-round position 1 was 719.6 / 981.8 / 1138.9ms -- highly variable, which fits connection re-establishment plus buffer warming rather than a fixed cost. |
+
+**Controls.** app survives the swap with no restart: DROP DATABASE ... WITH (FORCE) evicts the pooled connections and Django reconnects on the next request despite CONN_MAX_AGE=300, two consecutive 200s immediately after a clone. celery_worker and celery_beat both return to healthy after a clone with zero errors in the logs. Every request in the warmup probe is status-checked, so a clone that left the app unable to reach the database would fail the probe rather than read as a fast 500.
+
+**Tests.** n/a; harness only, no product code
+
+The warmup convention that follows from the measurement: discard exactly one request after a clone. One throwaway request costs about a second and removes the whole effect, and without it every model in the write matrix would carry a variable few-hundred-millisecond bias -- in the instrument built specifically to make those numbers trustworthy.
+
+restore_snapshot.sh remains the authority and the slow path. It is what establishes the state the template copies, and what to run when the template is missing or stale.
+
+**The staleness hazard is the reason this needs a guard rather than just a script.** The template is a database at a fixed schema. restore_snapshot.sh defends against schema drift by always running migrate, which is 9.6 of its 49 seconds; a clone that skipped that check would silently hand back a schema behind the code. reset_db.sh fingerprints the migration files in the tree -- names and contents, since names alone would miss a file edited in place -- and refuses to clone when the fingerprint does not match the one recorded on the template. The fingerprint is stored as a comment on the template database rather than in a table, because database comments are not copied by CREATE DATABASE ... TEMPLATE, so the clones stay free of anything the harness added. Verified to fire on both a new migration file and one edited in place, exiting non-zero in each case and recovering afterwards.
+
+It refuses rather than falling back to the slow path. A reset that takes 1s most of the time and 49s occasionally would put a 48-second spike inside a measurement loop at a moment nobody chose.
+
+#### A container restart biases the measurement that follows it, and arm alternation does not cancel it
+
+**35** · `A` · status `accepted`
+
+`perf/sync.sh - perf/probe_ui_only.py`
+
+perf/dc.sh restart returns when the container has started, not when it is ready. uwsgi then forks three workers that each import Nautobot, and the nautobot container is pinned to two physical cores (cpuset 0,1,4,5). An in-process probe launched into that window competes with those imports for the cores it is being measured on. The result is bimodal: the same view reads either ~99ms or ~165ms depending on where the probe lands, the mode is set at process start and then holds for the whole arm, and three alternating rounds does not cancel it.
+
+| Instrument | Result |
+|---|---|
+| **wall clock** | not applicable — an instrument defect, not a change |
+| no restart | 18 measurements of ui.interface-connections across 6 consecutive runs with no restart between them -- 94.5-106.6ms, a 1.13x spread, query count stable at 8 every time |
+| with restart | 99-177ms on the same probe when each run followed a restart, bimodal rather than spread, and the query count went unstable too -- 8, 12 and 13 at the same page size |
+| same arm twice | arm B six times gave 99.1-176.7ms; arm A six times gave 98.5-174.0ms. Both arms reach both modes, so the arm is not the variable. |
+
+**Controls.** found on an endpoint that was a control in the finding 34 experiment, whose code path that change never touches. It read +73% with an identical query count, consistently, across three alternating rounds.
+
+**Tests.** n/a; harness only, no product code
+
+How it was nearly believed. In the finding 34 A/B the control read +73% in the patched arm at all three page sizes, with 8 queries in both arms, in all three rounds. Consistency read as signal. It was not -- rerunning the same arm six times reproduces the full 99-177ms range without changing a line of code, and the first A/B simply landed arm B in the fast mode three times and arm A in the slow mode three times.
+
+This is the second time on this branch that a deterministic-looking bias survived arm alternation. Finding 32 was the first, a gen-2 GC pause recurring on a period fixed per tree, so it lands on the reported rep for one arm and not the other in every independent run. Both share a shape worth naming -- arm reversal cancels drift, and cancels nothing keyed to something other than time.
+
+Two fixes, and the first is the real one. An in-process probe never needed the restart. Tier 1 and Tier 1W spawn a fresh Python process per run and pick up synced code without one; only uwsgi-served measurement needs a restart, because uwsgi holds imported modules. The A/B that produced this was restarting between arms for no reason and paying a bimodal artifact for it.
+
+Second, sync.sh --restart now waits for the container to report healthy and then for the load average to fall under the ceiling before returning, and fails rather than handing back a host that is not measurable. Verified -- it refused during an unrelated test run at loadavg 1.71.
+
+What this does not settle is whether earlier numbers on this branch are affected. Any wall-clock figure taken through an in-process probe shortly after a restart carries the risk. Query counts are unaffected, which is most of the branch evidence, and the affected figures would have to be re-taken to know.
+
+#### Second read screening pass — what the four fixes removed, and what the ranking cannot see
+
+**37** · `A` · status `accepted`
+
+`perf/screen_reads.py`
+
+Re-run of the screen against 4a925fb43, the tree carrying findings 30, 31, 34 and 36, and directly comparable to the first run: same instrument, same page size of 25, same dataset (8,925 interfaces, 2,902 devices, 3,278 cables), 518 measurements over 166 list endpoints in 82s. Ten of the 518 changed their query count and 508 are byte-identical to the first run, so the four fixes are surgical and the residual ranking below is the first one's ranking with its top two removed.
+
+| Instrument | Result |
+|---|---|
+| **wall clock** | not applicable — an instrument, not a change |
+| removed | total across the 518 measurements 6,345 -> 4,687 queries (-26.1%) and 3,242 -> 1,596 duplicates. dcim.cabletocabletermination?depth=1 487 -> 15; dcim.interfaceconnections 359 -> 17; dcim.powerconnections 135 -> 12; dcim.consoleconnections 134 -> 11. Both of finding 28's headline targets are gone. |
+| surgical | only 10 of 518 measurements moved, all on the four fixed endpoints. Nothing else on the read surface changed by a single query, which is the evidence that the four prefetches have no collateral effect. |
+| regression | cabletocabletermination at depth 0 went 5 -> 8 queries on a page of 25 and 4 -> 7 on detail, with db time 169 -> 190ms. Finding 36's prefetches are unconditional and depth-0 serialization never reads them. Fixed cost (three queries: cable__terminations, and the cable_paths__destination pair for the one non-null termination FK on the page), not per-row. |
+| residual | top cost per returned object, pages of >=10, unchanged from the first run to two decimals: vpn.vpntunnelendpoint?depth=1 9.76 q/obj (244 q, 226 dup, 37 rows); circuits.circuit?depth=1 7.32 (183 q, 38 rows); dcim.interfaceredundancygroupassociation?depth=1 6.60 (132 q, 20 rows); vpn.vpntermination?depth=1 6.52 (163 q, 37 rows); dcim.cable?depth=1 6.36 (159 q, 145 dup, 3,278 rows); ipam.ipaddresstointerface?depth=1 5.92 (148 q, 130 dup, 2,937 rows) |
+| invisible to the ranking | dcim.device list is 8 queries, zero duplicates, and 438ms of database time on a page of 25 -- 55ms per query, the largest db-time item anywhere on the read side. Reproducible: 432ms in the first run, 441ms at depth 1. Per object it is 0.32 q/obj, which puts it nowhere near the ranking. Queries per object cannot see a small number of expensive queries. |
+| coverage | 166 list endpoints attempted, 166 measured, 2 non-200 (dcim.connected-device, 400 without its required parameters, which is correct behaviour). But only 49 returned a full page of >=10 objects. 47 returned 1-9 rows and 70 returned zero -- including cluster, virtualmachine, vminterface, module and the whole modules/templates family, tag, service and rir. A zero-row endpoint reads as cheap and is actually unmeasured. |
+
+**Controls.** nine models (jobs, contactassociation, objectchange, users, one wireless assignment) returned different response bytes between the two runs. Row counts and query counts are identical for all nine, so the drift is field-level -- timestamps, last_login, job metadata -- and does not affect comparability.
+
+**Tests.** n/a; reads only, no mutation
+
+The queue asked this pass to answer one question: does anything on the read side still outrank the write path for attention. It does not, and the ranking above is why.
+
+The four highest per-object costs sit on tables of 20 to 38 rows, where one page is the entire table. Fixing them would remove a few hundred queries from a request nobody has evidence anyone makes. Only two residuals sit on tables large enough for the cost to compound -- dcim.cable?depth=1 (3,278 rows, 145 duplicates per page) and ipam.ipaddresstointerface?depth=1 (2,937 rows, 130 duplicates) -- and both are the same per-row N+1 mechanism this branch has now fixed four times, with a known shape and a bounded payoff per endpoint. Against that, the write path has one measured 37% win at whole-workflow scale that nothing has attributed, and zero screening coverage. The queue order stands.
+
+Two things this run found that the ranking method itself would never surface, and both are worth more than the residual list.
+
+**dcim.device spends 438ms in the database over 8 queries with no duplicates.** Every read fix on this branch has been a query-count fix, and this endpoint has almost no queries to remove. It is the largest read-side db-time item measured and the instrument ranks it 100th. A screen that normalizes to queries per object is structurally blind to a slow query, and the fix for that is to rank on db time as well -- one line, since db_ms is already recorded.
+
+**The screen measures 166 endpoints and exercises 49.** 70 of them return zero rows against this dataset, so they contribute a measurement that says nothing while counting as coverage. This is the same failure the queue's item 3 requires the write matrix to avoid, present in the instrument that raised the objection. Either seed the empty models or report attempted / exercised / measured separately, and stop quoting 166.
+
+On the regression. Finding 36 removed 472 queries from the depth=1 path and added 3 to the depth=0 path, which is a trade worth making at roughly 150:1 and was not visible in that experiment because the A/B measured depth=1 only. Making the prefetch conditional on depth is possible -- the viewset can read the requested depth -- but it is three fixed queries on an endpoint nobody has shown is hot at depth 0, so it is recorded rather than queued.
+
+#### The write screening matrix — every POST endpoint, ranked on cost per created object
+
+**38** · `A` · status `accepted`
+
+`perf/screen_writes.py - perf/payloads.py`
+
+The read screen's counterpart, built to the same rules: enumerate from the URL resolver at run time, normalize to cost per object, and never let an unmeasured model read as a cheap one. 152 of the resolver's 166 API list endpoints accept POST; 105 were measured across create.x1, create.x10 and update.x1, for 257 measurements in 211 seconds. The headline is the comparison it makes possible: the *median* marginal cost of creating one object is 12 queries, against a median read cost of 0.28 queries per returned object, and the cheapest create on the entire surface (3.0) is more expensive per object than 47 of the 49 read endpoints that return a full page.
+
+| Instrument | Result |
+|---|---|
+| **wall clock** | not applicable — an instrument, not a change |
+| surface | 166 API list endpoints, 152 of which accept POST and 14 of which are read-only. Writability is read from the DRF router's own action map on the URL callback, not inferred from the viewset class, so the resolver stays the authority for writes as it is for reads. |
+| coverage | 152 attempted / 130 payloads built / 105 payloads accepted / 105 measured. Of the 105, **82 were built from field metadata alone** and 23 needed an entry in the hand-maintained exception list in payloads.py. The 47 unmeasured models break down as: 21 rejected by model validation no generated payload can satisfy ("A Location of type Wing must have a parent Location", "Racks may not associate to locations of type Office"), 19 unbuildable because this dataset has no rows of a required related model (cluster, moduletype, cloudnetwork, virtualserver, savedview), 4 rejected on a uniqueness constraint over foreign keys whose tables hold fewer than ten rows, 2 HTTP 500 (see note), and 1 with no derivable value. |
+| ranking | marginal queries per additional object, (x10 - x1) / 9, over the 98 models whose bulk create was accepted: ipam.ipaddresstointerface 65.6 (x1 77, x10 667, 627 duplicates, 372ms db); dcim.interfaceredundancygroupassociation 46.2 (55 / 471, 430 dup); dcim.cable 44.9 (54 / 458, 381 dup, one SELECT on dcim_cabletocabletermination repeated 280 times) -- **but see the correction below, the real figure is ~220**; dcim.device 40.0 (49 / 409, 364 dup, 309ms db); ipam.prefixlocationassignment 36.4; ipam.vlanlocationassignment 30.1; ipam.prefix 30.0; extras.configcontext 30.0. dcim.interface is 23.8. Distribution: min 3.0, median 12.0, max 65.6. |
+| dataset independence | the screen was re-run against a completely different dataset (datacenter/large, 11,578 rows, against enterprise-campus/large's 24,098) and the per-object costs are identical to the decimal for 9 of 11 top models -- cable 44.9, interface 23.8, device 40.0, prefix 30.0 all unchanged. Only ipam.ipaddresstointerface moved, 65.6 to 69.0. So the ranking transfers between datasets and only the weights change. Coverage rose from 85% to 92% of datacenter rows because that dataset has rearports and virtual device contexts, which the campus one has none of: dcim.interfacevdcassignment became measurable at 91.2 marginal queries per object, the most expensive create on the surface. |
+| fixed cost | create.x1 is 9 queries at its cheapest, 20 at the median and 86 at its worst, so a single-object POST is mostly fixed overhead and the x1 figure alone would rank the surface almost uselessly. update.x1 is 15 / 24 / 77 over 51 models, worst dcim.cable. |
+| determinism | 256 of 257 measurements had identical query counts across all three reps. The one exception is ipam.vlanlocationassignment create.x10 at [307, 308]. |
+| isolation verified | row counts on dcim_device, dcim_interface, dcim_cable, ipam_prefix, ipam_ipaddress, ipam_namespace and extras_objectchange are byte-identical before and after a full run: 2902 / 8925 / 3278 / 595 / 2937 / 1 / 36552. 257 measured writes, nothing left behind. |
+
+**Controls.** Rollback isolation was measured against the alternative rather than assumed from finding 29. Both modes were run over the five measured dcim.device* models, three rounds each way with the arms alternated (rb, rs, rb, rs, rs, rb), 13 operations compared on medians.
+
+**Query counts differ by exactly -2 on all 13 operations, in every round.** That is the SAVEPOINT/RELEASE pair the outer transaction adds and nothing else -- the same 2-query difference finding 29 measured on bulk create at a completely different scale. The write path itself does not change shape when the transaction commits.
+
+**Wall clock: the committed arm is +3.0% median (range -2.2% to +11.4%).** That is an upper bound on what rollback under-reports, not an estimate of it, because the reset arm carries the residual cold-buffer cost of the clone that precedes it. Finding 29 measured -0.9% on bulk create with a restore before every arm; this is the same answer at the same order of magnitude.
+
+Rollback is available at all only because the requests go through the Django test client and stay in-process. Finding 29's "REST writes cross the process boundary" is true of a real HTTP client against uwsgi and not of this one.
+
+**Change logging is not hidden by the rollback**, and this was checked rather than inherited: Nautobot records ObjectChanges from synchronous post_save receivers, ObjectChangeMiddleware flushes them inside the same request, and there is no transaction.on_commit anywhere on that path. What rollback does omit is the five on_commit callbacks elsewhere in Nautobot, including custom-field job enqueueing at extras/customfields.py:744.
+
+**--isolation reset needed three corrections before it was a control rather than a trap**, and each is a way a write screen can produce confident wrong numbers. It cannot shell out to perf/reset_db.sh, because this runs inside the container and that script drives docker compose from the host -- so the clone is issued over a second psycopg2 connection, carrying a reimplementation of the migration fingerprint that --verify-reset checks against the shell one (they agree byte for byte). force_login writes a django_session row, so the client has to be logged in again after every clone or every subsequent request is anonymous. And the post-clone throwaway request has to be rolled back even in reset mode: a committed throwaway collides with the measured request on every unique name, which reads as a rejected payload.
+
+**Tests.** n/a; harness only, no product code
+
+Three things this cost more than expected, each of which is now a property of the instrument rather than a fact about one run.
+
+**A rolled-back transaction restores the database, not the process.** The first full run had 47 of 252 measurements with *unstable query counts*, nearly all updates. The cause is process-level caches -- the natural-key field lookups and the tag cache -- which are cold only on the first pass and survive the rollback that resets everything else. One discarded warmup run per operation takes the unstable count from 47 to 1. This is the same discipline finding 33 established for a database clone, arriving from the opposite direction: there the cold thing was PostgreSQL's shared buffers, here it is the Python process, and in both cases the fix is one throwaway request and the cost of skipping it is a number that moves for reasons nobody chose.
+
+**DRF's `required` is not the model's `blank`.** A model field with `blank=False` and no default is still `required=False` on the serializer whenever the column is nullable, and `full_clean` then rejects the value the payload left out. Five models -- configcontext, configcontextschema, secret, rackreservation, service -- were being reported as rejected payloads while the builder was doing exactly what the serializer told it. Reading the model field alongside the serializer field is what fixed them.
+
+**A many-related field's child is not always a plain relation.** `content_types` is a many-related field over `ContentTypeField`, whose value is the string "app_label.model"; the first version handed it a UUID and nine models -- status, role, tag, webhook, customfield, metadatatype, jobbutton, cloudresourcetype, objectpermission -- were unmeasurable as a result. Dispatching on the child field rather than assuming a primary key recovered all nine.
+
+**The exception list is counted, deliberately.** 23 of the 105 measured models only got there via an entry in `MODEL_SEEDS`, and the coverage summary reports "82 from field metadata alone, 23 needing a seed entry" rather than one number. The list holds two kinds of knowledge and nothing else: `force`, which names optional fields a `clean()` requires ("Either device or module must be set" -- 14 models, including dcim.interface), and `values`, which supplies the three IPAM addresses that have to fall inside a real prefix in the right namespace. A model is not added to make a number look better.
+
+**A product defect, found as a byproduct.** POST to `vpn.vpnprofilephase1policyassignment` or `vpn.vpnprofilephase2policyassignment` returns HTTP 500 -- "got unexpected keyword arguments: `_custom_field_data`". Both models are plain `BaseModel` and support no custom fields; both serializers are `NautobotModelSerializer`, which puts `custom_fields` in validated_data with a default and passes it to the model constructor. The payload never mentions custom fields, so this is unconditional: those two endpoints cannot be written to at all. Correctness, not performance, and out of scope for this branch -- recorded here because nothing else on the branch would have found it.
+
+**Correction, from finding 40: dcim.cable at 44.9 is wrong by roughly 5x.** The generated payload leaves termination_a_type and termination_b_type null, because both are optional and this builder populates required fields only -- and a cable connected to nothing skips every termination check and cable-path walk. A cable with real terminations costs ~220 queries. This is the "minimal payloads measure the floor" caveat below landing on a top-four model, and it is the first evidence of how large that gap can be. Any model whose expensive work hangs off optional relations is understated here by an unknown factor, and the ranking should be read as a lower bound per model rather than an estimate.
+
+**What the ranking cannot see, stated in advance this time.** It is queries per object, so it is blind to a small number of expensive queries exactly as the read screen was -- finding 37 had to discover that after the fact with dcim.device. `db_ms` is recorded per measurement, so the same second ranking is available here without re-running anything. And the payloads are minimal: only required fields are populated, so every figure is the *floor* cost of a create. Tags, custom field data and relationships are omitted, and they are write work. A populated create costs more than anything reported here, never less.
+
+#### The −37% write-path win is real, diffuse, and mostly not SQL
+
+**39** · `A` · status `accepted`
+
+`perf/screen_writes.py - whole-workflow databot apply`
+
+Queue item 1, answered. Kevin measured a datacenter dataset apply at 495s against perf/verified versus 786s against stock next, on his own hardware, single runs. Reproduced here as a controlled A/B on the measurement host: same box, same dataset (datacenter/large, seed 42, 11,578 rows), arms alternated, and the two trees proved different by content hash before each run (a586fc5cf against e308df687). The win is real. It is spread across 40 models rather than concentrated in one finding, and 99.6% of the time it saves is not database execution time.
+
+| Instrument | Result |
+|---|---|
+| **wall clock** | −33.7% on a whole datacenter apply (−31.3% on the earlier pair, before the client fix in finding 40) |
+| applies | stock next 2114s / 2111s; perf/verified 1450s, plus a 1453s pilot before the protocol existed. Within-arm spread is 0.2% on both arms, two orders of magnitude below the effect. Every run created exactly 9,972 objects and ended with identical row counts. |
+| headline | −31.3% wall clock (1450s against 2112.5s median), −13.2% queries (756,365 against 871,171, counted server-side by pg_stat_statements), −8.0% server execution time (33,733ms against 36,648ms). |
+| where the time goes | of the 662 seconds saved, server-side execution accounts for 2.9 -- 0.44%. The branch's write-path wins are Python, not SQL, which is exactly what findings 13, 4 and 31 are: not rebuilding an API serializer per changed object, not re-resolving natural keys, and a tag cache that was never firing. Query count is a poor proxy for the value of this work. |
+| diffuse | the write screen run against both arms on the same dataset -- 260 measurements present on both sides, identical coverage -- gives −12.9% queries, −23.9% wall, −12.3% db time, with **zero measurements worse on perf** and 153 of 260 improved. Largest: dcim.interfacevdcassignment −47.5%, ipam.ipaddresstointerface −29.3%, the device-component family (powerport, poweroutlet, consoleport, consoleserverport) −36.6% each, dcim.interface −24.1%. 40 models contribute; the top three are 75% of the query saving. |
+| after the client fix | re-run against a rebuilt databot whose write timeout is 120s rather than 30s, so neither arm hits the cable fallback (0 in both logs, against 16 in every arm before): stock next 1967s / 850,278 queries / 34,445ms, perf/verified 1304s / 723,075 queries / 31,100ms. **−33.7% wall, −15.0% queries, −9.7% server execution.** This is the figure to quote -- same box, same dataset, same client, neither arm distorted.
+
+**Not the same measurement as Kevin's −37%, and an earlier version of this finding said it was.** His run uses a different datacenter dataset on different hardware, so the two cannot be divided into a hardware ratio and neither can be used to corroborate the other's magnitude. They are two independent results pointing the same direction. His own reproducibility is good -- 487.69s against the 495s he first measured, 1.5% apart -- but that is a statement about his box, not about this one. |
+| retracted | an earlier version of this finding carried an "adjusted −40.5%", built by subtracting 16 x 30s of supposedly-discarded work from both arms. It was wrong twice over. The timed-out batches were not discarded -- the server committed them and the client confirmed rather than re-created them (see finding 40) -- so there was nothing to subtract, and the measured cost of the client fix is 146s on the perf arm (1450 -> 1304), not 480s. The arithmetic looked clean, which is exactly why it got published. Superseded by the measured pair above. |
+
+**Controls.** Arms alternated (pilot A, B, A, B) and the tree proved different before each run by hashing nautobot/**/*.py, not by trusting the checkout -- the rule that exists because a git stash A/B once silently measured identical code six times. Only nautobot/ is swapped, since perf/ and development/docker-compose.perf.yml do not exist on next; all 37 differing files are modifications, no adds or deletes, so a path-scoped checkout is an exact swap both ways. The checkout is unstaged immediately, because a staged reversion left lying around is how five fixes were undone once. Each arm starts from a byte-identical empty migrated database cloned from a template, the container is restarted (uwsgi has no autoreloader, so without it the next request runs the previous arm's code), and the run waits for loadavg to fall below 0.7 before starting -- finding 35, where three uwsgi workers importing Nautobot on two pinned cores biased a whole arm bimodally.
+
+**Tests.** n/a; measurement only, no product code
+
+The queue proposed answering this by reverting finding 13 alone and re-timing. That would have given one number and a yes/no. Running the write screen against both arms instead gives the per-model breakdown above for the same machine time, and the answer it produces is not the one the yes/no would have suggested: no single finding accounts for the win, so there is no finding-13-shaped thing for the write matrix to go hunting.
+
+**The most useful number here is the one that took the longest to see.** 662 seconds saved and 2.9 of them are database execution. Every instrument on this branch until now has gated on query count, and query count would have rated this work at −13% when it is worth −31%. The read side does not behave this way -- there, db time and query count track each other closely (finding 38). The write path is where they come apart, and any future write experiment should report both or it will undervalue exactly the kind of fix this branch is best at.
+
+**The inference this finding originally carried was wrong, and the way it was wrong is the lesson.** The first pair of applies both hit a client-side timeout on 16 cable batches. I modelled that as 480 seconds of work thrown away on each arm and subtracted it, producing a tidy "adjusted −40.5%". Two things were wrong: the work was not thrown away (the server committed and the client confirmed), and the real cost was 146s rather than 480s. The measured post-fix pair is −33.7%. An adjustment computed from a counted constant still rests on a story about what the constant means, and that story was never checked. Where a re-run is affordable, re-run rather than adjust.
+
+#### A cable create costs 220 queries, and what that broke downstream
+
+**40** · `A` · status `accepted`
+
+`perf/probe_cable_bulk.py - perf/capture_proxy.py`
+
+Creating one cable with real terminations costs ~220 queries and 0.34 seconds, linear from 25 to 96 cables per request with no batching advantage in queries at all. That is five times what the write screen reports for dcim.cable, because the screen's generated payload leaves both terminations null and a cable connected to nothing skips every termination check and cable-path walk. The cost is also why every datacenter apply logged 16 failed bulk creates: 100 cables takes 35.6s over HTTP against databot's 30s client timeout.
+
+| Instrument | Result |
+|---|---|
+| **wall clock** | not applicable — a cost measurement and a client-side defect, no product change |
+| per cable | 100 real cables in one array POST: 22,003 queries, 37.1s in-process. The curve is flat per object -- 25 cables 4,750q/8.5s, 50 cables 9,474q/17.0s, 96 cables 18,169q/31.1s and 31.7s -- so 0.34s and ~190-220 queries per cable regardless of batch size. Batching cables saves round trips, not database work. |
+| screen understates it | screen_writes.py reports dcim.cable at 44.9 marginal queries per object. That payload has termination_a_type and termination_b_type null, because both are optional and the builder populates required fields only. The real figure is roughly 5x, and dcim.cable is a top-four model in the datacenter apply, so its share is understated everywhere finding 38 quotes it. |
+| the timeout | databot's httpx client defaulted to timeout=30.0 (discovery/fetch.py:80). At 0.356s per cable over HTTP the break-even batch is 84 cables and databot batches at 100, so the failure was deterministic rather than intermittent: exactly 16 fallbacks in all three arm logs, 1,648 cables being 16 full batches plus a 48-cable remainder that fits. |
+| what it actually cost | 146 seconds, measured -- 1450s before the client fix against 1304s after, on the same tree and dataset. **Not the ~480s an earlier version of this finding claimed.** The timed-out batches were not wasted: the server finished its ~35s and committed, and databot -- which write-aheads every row to the state sidecar before POSTing -- then found all 100 present and confirmed them instead of re-creating them. That is the "skipped 1,600 (resumed)" in every pre-fix arm log, and 1,600 is exactly 16 batches x 100. The cost is the difference between giving up at 30s and the confirmation round-trips, not the work itself. |
+| not a nautobot fault | a capture proxy between databot and Nautobot recorded **zero 5xx from Nautobot** across a whole cable phase, and logged BrokenPipeError writing back to databot. Reproduced exactly with curl --max-time 30 on the same payload: exit 28 at 30.0019s, and the server logs the identical hr_write(): Broken pipe. Nautobot completes the request and commits it; the client has stopped listening by then, so only the response write fails. |
+
+**Controls.** Every probe POST runs in a rolled-back transaction and the database is reset from the template afterwards. The 25/50/96 curve was taken in one process without resets between sizes, since nothing is committed. Payloads are rebuilt from cables that already exist, so terminations are real occupied-checked pairs rather than generated ones, and the source cables are deleted inside the same transaction so the terminations are free.
+
+**Tests.** n/a; probes only, no product code
+
+Three wrong turns, and each was wrong in a way worth writing down.
+
+**The first reproduction succeeded and proved nothing.** A 100-cable array POST built by the payload generator returned 201 in 7.8s, in-process and over HTTP. It was measuring a cable with no terminations. The tell was in the response -- termination_a_type: null -- and it was visible the whole time.
+
+**The second reproduction also succeeded, and the timing is what redirected it.** Real terminations gave 201 in 35.6s over HTTP. A request that takes 35s and succeeds, against a production failure that gave up at what the uwsgi log called 8.5s, looked like two different events. It was the same event: uwsgi's msecs figure is not measured from request start, and keying on it cost an hour. The client-side number -- curl exit 28 at exactly 30.0019s against a 30.0s default -- is what settled it, and it was available from the start.
+
+**Reading the server's logs could not have worked.** Django logs "Internal Server Error" for these and Nautobot's exception middleware renders the traceback into a 246-byte body, so neither the container log nor databot's warning ever says what broke. The capture proxy exists because the only copy of the evidence was in flight between two processes.
+
+**A fourth wrong turn, caught by Kevin rather than by me.** I read the clean final row counts -- exactly 1,648 cables, no duplicates -- as evidence that the timed-out transactions rolled back. They are equally consistent with commit-then-confirm, which is what the "skipped 1,600 (resumed)" line said all along and what actually happened. Having decided on rollback, I then costed the timeouts as 480s of discarded work and published an adjusted figure built on it. The row count was real evidence for a claim it did not distinguish between.
+
+**Consequences.** databot now defaults to a 120s write timeout with a --write-timeout flag. 120 rather than 60 because 60s only covers a machine 1.7x slower than this one and a CI runner on shared vCPUs is easily that; the safe batch is roughly timeout x 0.8 / 0.36s / slowdown. (An earlier version justified the margin by calling this host "~2x slower than the one Kevin measured on". That ratio came from dividing two applies of *different datasets* and was never a measurement -- withdrawn, and the sizing argument stands without it.) The timeout value stops mattering if the client halves the batch and retries on timeout instead of dropping straight to per-row -- recorded, not queued.
+
+**For Nautobot, the standing number is 220 queries per cable.** That is not a client problem and no fix on this branch touches it. It is the most expensive per-object create measured anywhere on the write surface, and it is now the strongest candidate at the top of the write ranking.
+
+
 ### Baseline — read path
 
 Ten most expensive read scenarios of 38, on the large baseline (pristine tree, 24,091 objects).
@@ -1250,7 +1242,7 @@ queries.
 
 ### Cumulative effect
 
-Read path, all 29 accepted fixes, measured against the 24,091-object dataset on a pristine tree and reflecting the tree as it stands. Only the 9 scenarios whose count changed are listed; the other 29 are unchanged, which is itself the point -- the list views were already efficient.
+Read path, all 21 accepted fixes, measured against the 24,091-object dataset on a pristine tree and reflecting the tree as it stands. Only the 9 scenarios whose count changed are listed; the other 29 are unchanged, which is itself the point -- the list views were already efficient.
 
 | Scenario | Queries | Duplicates |
 |---|---|---|
@@ -1520,9 +1512,9 @@ current head of it:
   in absolute terms and far more precise. Relative comparisons hold; absolute ones do not. The
   same applies across datasets: figures taken against `enterprise-campus` and against
   `datacenter` are not interchangeable.
-- **Twenty-nine accepted changes, many of which introduce request-scoped state.** No single one
-  is unjustified, and each is measured. The aggregate is still a lot of new caching for a
-  reviewer to absorb at once, and it deserves to be read as a set.
+- **Twenty-one accepted changes to Nautobot, many of which introduce request-scoped state.** No
+  single one is unjustified, and each is measured. The aggregate is still a lot of new caching
+  for a reviewer to absorb at once, and it deserves to be read as a set.
 - **Improvements are not additive.** Several changes reduce natural-key work by different means,
   so their individual gains overlap rather than sum. Only the cumulative row is a sum.
 - **The write screen measures a floor, not a cost.** `perf/screen_writes.py` populates required
