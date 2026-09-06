@@ -31,36 +31,28 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PERF = ROOT / "perf"
 
-# Grouped by what it would cost to adopt, most-adoptable first. Deliberately not
-# "shipped / not shipped", which is a distinction about us rather than about the
-# finding.
+# Grouped by what was decided, because that is the first thing a reader needs:
+# which of these are we doing. Adoption cost has not gone away -- it is on every
+# entry as a tier and, where one exists, a caveat -- but it is a property of a
+# finding rather than a way to file it.
 GROUPS = [
-    ("free", "Free wins", "No migration, no user-visible change, nothing to weigh. Adoptable as-is."),
     (
-        "caveat",
-        "Wins with a user-visible caveat",
-        "Each one works and is measured. Whether the caveat is acceptable is a product "
-        "decision rather than a measurement one, so it is quoted as a release note would "
-        "have to write it.",
+        "accepted",
+        "Accepted",
+        "Measured, kept, and applied to the tree. Each entry states what it changed, what "
+        "that was worth, and any caveat a release note would have to carry.",
     ),
     (
-        "operational",
-        "Wins with an operational cost",
-        "These need a migration. The cost of running it is stated, because it lands on "
-        "operators rather than on the release.",
-    ),
-    (
-        "proposed",
-        "Proposed, not yet measured",
-        "Targets with a mechanism and an expected effect, but no measurement behind them "
-        "yet. Listed so they are not rediscovered, and so the expectation is on record to "
-        "be falsified.",
+        "parked",
+        "Parked",
+        "Measured and not rejected -- the win is real and the reason for waiting is stated. "
+        "These are decisions someone can revisit, not conclusions.",
     ),
     (
         "rejected",
-        "Measured, and not worth it",
+        "Rejected",
         "Plausible optimizations that measurement or blast-radius analysis killed. These are "
-        "results, not omissions: they say what a tempting option actually costs.",
+        "results rather than omissions: they say what a tempting option actually costs.",
     ),
 ]
 
@@ -83,22 +75,20 @@ def anchor(text):
 
 
 def group_of(f):
-    """Classify by adoption cost.
+    """Classify by what was decided.
 
-    Order matters. A finding that was measured and not taken belongs with the
-    rejections whatever tier it would otherwise carry, and a proposal is not a
-    win -- grouping proposals under "free wins" claimed results that do not
-    exist yet.
+    Three buckets, and every finding lands in exactly one. `not-taken` and
+    `priced` join `rejected`: from a reader's point of view they are all "we
+    looked and we are not doing it", and the distinction between them lives in
+    each finding's own `reason`. `proposed` joins `parked` for the same reason --
+    it is something still open rather than something closed.
     """
-    if f["status"] in ("rejected", "not-taken"):
-        return "rejected"
-    if f["status"] == "proposed":
-        return "proposed"
-    if f.get("migration", "-") != "-":
-        return "operational"
-    if f.get("caveat"):
-        return "caveat"
-    return "free"
+    status = f["status"]
+    if status == "accepted":
+        return "accepted"
+    if status in ("parked", "proposed"):
+        return "parked"
+    return "rejected"
 
 
 def load_findings():
@@ -307,12 +297,13 @@ def render_cumulative(findings):
         f"| **All {len(c)} scenarios** | **{bt:,} → {ct:,} ({(ct - bt) / bt * 100:+.1f}%)** | **{bdt:,} → {cdt:,}** |"
     )
 
+    # No heading of its own: the template supplies "### Cumulative effect" and an
+    # extra "##" here nested a section under its own subsection.
     return (
-        f"## Current state — all {accepted} accepted fixes\n\n"
-        "Measured against the 24,091-object dataset on a pristine tree, and reflecting the "
-        f"tree as it stands. Only the {len(rows) - 1} scenarios whose count changed are "
-        f"listed; the other {unchanged} are unchanged, which is itself the point -- the "
-        "list views were already efficient.\n\n"
+        f"Read path, all {accepted} accepted fixes, measured against the 24,091-object dataset "
+        "on a pristine tree and reflecting the tree as it stands. Only the "
+        f"{len(rows) - 1} scenarios whose count changed are listed; the other {unchanged} are "
+        "unchanged, which is itself the point -- the list views were already efficient.\n\n"
         "| Scenario | Queries | Duplicates |\n|---|---|---|\n" + "\n".join(rows)
     )
 
@@ -338,36 +329,54 @@ def render_bench():
 
 
 def render_findings(findings):
-    out = [
-        "## Findings",
-        "",
-        "Every experiment, in order. The tier columns are a price tag rather than a "
-        "filter -- nothing here is disqualified for being expensive, it is labelled so "
-        "the price is visible. `perf/README.md` defines the taxonomy.",
-        "",
-        "| # | Change | Tier | Wall clock | Queries | Cache reads | Status |",
-        "|---:|---|---|---|---|---|---|",
-    ]
-    for f in findings:
-        link = f"[{f['title']}](#{anchor(f['title'])})"
-        out.append(
-            f"| {f['seq']:02d} | {link} | {tiers(f)} | {f['wall_clock']} "
-            f"| {instrument(f, QUERY_KEYS)} | {instrument(f, CACHE_KEYS)} "
-            f"| {f['status']} |"
-        )
-    out.append("")
+    """The section the report leads with: what was found, and what was decided.
+
+    Headings nest one level deeper than they used to -- `## Optimizations
+    identified` / `### Accepted` / `#### <title>` -- so the three decisions read
+    as divisions of one section rather than as three unrelated chapters. The
+    index-table anchors are unaffected: GitHub derives them from the heading
+    text, not its level.
+    """
+    counts = {key: sum(1 for f in findings if group_of(f) == key) for key, _, _ in GROUPS}
+    tally = " · ".join(f"**{counts[key]}** {title.lower()}" for key, title, _ in GROUPS if counts[key])
 
     legend = ", ".join(f"`{k}` {v}" for k, v in TIER_HELP.items())
-    out.append(f"Tiers: {legend}.")
-    out.append("")
+    out = [
+        "## Optimizations identified",
+        "",
+        f"{len(findings)} experiments: {tally}. Every one is listed, including the ones that "
+        "did not work -- a rejected optimization is a measurement of what an option costs, and "
+        "deleting it would invite the next person to try it again.",
+        "",
+        "Each decision is a self-contained section: a summary table, then one entry per "
+        "experiment. There is deliberately no combined index -- a reviewer looking at what to "
+        "adopt should not have to filter a list of things nobody is proposing.",
+        "",
+        f"Tiers are a price tag rather than a filter. Nothing here is disqualified for being "
+        f"expensive; it is labelled so the price is visible: {legend}. `perf/README.md` defines "
+        "the taxonomy.",
+        "",
+    ]
 
     for key, title, blurb in GROUPS:
         members = [f for f in findings if group_of(f) == key]
         if not members:
             continue
-        out += [f"## {title}", "", blurb, ""]
+        out += [f"### {title} ({len(members)})", "", blurb, ""]
+        # One summary table per decision, so each section can be read on its own.
+        out += [
+            "| # | Change | Tier | Wall clock | Queries | Cache reads |",
+            "|---:|---|---|---|---|---|",
+        ]
         for f in members:
-            out.append(f"### {f['title']}")
+            link = f"[{f['title']}](#{anchor(f['title'])})"
+            out.append(
+                f"| {f['seq']:02d} | {link} | {tiers(f)} | {f['wall_clock']} "
+                f"| {instrument(f, QUERY_KEYS)} | {instrument(f, CACHE_KEYS)} |"
+            )
+        out.append("")
+        for f in members:
+            out.append(f"#### {f['title']}")
             out.append("")
             meta = [f"**{f['seq']:02d}**", tiers(f), f"status `{f['status']}`"]
             if f.get("commit"):
@@ -393,7 +402,8 @@ def render_findings(findings):
             if f.get("caveat"):
                 out += [f"> **Caveat.** {f['caveat']}", ""]
             if f.get("reason"):
-                out += [f"**Why not.** {f['reason']}", ""]
+                label = "Why it is parked" if key == "parked" else "Why not"
+                out += [f"**{label}.** {f['reason']}", ""]
             if f.get("tests"):
                 out += [f"**Tests.** {f['tests']}", ""]
             if f.get("note"):
