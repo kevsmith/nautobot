@@ -3,12 +3,12 @@
 As of 2026-09-06. Ordered, with the reasoning that produced the order — so the
 sequence can be argued with rather than just followed.
 
-**Branch state.** `perf/experiments` at `3e920c4c4` plus this commit.
+**Branch state.** `perf/experiments` at `00d47185c` plus this commit.
 `perf/verified` at `e29a09f28`, app-code tree byte-identical to
 `perf/experiments` (`git rev-parse perf/verified:nautobot` matches). Full suite
 green on the current tree: 17,504 tests, `OK (skipped=663, expected failures=1)`,
-zero failures, zero errors. 26 accepted findings, of which 6 (seq 28, 32, 33, 35,
-37, 38) are instruments or measurement results rather than product changes.
+zero failures, zero errors. 28 accepted findings, of which 8 (seq 28, 32, 33, 35,
+37, 38, 39, 40) are instruments or measurement results rather than product changes.
 
 ---
 
@@ -73,43 +73,45 @@ written to at all. Out of scope here; worth reporting upstream.
 
 ---
 
-## 1. Attribute the −37% on the write path
+## Done: the −37% is real, and it is diffuse (findings 39, 40)
 
-Kevin measured a large datacenter dataset apply at **495s against
-`perf/verified` versus 786s against stock `next`** — his own hardware, his own
-dataset, timed to completion on both sides.
+Reproduced as a controlled A/B on the measurement host — same box, same dataset
+(datacenter/large), arms alternated, trees proved different by content hash
+before each run. **−31.3% wall clock** (1450s against 2112.5s median), −13.2%
+queries, −8.0% server execution time. Within-arm spread 0.2% on both sides.
 
-**Why it matters more than its size.** It is the only evidence this branch has
-that the write path carries real wins, and no instrument here would have
-predicted it. Tier 1W is eleven hand-picked ORM operations over four models.
+**Of the 662 seconds saved, 2.9 are database execution — 0.44%.** The write-path
+win is Python, not SQL, which is what findings 13, 4 and 31 actually are. Every
+instrument on this branch gates on query count, and query count rates this work
+at −13% when it is worth −31%.
 
-**The hypothesis, which is his and is well supported.** Three accepted findings
-measured wins specifically on bulk create, all on the change-record
-serialization path:
+**The queue's proposed method would have given the wrong shape.** It said to
+revert finding 13 alone and re-time. Running the write screen against both arms
+costs the same machine time and gives the per-model breakdown: 153 of 260
+measurements improved, **zero worse**, across 40 models, top three 75% of the
+saving. There is no finding-13-shaped thing to hunt for — nothing dominates.
 
-| finding | change | measured |
-|---|---|---|
-| 13 | reuse one API serializer per model when change-logging a transaction | −28% bulk create |
-| 4 | memoize natural-key lookups for the duration of one serialization | −13% bulk create (within variance) |
-| 31 | fix the tag cache in `serialize_object` | −6.9% loop / −5.6% deferred |
+**Caveat carried forward.** Both applies waste an identical ~480s on the databot
+cable timeout (finding 40). Removing that counted constant gives −40.5%. Kevin's
+−37% falls between raw and adjusted, which fits — his box is ~2× this one, so a
+100-cable batch never tripped his timeout. databot now defaults to a 120s write
+timeout with `--write-timeout`; re-running the A/B against the rebuilt databot
+would replace the inference with a measurement.
 
-**The test.** Revert finding 13 alone on `perf/verified`, re-time the apply. If
-it returns toward 786s the win is concentrated and item 2 should hunt for
-finding-13-shaped work at the top of the write ranking. If it barely moves, the
-win is diffuse across the natural-key work and item 2 is a breadth exercise.
-**That answer decides how to read the ranking the write screen just produced,
-which is why it still comes first.**
+---
 
-**Caveat to fix while here.** Both figures are single runs. Re-time at least
-once more per side.
-
-## 2. Investigate the top of the write ranking
+## 1. Investigate the top of the write ranking
 
 The screen produced a ranked list and stopped there, which is what a screen is
 for. This is the work it points at.
 
-**Start with `ipam.ipaddresstointerface` (65.6 marginal q/obj) and `dcim.cable`
-(44.9).** Both have a single SQL shape repeated far out of proportion to the
+**Start with `dcim.cable`, now measured at ~220 queries per object** — finding
+40 established that the screen's 44.9 is a payload artifact (generated cables
+have null terminations and skip every path walk). It is the most expensive
+per-object create anywhere on the write surface, 1,648 rows in the datacenter
+dataset, and 0.34 seconds each.
+
+**Then `ipam.ipaddresstointerface` (65.6 marginal q/obj).** Both have a single SQL shape repeated far out of proportion to the
 work — cable repeats one `SELECT` on `dcim_cabletocabletermination` **280 times
 per ten cables**, which is the same table finding 36 just prefetched on the read
 side. That is a strong hint the write path has an analogue of the read fix, and
@@ -129,7 +131,7 @@ cluster, moduletype, cloudnetwork, virtualserver, savedview. Seeding a handful o
 rows converts them from "not measured" to measured without touching the payload
 builder. The other 28 are model validation and are not worth chasing.
 
-## 3. Affordance-adoption screen
+## 2. Affordance-adoption screen
 
 **Kevin's reframing, and it is better than the one it replaced.** I had called
 `Cable._get_termination_attr` a case of code diverging from its docstring. It
@@ -155,12 +157,12 @@ says it exists "to extend `select_related` so that rendering
 `termination.parent` ... stays query-free per row" — an affordance with a stated
 purpose and an unaudited adoption list.
 
-**Ordered after item 2 only because writes are the unexplored axis, and item 2
+**Ordered after item 1 only because writes are the unexplored axis, and item 1
 now has a ranked list pointing at specific endpoints where this has none.** On
 expected value per hour this may still beat it, and it is cheaper. Reasonable to
 swap.
 
-## 4. Finding 35 audit — undecided, needs a call
+## 3. Finding 35 audit — undecided, needs a call
 
 Finding 35 established that a container restart biases the in-process
 measurement that follows it: bimodal ~99ms or ~165ms, set at process start and
@@ -182,7 +184,7 @@ may move.
 currently noted in finding 35 and nowhere else.
 
 
-## 5. Read-side leftovers, now explicitly ranked below the write path
+## 4. Read-side leftovers, now explicitly ranked below the write path
 
 Kept as one item rather than four, because finding 37 established that none of
 it competes with items 1–3. Ordered within itself by what it would teach.
@@ -225,8 +227,10 @@ attack the v1/v2 double-serialization in `to_objectchange()` — every change
 record is serialized twice, and the v1 copy is only ever read as a fallback that
 never fires for new records. Measured at −200 queries per 100 writes, −14.2% on
 bulk create. Both are Tier C: two public API payloads change and 13 tests break,
-so landing either needs a deprecation cycle. Kevin's −37% is the first evidence
-that conversation is worth having.
+so landing either needs a deprecation cycle. Finding 39 turned the −37% from one
+person's single-run observation into a controlled result, which is the evidence
+that makes that conversation worth having — and it also shows why: the write
+path's cost is Python, and double serialization is Python.
 
 **Do not carry these on `perf/verified`.** Its job is a clean read on the
 cumulative effect, and a changed API payload could break the databot apply that

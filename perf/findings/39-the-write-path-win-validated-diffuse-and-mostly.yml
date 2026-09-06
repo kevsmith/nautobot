@@ -1,0 +1,74 @@
+---
+seq: 39
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: The −37% write-path win is real, diffuse, and mostly not SQL
+site: perf/screen_writes.py - whole-workflow databot apply
+summary: 'Queue item 1, answered. Kevin measured a datacenter dataset apply at 495s against
+  perf/verified versus 786s against stock next, on his own hardware, single runs. Reproduced
+  here as a controlled A/B on the measurement host: same box, same dataset (datacenter/large,
+  seed 42, 11,578 rows), arms alternated, and the two trees proved different by content hash
+  before each run (a586fc5cf against e308df687). The win is real. It is spread across 40
+  models rather than concentrated in one finding, and 99.6% of the time it saves is not
+  database execution time.'
+result:
+  applies: 'stock next 2114s / 2111s; perf/verified 1450s, plus a 1453s pilot before the
+    protocol existed. Within-arm spread is 0.2% on both arms, two orders of magnitude below
+    the effect. Every run created exactly 9,972 objects and ended with identical row counts.'
+  headline: '−31.3% wall clock (1450s against 2112.5s median), −13.2% queries (756,365 against
+    871,171, counted server-side by pg_stat_statements), −8.0% server execution time (33,733ms
+    against 36,648ms).'
+  where_the_time_goes: 'of the 662 seconds saved, server-side execution accounts for 2.9 --
+    0.44%. The branch''s write-path wins are Python, not SQL, which is exactly what findings 13,
+    4 and 31 are: not rebuilding an API serializer per changed object, not re-resolving natural
+    keys, and a tag cache that was never firing. Query count is a poor proxy for the value of
+    this work.'
+  diffuse: 'the write screen run against both arms on the same dataset -- 260 measurements
+    present on both sides, identical coverage -- gives −12.9% queries, −23.9% wall, −12.3% db
+    time, with **zero measurements worse on perf** and 153 of 260 improved. Largest:
+    dcim.interfacevdcassignment −47.5%, ipam.ipaddresstointerface −29.3%, the device-component
+    family (powerport, poweroutlet, consoleport, consoleserverport) −36.6% each, dcim.interface
+    −24.1%. 40 models contribute; the top three are 75% of the query saving.'
+  adjusted: 'both arms waste an identical ~480s on the databot cable timeout in finding 40 --
+    16 batches, 30s each, counted in all three arm logs. Removing that constant gives 970s
+    against 1631s, or −40.5%. Kevin''s −37% falls between the raw and adjusted figures, which
+    fits: his box is roughly twice this one, so a 100-cable batch would take ~18s there and
+    never trip the timeout, making his the undiluted measurement.'
+wall_clock: −31.3% on a whole datacenter apply (−40.5% adjusted for the timeout constant in finding 40)
+controls: 'Arms alternated (pilot A, B, A, B) and the tree proved different before each run by
+  hashing nautobot/**/*.py, not by trusting the checkout -- the rule that exists because a git
+  stash A/B once silently measured identical code six times. Only nautobot/ is swapped, since
+  perf/ and development/docker-compose.perf.yml do not exist on next; all 37 differing files are
+  modifications, no adds or deletes, so a path-scoped checkout is an exact swap both ways. The
+  checkout is unstaged immediately, because a staged reversion left lying around is how five
+  fixes were undone once. Each arm starts from a byte-identical empty migrated database cloned
+  from a template, the container is restarted (uwsgi has no autoreloader, so without it the next
+  request runs the previous arm''s code), and the run waits for loadavg to fall below 0.7 before
+  starting -- finding 35, where three uwsgi workers importing Nautobot on two pinned cores biased
+  a whole arm bimodally.'
+tests: n/a; measurement only, no product code
+caveat: null
+note: 'The queue proposed answering this by reverting finding 13 alone and re-timing. That would
+  have given one number and a yes/no. Running the write screen against both arms instead gives
+  the per-model breakdown above for the same machine time, and the answer it produces is not the
+  one the yes/no would have suggested: no single finding accounts for the win, so there is no
+  finding-13-shaped thing for the write matrix to go hunting.
+
+
+  **The most useful number here is the one that took the longest to see.** 662 seconds saved and
+  2.9 of them are database execution. Every instrument on this branch until now has gated on
+  query count, and query count would have rated this work at −13% when it is worth −31%. The
+  read side does not behave this way -- there, db time and query count track each other closely
+  (finding 38). The write path is where they come apart, and any future write experiment should
+  report both or it will undervalue exactly the kind of fix this branch is best at.
+
+
+  **What is still not measured.** Both applies here carry the finding 40 timeout waste, so the
+  raw −31.3% is diluted by a constant that has nothing to do with Nautobot. The adjusted −40.5%
+  is arithmetic on a counted constant (16 fallbacks x 30s), not a measured quantity. databot now
+  defaults to a 120s write timeout, so re-running the A/B against a rebuilt databot would replace
+  the inference with a measurement. Worth doing; nothing else on the branch depends on it.'
