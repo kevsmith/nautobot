@@ -3,12 +3,12 @@
 As of 2026-09-06. Ordered, with the reasoning that produced the order — so the
 sequence can be argued with rather than just followed.
 
-**Branch state.** `perf/experiments` at `4a925fb43` plus this commit.
+**Branch state.** `perf/experiments` at `3e920c4c4` plus this commit.
 `perf/verified` at `e29a09f28`, app-code tree byte-identical to
 `perf/experiments` (`git rev-parse perf/verified:nautobot` matches). Full suite
 green on the current tree: 17,504 tests, `OK (skipped=663, expected failures=1)`,
-zero failures, zero errors. 25 accepted findings, of which 5 (seq 28, 32, 33, 35,
-37) are instruments or measurement results rather than product changes.
+zero failures, zero errors. 26 accepted findings, of which 6 (seq 28, 32, 33, 35,
+37, 38) are instruments or measurement results rather than product changes.
 
 ---
 
@@ -27,6 +27,49 @@ read side is collected as item 5.
 
 Two things the run found that the ranking method cannot see are in that item as
 well, and they are worth more than the residual list.
+
+## Done: the write screening matrix is built (finding 38)
+
+`perf/screen_writes.py` + `perf/payloads.py`. 152 of 166 API list endpoints
+accept POST; 105 measured across `create.x1`, `create.x10` and `update.x1`, 257
+measurements in 211s. All three requirements below were met, and the third one
+turned out to matter for a reason nobody predicted.
+
+**Schema-valid payloads per model — built, from `serializer.fields` rather than
+from databot.** That is the same source DRF's OPTIONS metadata is built from,
+read directly so the field *objects* are available: a related field's `queryset`
+and the model field's `limit_choices_to` are what make it possible to pick a
+value that validates. Three non-obvious facts were the difference between 70%
+coverage and 40%, and they are in finding 38 and the README.
+
+**Coverage accounting — built, and it reports its own exceptions.** 152 attempted
+/ 130 built / 105 accepted / 105 measured, of which **82 from field metadata
+alone and 23 needing a hand-maintained seed entry**. Both halves print every run,
+so "we measured 105 models" can never mean "we measured 82 and hand-fed 23".
+
+**The warmup convention — needed, for a different reason than finding 33 gave.**
+Finding 33's warmup is about PostgreSQL's shared buffers after a clone. This
+screen does not clone; it rolls back. It needed a warmup anyway, because **a
+rolled-back transaction restores the database and not the process**: the
+natural-key and tag caches are cold on the first pass only and survive the
+rollback. 47 of 252 measurements had unstable query counts without it, and 1 of
+257 with it.
+
+**What it found, which is what makes item 1 more interesting rather than less.**
+The median marginal cost of creating one more object is **12 queries**; the
+median read costs **0.28 queries per returned object**. The cheapest create on
+the whole surface (3.0) is more expensive per object than 47 of the 49 read
+endpoints that return a full page. Top of the ranking: `ipam.ipaddresstointerface`
+65.6 q/obj, `dcim.interfaceredundancygroupassociation` 46.2, `dcim.cable` 44.9
+(one SELECT repeated 280 times per 10 cables), `dcim.device` 40.0,
+`ipam.prefix` 30.0, `dcim.interface` 23.8.
+
+**Byproduct, and it is a correctness bug not a performance one.** POST to
+`vpn.vpnprofilephase1policyassignment` or `...phase2...` returns HTTP 500
+unconditionally — both models are plain `BaseModel` with no custom-field support
+and both serializers are `NautobotModelSerializer`, which passes
+`_custom_field_data` to the model constructor. Those two endpoints cannot be
+written to at all. Out of scope here; worth reporting upstream.
 
 ---
 
@@ -51,43 +94,40 @@ serialization path:
 | 31 | fix the tag cache in `serialize_object` | −6.9% loop / −5.6% deferred |
 
 **The test.** Revert finding 13 alone on `perf/verified`, re-time the apply. If
-it returns toward 786s the win is concentrated and the write matrix should hunt
-for finding-13-shaped work. If it barely moves, the win is diffuse across the
-natural-key work and the matrix is a breadth exercise. **That answer changes
-what item 2 is for, which is why it comes first.**
+it returns toward 786s the win is concentrated and item 2 should hunt for
+finding-13-shaped work at the top of the write ranking. If it barely moves, the
+win is diffuse across the natural-key work and item 2 is a breadth exercise.
+**That answer decides how to read the ranking the write screen just produced,
+which is why it still comes first.**
 
 **Caveat to fix while here.** Both figures are single runs. Re-time at least
 once more per side.
 
-## 2. Build the write screening matrix
+## 2. Investigate the top of the write ranking
 
-**The blocker is gone.** Finding 33 made a database reset 1.3s (template clone,
-`perf/reset_db.sh`), so the matrix can afford a reset per operation rather than
-batching around one. Finding 29's "~70 seconds per arm" objection was priced
-against the 49s slow path and is corrected in the record.
+The screen produced a ranked list and stopped there, which is what a screen is
+for. This is the work it points at.
 
-**What is actually left to build:**
+**Start with `ipam.ipaddresstointerface` (65.6 marginal q/obj) and `dcim.cable`
+(44.9).** Both have a single SQL shape repeated far out of proportion to the
+work — cable repeats one `SELECT` on `dcim_cabletocabletermination` **280 times
+per ten cables**, which is the same table finding 36 just prefetched on the read
+side. That is a strong hint the write path has an analogue of the read fix, and
+it is the cheapest thing on this list to test.
 
-- **Schema-valid payloads per model.** databot generates these from the OpenAPI
-  schema and OPTIONS metadata. This is the hard part and the whole remaining
-  risk.
-- **Coverage accounting, non-negotiable.** A model whose generated payload
-  fails validation drops out silently and reads as *not a problem* rather than
-  *not measured*. The output must carry attempted / valid-payload / measured
-  counts per model. Without it this repeats the failure that left "330
-  endpoints, roughly 5%" in `perf/README.md` for weeks — a coverage number
-  nobody had checked.
-- **The warmup convention from finding 33.** Discard exactly one request after
-  every reset. Position 1 after a clone ran 981.8ms median against a 706.4ms
-  warm control and varied 719.6 / 981.8 / 1138.9ms across rounds; position 2 is
-  indistinguishable from warm. Skipping this gives every model a variable
-  few-hundred-millisecond bias, in the instrument built to make those numbers
-  trustworthy.
+**`dcim.device` at 40.0 is the one with the most leverage** — it is the model a
+real bulk import creates most of, and it carries 309ms of database time on ten
+objects. `dcim.interface` at 23.8 is second on the same reasoning.
 
-**Isolation model** (finding 29, unchanged): the in-process ORM half can keep
-rolled-back transactions — commit vs rollback is −0.9%, inside variance. Only
-the REST half needs restore-based orchestration, because REST writes cross the
-process boundary.
+**Rank on database time as well as on queries.** Exactly the gap finding 37 found
+in the read screen, present here for the same reason and fixable the same way:
+`db_ms` is already recorded per measurement, so it is a sort key, not a re-run.
+
+**Raise coverage where it is cheap.** 19 of the 47 unmeasured models are
+unmeasurable only because this dataset has no rows of a required related model —
+cluster, moduletype, cloudnetwork, virtualserver, savedview. Seeding a handful of
+rows converts them from "not measured" to measured without touching the payload
+builder. The other 28 are model validation and are not worth chasing.
 
 ## 3. Affordance-adoption screen
 
@@ -115,8 +155,9 @@ says it exists "to extend `select_related` so that rendering
 `termination.parent` ... stays query-free per row" — an affordance with a stated
 purpose and an unaudited adoption list.
 
-**Ordered after item 2 only because writes are the unexplored axis.** On
-expected value per hour this may well beat it, and it is cheaper. Reasonable to
+**Ordered after item 2 only because writes are the unexplored axis, and item 2
+now has a ranked list pointing at specific endpoints where this has none.** On
+expected value per hour this may still beat it, and it is cheaper. Reasonable to
 swap.
 
 ## 4. Finding 35 audit — undecided, needs a call
