@@ -224,28 +224,32 @@ it competes with items 1–3. Ordered within itself by what it would teach.
 
 ## Standing context
 
-**Finding 22 was re-measured on 2026-09-06 and declined.** Its recorded −14.2%
-had halved to −7.7% on the ORM path, because finding 31's tag-cache fix removed
-one of the two queries per record it was going to save. On the REST path,
-weighted by the datacenter dataset, it is −2.1% queries and −0.26% wall — nothing,
-against two public API payload changes and a deprecation cycle. See the
-`remeasured_2026_09_06` block on finding 22. **The reusable lesson: re-measure a
-parked prize before implementing it, not just before proposing it.** This branch
-competed with itself and the ledger did not notice.
+**Finding 22 was re-measured on 2026-09-06, declined on speed, then taken on
+storage.** Its recorded −14.2% had halved to −7.7% on the ORM path, because
+finding 31's tag-cache fix removed one of the two queries per record it was going
+to save; on the REST path, weighted by the datacenter dataset, it is −2.1%
+queries and −0.26% wall. So the write-path case for it is gone. It landed anyway,
+because `object_data` is **11.8% of the changelog table** and that table grows
+without bound where `CHANGELOG_RETENTION` is long — a storage argument this branch
+never thought to measure, and Kevin's call on customer evidence rather than mine.
 
-**Parked, and the largest untapped write-path item.** Findings 16 and 22 both
-attack the v1/v2 double-serialization in `to_objectchange()` — every change
-record is serialized twice, and the v1 copy is only ever read as a fallback that
-never fires for new records. Measured at −200 queries per 100 writes, −14.2% on
-bulk create. Both are Tier C: two public API payloads change and 13 tests break,
-so landing either needs a deprecation cycle. Finding 39 turned the −37% from one
-person's single-run observation into a controlled result, which is the evidence
-that makes that conversation worth having — and it also shows why: the write
-path's cost is Python, and double serialization is Python.
+**Two reusable lessons.** Re-measure a parked prize before implementing it, not
+just before proposing it — this branch competed with itself and the ledger did not
+notice. And a change declined on the axis you are chartered to measure is not the
+same as a change that should not be made; say which axis the "no" is about.
 
-**Do not carry these on `perf/verified`.** Its job is a clean read on the
-cumulative effect, and a changed API payload could break the databot apply that
-is producing the write-path evidence.
+**Still parked: finding 16**, and it should stay that way. It attacks the same
+v1/v2 double-serialization as finding 22 but by writing `{}` into the NOT NULL
+column, which makes the field present and lying — an empty dict is not "no data".
+Finding 22 took the same win by the honest route and has landed, so 16 has nothing
+left to offer.
+
+**On carrying finding 22 on `perf/verified`.** That branch's job is a clean read
+on the cumulative effect, and the reason for keeping 22 off it was that a changed
+API payload could break the databot apply producing the write-path evidence. That
+evidence is now collected (findings 39, 40), and the change was measured on both
+arms with `screen_writes.py` before landing — 102 models measured either side,
+identical coverage — so the objection has expired.
 
 **The largest measured gap is still environment, not code** — see the section of
 that name in `perf/report.md`. It should be re-measured now that both sides can
