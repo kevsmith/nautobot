@@ -1,0 +1,80 @@
+---
+seq: 40
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: A cable create costs 220 queries, and what that broke downstream
+site: perf/probe_cable_bulk.py - perf/capture_proxy.py
+summary: 'Creating one cable with real terminations costs ~220 queries and 0.34 seconds,
+  linear from 25 to 96 cables per request with no batching advantage in queries at all. That
+  is five times what the write screen reports for dcim.cable, because the screen''s generated
+  payload leaves both terminations null and a cable connected to nothing skips every
+  termination check and cable-path walk. The cost is also why every datacenter apply logged
+  16 failed bulk creates: 100 cables takes 35.6s over HTTP against databot''s 30s client
+  timeout.'
+result:
+  per_cable: '100 real cables in one array POST: 22,003 queries, 37.1s in-process. The curve is
+    flat per object -- 25 cables 4,750q/8.5s, 50 cables 9,474q/17.0s, 96 cables 18,169q/31.1s
+    and 31.7s -- so 0.34s and ~190-220 queries per cable regardless of batch size. Batching
+    cables saves round trips, not database work.'
+  screen_understates_it: 'screen_writes.py reports dcim.cable at 44.9 marginal queries per
+    object. That payload has termination_a_type and termination_b_type null, because both are
+    optional and the builder populates required fields only. The real figure is roughly 5x, and
+    dcim.cable is a top-four model in the datacenter apply, so its share is understated
+    everywhere finding 38 quotes it.'
+  the_timeout: 'databot''s httpx client defaulted to timeout=30.0 (discovery/fetch.py:80). At
+    0.356s per cable over HTTP the break-even batch is 84 cables and databot batches at 100, so
+    the failure was deterministic rather than intermittent: exactly 16 fallbacks in all three
+    arm logs, 1,648 cables being 16 full batches plus a 48-cable remainder that fits. ~480s per
+    apply spent waiting and then discarding the work.'
+  not_a_nautobot_fault: 'a capture proxy between databot and Nautobot recorded **zero 5xx from
+    Nautobot** across a whole cable phase, and logged BrokenPipeError writing back to databot.
+    Reproduced exactly with curl --max-time 30 on the same payload: exit 28 at 30.0019s, and the
+    server logs the identical hr_write(): Broken pipe. Nautobot completes the request; the client
+    stops listening, the response write fails, the transaction rolls back, and databot retries
+    per row.'
+wall_clock: not applicable — a cost measurement and a client-side defect, no product change
+controls: 'Every probe POST runs in a rolled-back transaction and the database is reset from the
+  template afterwards. The 25/50/96 curve was taken in one process without resets between sizes,
+  since nothing is committed. Payloads are rebuilt from cables that already exist, so terminations
+  are real occupied-checked pairs rather than generated ones, and the source cables are deleted
+  inside the same transaction so the terminations are free.'
+tests: n/a; probes only, no product code
+caveat: null
+note: 'Three wrong turns, and each was wrong in a way worth writing down.
+
+
+  **The first reproduction succeeded and proved nothing.** A 100-cable array POST built by the
+  payload generator returned 201 in 7.8s, in-process and over HTTP. It was measuring a cable with
+  no terminations. The tell was in the response -- termination_a_type: null -- and it was visible
+  the whole time.
+
+
+  **The second reproduction also succeeded, and the timing is what redirected it.** Real
+  terminations gave 201 in 35.6s over HTTP. A request that takes 35s and succeeds, against a
+  production failure that gave up at what the uwsgi log called 8.5s, looked like two different
+  events. It was the same event: uwsgi''s msecs figure is not measured from request start, and
+  keying on it cost an hour. The client-side number -- curl exit 28 at exactly 30.0019s against
+  a 30.0s default -- is what settled it, and it was available from the start.
+
+
+  **Reading the server''s logs could not have worked.** Django logs "Internal Server Error" for
+  these and Nautobot''s exception middleware renders the traceback into a 246-byte body, so
+  neither the container log nor databot''s warning ever says what broke. The capture proxy exists
+  because the only copy of the evidence was in flight between two processes.
+
+
+  **Consequences.** databot now defaults to a 120s write timeout with a --write-timeout flag.
+  120 rather than 60 because this host is already ~2x slower than the one Kevin measured on, and
+  60s only covers a machine 1.7x slower than this one; the safe batch is roughly timeout x 0.8 /
+  0.36s / slowdown. The timeout value stops mattering if the client halves the batch and retries
+  on timeout instead of dropping straight to per-row -- recorded, not queued.
+
+
+  **For Nautobot, the standing number is 220 queries per cable.** That is not a client problem
+  and no fix on this branch touches it. It is the most expensive per-object create measured
+  anywhere on the write surface, and it is now the strongest candidate at the top of the write
+  ranking.'

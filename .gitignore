@@ -52,3 +52,5 @@ perf/dataset-large.yaml
 perf/dataset-large.state.jsonl
 perf/results/urls-large.json
 perf/.provenance.json
+perf/large-dc-dataset.yml
+perf/large-dc-dataset.state.jsonl
