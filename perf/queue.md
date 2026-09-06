@@ -224,6 +224,15 @@ it competes with items 1–3. Ordered within itself by what it would teach.
 
 ## Standing context
 
+**Finding 22 was re-measured on 2026-09-06 and declined.** Its recorded −14.2%
+had halved to −7.7% on the ORM path, because finding 31's tag-cache fix removed
+one of the two queries per record it was going to save. On the REST path,
+weighted by the datacenter dataset, it is −2.1% queries and −0.26% wall — nothing,
+against two public API payload changes and a deprecation cycle. See the
+`remeasured_2026_09_06` block on finding 22. **The reusable lesson: re-measure a
+parked prize before implementing it, not just before proposing it.** This branch
+competed with itself and the ledger did not notice.
+
 **Parked, and the largest untapped write-path item.** Findings 16 and 22 both
 attack the v1/v2 double-serialization in `to_objectchange()` — every change
 record is serialized twice, and the v1 copy is only ever read as a fallback that

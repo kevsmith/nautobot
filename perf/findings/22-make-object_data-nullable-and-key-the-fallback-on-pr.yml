@@ -20,7 +20,35 @@ result:
     575.8ms of 4525.7ms deferred (12.7%), 4.5ms per call against v2's 14.4ms -- 3.2x, where
     finding 16 measured 12x. The ratio narrowed because finding 13 made v2 cheaper, so v1
     is a larger share of what remains than when it was first measured
-wall_clock: not measured — parked before a wall-clock A/B was run
+wall_clock: −0.26% on a datacenter apply, weighted — indistinguishable from zero on the REST path
+remeasured_2026_09_06: 'Re-measured before deciding whether to implement, on the branch tip
+  (083ca44ab) against the same change re-applied (perf/exp-finding-22, a clean re-application of
+  9b8831711). **The recorded prize has halved, and the branch''s own finding 31 is what took it.**
+
+
+  Tier 1W bulk.create.interfaces.x100.loop: control 1304 -> 1204, **−7.7%**. This finding recorded
+  1404 -> 1204, −14.2%. The destination is identical; the baseline fell by 100 queries because
+  finding 31 made the tag cache in serialize_object actually fire, and that was exactly one of the
+  two queries per record this change was removing.
+
+
+  The mechanism, which the original measurement never spelled out: serialize_object issues one
+  query per taggable object (obj.tags.only("name")) plus one per m2m field. Finding 31 collected
+  the tag half. What is left is m2m serialization, which is 12 queries per object for something
+  like extras.configcontext and **zero** for a model with no m2m fields.
+
+
+  On the REST path it is much smaller still. The write screen over 252 measurements present on
+  both arms: −3.8% queries, −4.4% database time, and 162 of 252 measurements unchanged. Median
+  saving on create.x10 across 97 models: **0 queries**. Weighted by the datacenter dataset the
+  predicted effect on a whole apply is **−2.1% queries and −0.26% wall clock**. The models it
+  helps most are rare -- extras.configcontext has one row in that dataset -- and the models that
+  dominate an apply (interface, cable, device, ipaddress) save 0 to 1 query each.
+
+
+  Per-model wall clock on the screen is noisy at this magnitude: dcim.cable read +8.9% and
+  ipam.ipaddress +6.1% with identical query counts on both arms, so those are variance rather
+  than regressions. Zero measurements were worse by query count.'
 wall_clock_detail: not measured -- proposed, not yet run
 caveat: object_data is null for every record written after this lands. Both the REST serializer
   and the auto-generated GraphQL type use fields="__all__", so it surfaces as null in /api/extras/object-changes/
@@ -29,7 +57,29 @@ caveat: object_data is null for every record written after this lands. Both the 
   rather than comparing two v1 snapshots, because a v1 snapshot and a v2 snapshot are different
   shapes and cannot be diffed. With CHANGELOG_RETENTION at its 90-day default those records
   are long gone; where retention is 0 they persist.
-note: 'What the nullable route buys over 43db1b018, which wrote {} into the NOT NULL column,
+note: '**Verdict as of 2026-09-06: do not implement.** The cost is unchanged -- two public API
+  payload changes, a get_snapshots semantics change for pre-1.2 records, 13 test updates and a
+  deprecation cycle -- and the benefit on the path that matters is now −2.1% of queries and a wall
+  clock indistinguishable from zero. Finding 39 established that the write path should be judged
+  on wall clock rather than query count; judged that way this change has nothing left to offer the
+  REST API.
+
+
+  Where it would still be worth something is pure-ORM bulk writes -- a Job, a data migration,
+  nbshell -- where Tier 1W puts it at −7.7% queries and roughly −9% wall on a 100-object create
+  loop. That is a real case and a narrow one, and it does not justify changing a public payload.
+
+
+  **The general lesson is worth more than the verdict.** A recorded prize is a measurement of a
+  tree that no longer exists. This one was taken before finding 31 landed, and finding 31 removed
+  half of it -- so the branch competed with itself and the ledger did not notice. Anything parked
+  for later should be re-measured before it is implemented, not just before it is proposed. The
+  commit that first measured this said as much ("a recorded prize can go stale") and re-measured
+  finding 16''s number before proceeding; the same discipline applied one step later would have
+  caught this without a re-implementation.
+
+
+  What the nullable route buys over 43db1b018, which wrote {} into the NOT NULL column,
   is not the 2 queries -- both save those. It is that {} makes the field present and lying:
   an empty dict is not "no data", so updating the 13 tests to match it would have encoded
   a falsehood. null is the correct JSON for "not recorded", so those same test updates become
