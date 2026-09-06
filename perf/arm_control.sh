@@ -27,8 +27,6 @@ hash)
 
 arm)
   ref="${2:?usage: armctl.sh arm <ref>}"
-  # Every differing file between the two arms is a modification -- no adds, no
-  # deletes -- so a path-scoped checkout is an exact swap in both directions.
   git checkout "$ref" -- nautobot/ || { echo "checkout failed" >&2; exit 1; }
   # Unstage immediately. A staged reversion left lying around is how five fixes
   # got undone once on this branch; nothing commits on this host, and this makes
