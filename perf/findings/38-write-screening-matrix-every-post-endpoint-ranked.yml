@@ -34,9 +34,18 @@ result:
     bulk create was accepted: ipam.ipaddresstointerface 65.6 (x1 77, x10 667, 627 duplicates,
     372ms db); dcim.interfaceredundancygroupassociation 46.2 (55 / 471, 430 dup);
     dcim.cable 44.9 (54 / 458, 381 dup, one SELECT on dcim_cabletocabletermination repeated
-    280 times); dcim.device 40.0 (49 / 409, 364 dup, 309ms db); ipam.prefixlocationassignment
-    36.4; ipam.vlanlocationassignment 30.1; ipam.prefix 30.0; extras.configcontext 30.0.
+    280 times) -- **but see the correction below, the real figure is ~220**; dcim.device 40.0
+    (49 / 409, 364 dup, 309ms db); ipam.prefixlocationassignment 36.4;
+    ipam.vlanlocationassignment 30.1; ipam.prefix 30.0; extras.configcontext 30.0.
     dcim.interface is 23.8. Distribution: min 3.0, median 12.0, max 65.6.'
+  dataset_independence: 'the screen was re-run against a completely different dataset
+    (datacenter/large, 11,578 rows, against enterprise-campus/large''s 24,098) and the per-object
+    costs are identical to the decimal for 9 of 11 top models -- cable 44.9, interface 23.8,
+    device 40.0, prefix 30.0 all unchanged. Only ipam.ipaddresstointerface moved, 65.6 to 69.0.
+    So the ranking transfers between datasets and only the weights change. Coverage rose from 85%
+    to 92% of datacenter rows because that dataset has rearports and virtual device contexts,
+    which the campus one has none of: dcim.interfacevdcassignment became measurable at 91.2
+    marginal queries per object, the most expensive create on the surface.'
   fixed_cost: 'create.x1 is 9 queries at its cheapest, 20 at the median and 86 at its worst,
     so a single-object POST is mostly fixed overhead and the x1 figure alone would rank the
     surface almost uselessly. update.x1 is 15 / 24 / 77 over 51 models, worst dcim.cable.'
@@ -135,6 +144,16 @@ note: 'Three things this cost more than expected, each of which is now a propert
   so this is unconditional: those two endpoints cannot be written to at all. Correctness, not
   performance, and out of scope for this branch -- recorded here because nothing else on the
   branch would have found it.
+
+
+  **Correction, from finding 40: dcim.cable at 44.9 is wrong by roughly 5x.** The generated
+  payload leaves termination_a_type and termination_b_type null, because both are optional and
+  this builder populates required fields only -- and a cable connected to nothing skips every
+  termination check and cable-path walk. A cable with real terminations costs ~220 queries.
+  This is the "minimal payloads measure the floor" caveat below landing on a top-four model, and
+  it is the first evidence of how large that gap can be. Any model whose expensive work hangs off
+  optional relations is understated here by an unknown factor, and the ranking should be read as
+  a lower bound per model rather than an estimate.
 
 
   **What the ranking cannot see, stated in advance this time.** It is queries per object, so it
