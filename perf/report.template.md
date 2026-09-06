@@ -7,55 +7,74 @@ out of it. Every number here was produced by a reproducible harness against a fi
 
 <!--GEN:provenance-->
 
-## What was measured
+<!--GEN:findings-->
 
-An isolated stack on port 8180 with `DEBUG=False`, no Apps enabled, and pinned CPU and
-memory, so results reflect production-shaped code paths and every finding is attributable to
-core. The primary dataset is databot's `enterprise-campus / large / seed 42`: **24,091
-objects** — 2,902 devices, 8,925 interfaces, 3,278 cables, 110 locations, 595 prefixes, 2,937
-IP addresses and 36,552 existing ObjectChange records, applied over REST in 1,013 seconds.
+## Test environment and methodology
 
-Round one ran against `enterprise-campus / small / seed 42` (2,113 objects). Those numbers
-are kept below as history, clearly separated, because they are the reference the first four
-commits were measured against. Everything presented as current is large-dataset.
+### The stack
 
-Four instruments, because the failure modes differ:
+An isolated stack on port 8180 with `DEBUG=False`, no Apps enabled (`PLUGINS = []`), and pinned
+CPU and memory, so results reflect production-shaped code paths and every finding is
+attributable to core. Served under uwsgi rather than `runserver`, because the dev image's CMD
+is one threaded, GIL-bound process and production is not.
 
-- **Query profiling** drives each scenario through the Django test client and counts SQL.
-  Deterministic — it repeated **2,235 → 2,235** across runs, and reproduced exactly on a
-  second machine with a different CPU architecture, which is what makes it usable as a
-  regression gate.
-- **Write-path profiling** runs each operation inside a real change context and a rolled-back
-  transaction, so change logging and signals behave as they would for a live write.
-- **Redis backend read counting**, because one endpoint was making more cache round-trips
-  than database queries and no SQL-shaped tool could see it.
-- **Wall-clock timing**, in-process and over HTTP, because some costs remove no queries at
-  all.
+Those settings are not incidental. They live in `development/docker-compose.perf.yml` and
+`development/nautobot_config.py`, and a checkout without them measures a different program:
+`DEBUG=True` alone loads the debug toolbar, enables SQL logging, and has Django append every
+query to `connection.queries` for the life of the process.
 
-The workload is hand-maintained rather than auto-generated. Endpoints are named by Django
-view name and resolved through `reverse()`, and objects are selected by strategy at run time
-— never a baked-in primary key — so the workload survives a reseed and fails loudly if a view
-is renamed.
+### The dataset
 
-> ### The database is not the bottleneck
->
-> Across a full baseline run, PostgreSQL executed **325,152 queries in 4.6 seconds total** — a
-> mean of 0.014 ms each. The most-repeated query in the worst endpoint averaged **0.004 ms**.
-> Every second of user-visible latency measured here is Python-side: ORM round-trip overhead,
-> serialization, and repeated work per object.
->
-> This has a practical consequence. Adding indexes would buy almost nothing at this scale, and
-> the entire set of findings below is addressable in application code.
->
-> The completed work confirms it from the other direction. Across the 38 scenarios, query
-> count fell **57%** while total measured database time was **unchanged — 601 ms before,
-> 602 ms after**. The 1,278 queries removed were worth almost nothing in SQL; what they cost
-> was Python-side per-query overhead and the serialization work wrapped around them.
+databot's `enterprise-campus / large / seed 42`: **24,091 objects** — 2,902 devices, 8,925
+interfaces, 3,278 cables, 110 locations, 595 prefixes, 2,937 IP addresses and 36,552 existing
+ObjectChange records, applied over REST in 1,013 seconds.
 
-## Baseline — read path
+A `datacenter / large / seed 42` dataset (11,578 rows) is also kept, and is what the
+whole-workflow write measurements use. Its shape is very different — patch-panel heavy, with
+864 front ports and 864 rear ports that the campus dataset has none of — which is why per-model
+costs transfer between the two but weightings do not.
 
-Ten most expensive read scenarios of 38, on the large baseline (pristine tree, 24,091
-objects). Duplicates are repeated query shapes after literal normalization.
+Round one ran against `enterprise-campus / small / seed 42` (2,113 objects). Those figures are
+history and are marked as such wherever they appear.
+
+### The workload
+
+Hand-maintained rather than auto-generated. Endpoints are named by Django view name and
+resolved through `reverse()`, and objects are selected by strategy at run time — never a
+baked-in primary key — so the workload survives a reseed and fails loudly if a view is renamed.
+
+The inner loop is 38 read scenarios and 13 write operations. Two screening instruments cover
+the surface the inner loop does not: `perf/screen_reads.py` enumerates every REST list endpoint
+from the URL resolver and measures 518 read scenarios, and `perf/screen_writes.py` does the
+same for the 152 endpoints that accept POST. Both normalize to cost per object, and both are
+ranking instruments rather than gates.
+
+### Four instruments, because each fix class is invisible to the others
+
+| Instrument | Catches | Blind to |
+|---|---|---|
+| SQL query count | N+1s, missing prefetch | Python and Redis work |
+| Redis backend reads | config and cache round-trip storms | SQL and pure CPU |
+| Wall clock, in-process | everything Django does | the HTTP layer — reproduces to a median 1.7% spread across rounds, 7.4% worst case |
+| Wall clock, HTTP at concurrency 1 | everything, including HTTP and WSGI | nothing — median 1.6% spread, 5.7% worst case, and agrees with in-process to 1.08× |
+
+Query profiling drives each scenario through the Django test client and counts SQL. It is
+deterministic — the same counts reproduced exactly on a second machine with a different CPU
+architecture and host OS — which is what makes it usable as a regression gate. Write-path
+profiling runs each operation inside a real change context and a rolled-back transaction, so
+change logging and signals behave as they would for a live write.
+
+The Redis counter exists because one endpoint was making **1,938 Redis round-trips against 977
+SQL queries** — twice as many cache calls as database calls, entirely invisible to SQL-shaped
+tooling.
+
+Three alternating rounds is the minimum for any wall-clock claim. Two rounds were not enough
+twice over: a 2 ms "regression" and an 11% "regression" both dissolved on a third round.
+
+### Baseline — read path
+
+Ten most expensive read scenarios of 38, on the large baseline (pristine tree, 24,091 objects).
+Duplicates are repeated query shapes after literal normalization.
 
 | Scenario | Queries | Duplicate |
 |---|---:|---:|
@@ -78,7 +97,7 @@ The last row is the outlier worth noting: `api.interface.list` issues only 23 qu
 the third-slowest endpoint on the branch — no N+1 at all, purely CPU-bound work per row. It is
 the row that shaped the whole exercise, because no query-count instrument can see it.
 
-## Baseline — write path
+### Baseline — write path
 
 Each operation measured inside a change context and rolled back, on the large baseline.
 "Changes" counts ObjectChange records created.
@@ -104,13 +123,9 @@ isolates what change logging costs: the same 100 rows take 1,604 queries with lo
 1,507 with logging deferred, and **3** with signals and validation bypassed entirely.
 
 Deferral is the mechanism Nautobot's own bulk-edit views use, and it removes only 6% of
-queries. Independently, `INSERT INTO extras_objectchange` is the single largest consumer of
-database time across a whole run at **479 ms over 4,879 calls** — 10.4% of all time spent in
-PostgreSQL. (That `pg_stat_statements` capture is from the round-one run and has not been
-retaken at large scale; it is the one figure on this page whose dataset does not match the
-tables around it.)
+queries.
 
-<!--GEN:findings-->
+### Cumulative effect
 
 <!--GEN:cumulative-->
 
@@ -130,60 +145,54 @@ through Constance.
 
 **Config reads are the signal on this path, not queries.** The natural-key lookup cache now
 spans a whole transaction rather than one object, so a 100-object batch performs 2 Constance
-reads instead of 3,600. Query count moves 9–13% because most of the remaining SQL is the
-ObjectChange insert and the per-record `get_snapshots()` SELECT, neither of which any accepted
-change touches.
+reads instead of 3,600.
 
 Part of the write-path gain is inherited from the read path: change logging serializes through
 the same API serializer, so prefetching nested natural keys cut `bulk.create.loop` from 1,604
 to 1,404 queries before any write-specific change was made.
 
-> **Correction.** The commit message for `5f351dc5b` credits serializer reuse with
-> `bulk.update` 1,542 → 1,472 and `bulk.delete` 2,089 → 2,019. Those two query improvements
-> were already present in the preceding run — the commit compared against a stale *before*
-> file rather than the immediately preceding one. Its config-read result (98 → 2, 101 → 3)
-> stands and is the change's real effect. No cumulative figure above is affected.
+**At whole-workflow scale the write path is worth −33.7%.** A complete `datacenter / large`
+apply, measured on one box with the arms alternated and both trees proved different by content
+hash before each run: stock `next` 1,967 s against this branch's 1,304 s, with queries
+850,278 → 723,075 and server-side execution time 34,445 ms → 31,100 ms. Of the 663 seconds
+saved, **3.3 are database execution** — the write-path win is Python, not SQL. See findings 39
+and 40.
 
-### Round-two reference, under uwsgi at concurrency 1
+### Wall-clock references
 
-The absolute figures every future experiment is compared against, on the dedicated
-measurement host. No before/after column: this is a reference, and it replaces a Tier 2
-instrument that was measuring something else (see below).
+The absolute figures every future experiment is compared against, on the dedicated measurement
+host. No before/after column: these are references, and they replace a Tier 2 instrument that
+was measuring something else (see the notes below).
+
+**Under uwsgi at concurrency 1.**
 
 <!--GEN:tier2-->
 
-### In-process reference, same host
-
-Absolute figures with no HTTP layer, for the endpoints where serialization dominates.
+**In-process, same host**, with no HTTP layer, for the endpoints where serialization dominates.
 
 <!--GEN:bench-->
 
-## What measurement overturned
+## Notes
 
-**Query counts are page-bounded, not dataset-bounded.** At 11× the data the counts barely
-moved, which retroactively validates the small dataset as an instrument for finding N+1s.
+### The database is not the bottleneck
 
-**Removing queries did not reduce database time.** 1,278 fewer queries, and total DB time
-across the run went 601 ms to 602 ms. On this dataset the ORM round trip and the Python
-wrapped around it are the cost; the SQL itself was never in the way.
+Across a full baseline run, PostgreSQL executed **325,152 queries in 4.6 seconds total** — a
+mean of 0.014 ms each. The most-repeated query in the worst endpoint averaged **0.004 ms**.
+Every second of user-visible latency measured here is Python-side: ORM round-trip overhead,
+serialization, and repeated work per object.
 
-**Three of my own conclusions were wrong and got corrected by measurement.** I claimed the
-hierarchy endpoints scale with dataset size; page-size sensitivity testing showed that is true
-for exactly one of five, and the UI list endpoints are entirely fixed cost. I put `nav_menu` at
-40ms per request from a cProfile figure; true wall clock was ~16ms. And `ui.prefix.detail`
-appeared to regress 11% until three repeat runs produced 329 / 447 / 347ms on identical code.
+This has a practical consequence. Adding indexes would buy almost nothing at this scale, and
+the entire set of findings above is addressable in application code.
 
-**Five hypotheses formed by reading code were wrong**, each corrected by instrumentation:
-`Breadcrumbs.as_pair` was blamed for calling `.ancestors()` four times and calls it once;
-`prepare_cloned_fields` was thought to run twice and runs once; an attribution of
-`api.interface.depth1` named three small items and missed the item worth 70%; and the
-ObjectChange double-serialization was assumed expensive on the redundant half, which is 12×
-cheaper than the half that stays. Measure first; read code to explain a measurement, never to
-predict one.
+The completed work confirms it from the other direction, twice. On the read path, query count
+fell **57%** across the 38 scenarios while total measured database time was **unchanged — 601
+ms before, 602 ms after**. On the write path, a whole-workflow apply saved 663 seconds of which
+3.3 were database execution. The queries removed were worth almost nothing in SQL; what they
+cost was Python-side per-query overhead and the serialization work wrapped around them.
 
 ### Query count ranked the fixes in the wrong order
 
-> **The single largest win removed zero queries.**
+> **The single largest read-path win removed zero queries.**
 >
 > Reusing nested serializers instead of rebuilding one per object is worth **−28.7%** on its
 > own and changes no SQL at all. Memoizing the nav menu is worth **−24%** on detail pages and
@@ -194,23 +203,45 @@ predict one.
 >
 > Query count is the cheap, deterministic signal. It is the gate, not the objective.
 
-### Four instruments, because each fix class is invisible to the others
+The write path is the same lesson at larger scale: −33.7% wall against −15.0% queries and
+−9.7% database execution. Any future write experiment should report wall clock alongside query
+count, or it will undervalue exactly the kind of fix this branch is best at.
 
-| Instrument | Catches | Blind to |
-|---|---|---|
-| SQL query count | N+1s, missing prefetch | Python and Redis work |
-| Redis backend reads | config and cache round-trip storms | SQL and pure CPU |
-| Wall clock, in-process | everything Django does | the HTTP layer — reproduces to a median 1.7% spread across rounds, 7.4% worst case |
-| Wall clock, HTTP at concurrency 1 | everything, including HTTP and WSGI | nothing — median 1.6% spread, 5.7% worst case, and agrees with in-process to 1.08× |
+### What measurement overturned
 
-The Redis counter exists because one endpoint was making **1,938 Redis round-trips against 977
-SQL queries** — twice as many cache calls as database calls, entirely invisible to SQL-shaped
-tooling.
+**Query counts are page-bounded, not dataset-bounded.** At 11× the data the counts barely
+moved, which retroactively validates the small dataset as an instrument for finding N+1s.
 
-Two rounds of alternating A/B were not enough twice over: a 2ms "regression" and an 11%
-"regression" both dissolved on a third round. Four of the fourteen commits could quote no
-wall-clock number at all, because the box was busy; their evidence is a deterministic counter
-instead.
+**Three of my own conclusions were wrong and got corrected by measurement.** I claimed the
+hierarchy endpoints scale with dataset size; page-size sensitivity testing showed that is true
+for exactly one of five, and the UI list endpoints are entirely fixed cost. I put `nav_menu` at
+40 ms per request from a cProfile figure; true wall clock was ~16 ms. And `ui.prefix.detail`
+appeared to regress 11% until three repeat runs produced 329 / 447 / 347 ms on identical code.
+
+**Five hypotheses formed by reading code were wrong**, each corrected by instrumentation:
+`Breadcrumbs.as_pair` was blamed for calling `.ancestors()` four times and calls it once;
+`prepare_cloned_fields` was thought to run twice and runs once; an attribution of
+`api.interface.depth1` named three small items and missed the item worth 70%; and the
+ObjectChange double-serialization was assumed expensive on the redundant half, which is the
+cheaper half. Measure first; read code to explain a measurement, never to predict one.
+
+**A commit message credited a change with improvements it did not make.** `5f351dc5b` credits
+serializer reuse with `bulk.update` 1,542 → 1,472 and `bulk.delete` 2,089 → 2,019. Both were
+already present in the preceding run — the commit compared against a stale *before* file rather
+than the immediately preceding one. Its config-read result (98 → 2, 101 → 3) stands and is the
+change's real effect, and no cumulative figure here is affected. Recorded because an A/B is only
+as good as the file it compares against.
+
+**A recorded prize is a measurement of a tree that no longer exists.** Finding 22 recorded
+−14.2% on bulk create and was re-measured at −7.7% when it came to be implemented, because
+finding 31 had since removed one of the two queries per record it was going to save. The branch
+competed with itself and the ledger did not notice. Re-measure anything parked before
+implementing it, not just before proposing it.
+
+**A change declined on the axis you are chartered to measure is not a change that should not be
+made.** That same finding was declined on write-path performance and landed on storage:
+`object_data` is 11.8% of the changelog table, which matters wherever `CHANGELOG_RETENTION` is
+long. The measurement was right and the recommendation was too narrow.
 
 ### The HTTP instrument was measured wrong twice before it was measured right
 
@@ -231,109 +262,79 @@ transfer should cost on top of identical Django work. Under the old configuratio
 disagreed by 4–6× and nothing could say which was right.
 
 Before that they disagreed in a way that was physically impossible, and it went unnoticed:
-`ui.device.interfaces` reported a 66ms HTTP p95 against a 607ms in-process median. An API token
-authenticates DRF only, so every UI endpoint had been answering **403** with a 299KB
-permission-denied page that renders in ~50ms. cassowary counts an answered request as a
+`ui.device.interfaces` reported a 66 ms HTTP p95 against a 607 ms in-process median. An API
+token authenticates DRF only, so every UI endpoint had been answering **403** with a 299 KB
+permission-denied page that renders in ~50 ms. cassowary counts an answered request as a
 success, and the driver recorded no status code at all, so the run reported 38 endpoints and
 zero failures while 27 of them timed an error page. Tier 2 now probes each endpoint once before
 timing it, carries the status alongside the timing, and refuses to time anything that does not
 answer 200.
 
-Nor was the server the one anybody deploys. The dev image's CMD is `nautobot-server runserver`
-— one threaded, GIL-bound process — while production runs uwsgi. Every round-one p95 described
-a server nobody ships.
+### What is still open
 
-## What is next
+The live queue is `perf/queue.md`, which carries the ordering and the reasoning behind it. The
+current head of it:
 
-### Remaining application-code targets
-
+- **`dcim.cable` is the most expensive create on the write surface**, at roughly **220 queries
+  and 0.34 seconds per cable**, linear from 25 to 96 per request. It is also the worst model on
+  the read side: `dcim.cable?depth=1` issues 159 queries for a page of 25, of which 145 are
+  repeats of a shape already seen, and 50 of those are one `SELECT` on `dcim_device` — two per
+  cable, one per termination's parent. Depth 0 is 7 queries with no duplicates, so all of it is
+  nested serialization. Known shape, known mechanism, not yet attributed to a fix.
+- **`ipam.ipaddresstointerface` at 65.6 marginal queries per created object**, the top of the
+  write ranking, on a 2,937-row table.
 - **Row-scaling N+1s that memoization cannot help.** `PowerFeed.utilization` and the prefix
-  hierarchy column both grow linearly with row count. Every fix on this branch so far removes
+  hierarchy column both grow linearly with row count. Every fix on this branch removes
   *repeated* work; these need a different shape.
-- **`get_snapshots()` is not the target it looked like.** It does issue one SELECT per
-  ObjectChange — 100 queries per 100-object operation — which made it look like the largest
-  remaining item on the write path. Timed, those calls are **3.1%** of a bulk update and 2.7%
-  of a bulk delete. Query count misranking a target again, and the reason finding 27 was
-  measured before it was built rather than after. Upstream #6303 stays open and correct about
-  the mechanism; what is now on record is the size of the prize.
-- **Residual `api.interface.depth1` cost is 292 queries**, down from 1,229. What is left is
-  GenericForeignKey destination fetches and reverse one-to-one device-bay lookups on the nested
-  Device serializer — the same mechanism as the accepted fixes, not yet applied to those paths.
-- **`api.prefix.list` spends 13.7ms planning a query that executes in 1.3ms**, re-planned every
-  request — about 21% of that endpoint's time. Explicitly not an index: an index makes planning
-  worse. The lever is prepared-statement reuse or narrowing the serializer's `select_related`
-  fan-out.
-
-### Two things worth more than the next code fix
+- **`api.prefix.list` spends 13.7 ms planning a query that executes in 1.3 ms**, re-planned
+  every request — about 21% of that endpoint's time. Explicitly not an index: an index makes
+  planning worse. The lever is prepared-statement reuse or narrowing the serializer's
+  `select_related` fan-out.
+- **An affordance-adoption screen has not been built.** Three findings on this branch exist
+  only because an affordance was added without its call sites being updated to use it. Screening
+  endpoints by cost finds symptoms; screening affordances by adoption finds causes, over a much
+  smaller search space.
 
 > **The largest measured gap is environment, not code.**
 >
 > Against `next.demo.nautobot.com` at the same API version: `/api/dcim/devices/?limit=50` takes
-> 1,051ms there versus 231ms unpatched here, and `/api/ipam/prefixes/?limit=100` — an endpoint
-> this branch barely changes, 58 → 55ms — takes 274ms, **4.7× slower**. That control isolates
-> the difference as environment. TLS handshake was ~70ms, so it is not the network.
+> 1,051 ms there versus 231 ms unpatched here, and `/api/ipam/prefixes/?limit=100` — an endpoint
+> this branch barely changes, 58 → 55 ms — takes 274 ms, **4.7× slower**. That control isolates
+> the difference as environment. TLS handshake was ~70 ms, so it is not the network.
 >
 > One caveat on the magnitude: the "here" figures are in-process medians while the demo figures
 > were taken over HTTPS against uwsgi, so the two sides used different instruments. Too large a
 > gap to be all instrument, but it should be re-measured now that both sides can be taken at
 > concurrency 1 under uwsgi.
 
-**Read coverage was 3.6%, and the screening pass is now built.** This section used to claim a
-surface of 330 API list endpoints and coverage of "roughly 5%". Both figures were wrong. The URL
-resolver reports **166 API list endpoints**, of which **6** are named in `workload.yml` — real
-coverage of **3.6%**. `api.interface.depth1`, now a 76% query reduction, was found by guessing
-that interfaces is the biggest table.
+### Caveats
 
-`perf/screen_reads.py` replaces the guessing. It enumerates every REST list endpoint from the
-resolver at run time — never from a list in a file, so it cannot rot as models come and go — and
-measures `list`, `list?depth=1`, `detail` and `detail?depth=1` for each: 518 measurements in 84
-seconds, normalized to cost per *returned object* rather than per request. It is a ranking
-instrument, not a gate; the inner loop stays at 38 scenarios. Two of its top five were worse per
-object than anything the inner loop had ever measured, and it has already produced two accepted
-fixes (findings 30 and 31). `dcim.cabletocabletermination?depth=1` at 19.5 queries per object
-over 6,556 rows is the largest target it found that nothing has yet touched.
-
-**Writes have no equivalent instrument.** Tier 1W is 11 hand-picked ORM operations across four
-models, which is a narrower sample than reads had before the screen, and every write finding on
-this branch came out of it. A write screening matrix is designed in `perf/README.md` and not yet
-built.
-
-## Caveats
-
-- **The full test suite passes against the tree as it stands.** `invoke tests --no-parallel
-  --no-keepdb --no-input` ran all **17,504 tests in 2h 18m** against `fd48eee32` with a clean
-  working tree: **OK, 663 skipped, 1 expected failure, zero failures and zero errors**. The
-  counts match the earlier run exactly, which is the check that matters — a silently shrunk
-  run reports a plausible smaller number rather than an error.
-  This supersedes the run at `2d1326e86`, which covered neither findings 30 and 31 nor 34 and
-  36. That earlier run is what closed the branch's largest open item: a whole-suite run had
-  never completed, and the one attempt died in Django's parallel runner with a pickling error
-  *and exited 0*. Serial is the fix, so a worker exception surfaces instead of being swallowed.
-  Both runs built docs rather than passing `--skip-docs-build`, which is what makes
-  `test_get_docs_url` fail across ~35 dcim model tests even on a clean tree; it does not appear
-  in either. The earlier run used `--keepdb --cache-test-fixtures`; this one used `--no-keepdb`,
-  so the stale-fixture caveat that hung over the old figure is discharged.
-- **No changelog fragments, deliberately.** Nothing here reaches a release in its current
-  shape: anything upstreamed would go through review and very likely change, so a fragment
-  written now would describe a change that no longer exists. The commit messages and the
-  findings records carry more than a fragment would, and each finding's caveat is already
-  written the way a release note would have to write it. The same applies to documenting the
-  new `nautobot.apps.tables.TemplateColumn` export and the django_tables2 upgrade note --
-  both are real requirements for landing, recorded against their findings, and written
-  against the final shape rather than this one.
-- **Absolute wall-clock figures are not comparable across the two machines used here.** Round
-  one ran on an Apple Silicon workstation; round two on an Intel i5-8259U with turbo disabled,
-  which is 4–6× slower in absolute terms and far more precise. Relative comparisons hold;
-  absolute ones do not.
-- **Fourteen accepted changes, ten of which introduce request-scoped state.** No single one is
-  unjustified, and each is measured. The aggregate is still a lot of new caching for a reviewer
-  to absorb at once, and it deserves to be read as a set rather than as fourteen unrelated
-  diffs.
-- **Improvements are not additive.** Several changes reduce natural-key work by different
-  means, so their individual gains overlap rather than sum. Only the cumulative row is a sum.
-- **Small-dataset history.** Round one measured 2,113 objects, where most list views paginate
-  at 25–50 rows and look fast regardless. Those figures are kept for provenance, not for
-  judging real-world value.
+- **Test coverage of the tree as it stands is partial, and this states which part.** A whole-suite
+  run — `invoke tests --no-parallel --no-keepdb --no-input`, all **17,504 tests in 2h 18m** —
+  passed against `fd48eee32`: OK, 663 skipped, 1 expected failure, zero failures and zero errors.
+  Findings 22 and 37–40 landed after it. Finding 22 is the only one of those that changes product
+  code, and it was covered by `nautobot.extras` in full (**4,976 tests, OK**) plus
+  `core.tests.test_utils`, `core.tests.test_graphql`, `users.tests.test_filters` and
+  `ipam.tests.migration.test_migrations`. A whole-suite run has not been repeated since.
+- **No changelog fragments, deliberately.** Nothing here reaches a release in its current shape:
+  anything upstreamed would go through review and very likely change, so a fragment written now
+  would describe a change that no longer exists. The commit messages and the findings records
+  carry more than a fragment would, and each finding's caveat is already written the way a
+  release note would have to write it.
+- **Absolute wall-clock figures are not comparable across machines.** Round one ran on an Apple
+  Silicon workstation; round two on an Intel i5-8259U with turbo disabled, which is 4–6× slower
+  in absolute terms and far more precise. Relative comparisons hold; absolute ones do not. The
+  same applies across datasets: figures taken against `enterprise-campus` and against
+  `datacenter` are not interchangeable.
+- **Twenty-nine accepted changes, many of which introduce request-scoped state.** No single one
+  is unjustified, and each is measured. The aggregate is still a lot of new caching for a
+  reviewer to absorb at once, and it deserves to be read as a set.
+- **Improvements are not additive.** Several changes reduce natural-key work by different means,
+  so their individual gains overlap rather than sum. Only the cumulative row is a sum.
+- **The write screen measures a floor, not a cost.** `perf/screen_writes.py` populates required
+  fields only, so any model whose expensive work hangs off an *optional* relation is understated
+  by an unknown factor. `dcim.cable` is the known case: reported at 44.9 marginal queries per
+  object with both terminations null, against ~220 for a cable that is actually connected.
 - **Silk middleware remains in the request chain.** It is inert without a session flag and
   constant across runs, so it does not distort relative comparisons, but it is present in every
   absolute number here.

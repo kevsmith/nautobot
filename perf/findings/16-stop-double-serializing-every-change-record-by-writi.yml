@@ -28,5 +28,16 @@ reason: 'Tier C on two public API contracts, and the premise did not survive mea
   the redundant serializer is the cheap one. serialize_object costs 0.73ms and two queries;
   serialize_object_v2 costs 8.75ms and seven queries -- twelve times more. Removing the duplication
   is worth ~12% of write-path queries, not half of them.'
-note: Kept in history with its measurements rather than deleted, because the number is the
-  deliverable. The route that gets this win without the contract change is seq 22.
+note: 'Kept in history with its measurements rather than deleted, because the number is the
+  deliverable.
+
+
+  **Superseded, and by a route that landed.** Finding 22 takes the same win by making the column
+  nullable rather than writing {} into it, and is accepted. What this version buys over that one
+  is nothing: an empty dict makes the field present and lying, where null is the correct JSON for
+  "not recorded". It stays on the record as the route that was tried first, not as a live option.
+
+
+  The ~12% figure in the reason above is stale in the direction of being smaller. Finding 22
+  re-measured the same prize on the current tree at −7.7% on the ORM path and −2.1% on the REST
+  path, because finding 31 had since removed one of the two queries per record.'
