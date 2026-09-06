@@ -77,8 +77,10 @@ written to at all. Out of scope here; worth reporting upstream.
 
 Reproduced as a controlled A/B on the measurement host — same box, same dataset
 (datacenter/large), arms alternated, trees proved different by content hash
-before each run. **−31.3% wall clock** (1450s against 2112.5s median), −13.2%
-queries, −8.0% server execution time. Within-arm spread 0.2% on both sides.
+before each run. **−33.7% wall clock** (1304s against 1967s), −15.0% queries,
+−9.7% server execution time, with neither arm hitting the client-side cable
+timeout. The earlier pair, taken before that client fix, gave −31.3% (1450s
+against 2112.5s median) with 0.2% within-arm spread.
 
 **Of the 662 seconds saved, 2.9 are database execution — 0.44%.** The write-path
 win is Python, not SQL, which is what findings 13, 4 and 31 actually are. Every
@@ -91,12 +93,12 @@ costs the same machine time and gives the per-model breakdown: 153 of 260
 measurements improved, **zero worse**, across 40 models, top three 75% of the
 saving. There is no finding-13-shaped thing to hunt for — nothing dominates.
 
-**Caveat carried forward.** Both applies waste an identical ~480s on the databot
-cable timeout (finding 40). Removing that counted constant gives −40.5%. Kevin's
-−37% falls between raw and adjusted, which fits — his box is ~2× this one, so a
-100-cable batch never tripped his timeout. databot now defaults to a 120s write
-timeout with `--write-timeout`; re-running the A/B against the rebuilt databot
-would replace the inference with a measurement.
+**A retracted figure, kept visible.** This item briefly carried an "adjusted
+−40.5%", produced by subtracting 16 × 30s of supposedly-discarded work from both
+arms. The work was not discarded — the server committed it and the client
+confirmed rather than re-created it — and the measured cost of the client fix was
+146s, not 480s. Re-running against the fixed client gave −33.7%. Where a re-run
+is affordable, re-run rather than adjust.
 
 ---
 
