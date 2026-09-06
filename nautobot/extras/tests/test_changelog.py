@@ -9,6 +9,7 @@ from django.utils.html import escape
 from rest_framework import status
 
 from nautobot.core.graphql import execute_query
+from nautobot.core.models.utils import serialize_object
 from nautobot.core.testing import APITestCase, TestCase
 from nautobot.core.testing.utils import post_data
 from nautobot.core.testing.views import ModelViewTestCase
@@ -52,6 +53,22 @@ from nautobot.ipam.models import (
     VRF,
 )
 from nautobot.virtualization.models import Cluster, ClusterType, VirtualMachine, VMInterface
+
+
+def make_legacy_change_record(object_change, instance):
+    """Turn a change record into a pre-1.2 one: a v1 snapshot and no v2.
+
+    ObjectChange no longer writes ``object_data`` (migration 0146), so a legacy
+    record can no longer be produced by taking a current one and deleting half of
+    it -- that now leaves a record with neither snapshot, which is not a state
+    Nautobot has ever written. This builds the v1 snapshot with the same
+    serializer that populated it before, so the fallback paths are exercised
+    against the real shape rather than against a stand-in.
+    """
+    object_change.object_data = serialize_object(instance)
+    object_change.object_data_v2 = None
+    object_change.validated_save()
+    return object_change
 
 
 class ChangeLogViewTest(ModelViewTestCase):
@@ -113,9 +130,11 @@ class ChangeLogViewTest(ModelViewTestCase):
         oc = get_changes_for_model(location).first()
         self.assertEqual(oc.changed_object, location)
         self.assertEqual(oc.action, ObjectChangeActionChoices.ACTION_CREATE)
-        self.assertEqual(oc.object_data["custom_fields"]["my_field"], form_data["cf_my_field"])
-        self.assertEqual(oc.object_data["custom_fields"]["my_field_select"], form_data["cf_my_field_select"])
-        self.assertEqual(oc.object_data["tags"], sorted([tag.name for tag in self.tags]))
+        self.assertEqual(oc.object_data_v2["custom_fields"]["my_field"], form_data["cf_my_field"])
+        self.assertEqual(oc.object_data_v2["custom_fields"]["my_field_select"], form_data["cf_my_field_select"])
+        self.assertEqual(
+            sorted(tag["name"] for tag in oc.object_data_v2["tags"]), sorted([tag.name for tag in self.tags])
+        )
         self.assertEqual(oc.user_id, self.user.pk)
 
     def test_update_object(self):
@@ -155,12 +174,12 @@ class ChangeLogViewTest(ModelViewTestCase):
         oc = get_changes_for_model(location).first()
         self.assertEqual(oc.changed_object, location)
         self.assertEqual(oc.action, ObjectChangeActionChoices.ACTION_UPDATE)
-        self.assertEqual(oc.object_data["custom_fields"]["my_field"], form_data["cf_my_field"])
+        self.assertEqual(oc.object_data_v2["custom_fields"]["my_field"], form_data["cf_my_field"])
         self.assertEqual(
-            oc.object_data["custom_fields"]["my_field_select"],
+            oc.object_data_v2["custom_fields"]["my_field_select"],
             form_data["cf_my_field_select"],
         )
-        self.assertEqual(oc.object_data["tags"], [self.tags[2].name])
+        self.assertEqual(sorted(tag["name"] for tag in oc.object_data_v2["tags"]), [self.tags[2].name])
         self.assertEqual(oc.user_id, self.user.pk)
 
     def test_delete_object(self):
@@ -185,9 +204,11 @@ class ChangeLogViewTest(ModelViewTestCase):
         self.assertEqual(oc.changed_object, None)
         self.assertEqual(oc.object_repr, location.name)
         self.assertEqual(oc.action, ObjectChangeActionChoices.ACTION_DELETE)
-        self.assertEqual(oc.object_data["custom_fields"]["my_field"], "ABC")
-        self.assertEqual(oc.object_data["custom_fields"]["my_field_select"], "Bar")
-        self.assertEqual(oc.object_data["tags"], sorted([tag.name for tag in self.tags]))
+        self.assertEqual(oc.object_data_v2["custom_fields"]["my_field"], "ABC")
+        self.assertEqual(oc.object_data_v2["custom_fields"]["my_field_select"], "Bar")
+        self.assertEqual(
+            sorted(tag["name"] for tag in oc.object_data_v2["tags"]), sorted([tag.name for tag in self.tags])
+        )
         self.assertEqual(oc.user_id, self.user.pk)
 
     def test_change_context(self):
@@ -219,6 +240,15 @@ class ChangeLogViewTest(ModelViewTestCase):
         self.assertEqual(oc.user_id, self.user.pk)
 
     def test_legacy_object_data(self):
+        """The changelog detail view still renders records whose only snapshot is the legacy v1 one.
+
+        ObjectChange stopped writing object_data in migration 0146, so from that point every new
+        record carries object_data_v2 and nothing else. Records written before object_data_v2
+        existed (Nautobot 1.2, migration 0022, which added the column with no backfill) carry the
+        reverse, and they are not backfillable -- v1 stores foreign keys as bare primary keys where
+        v2 needs nested natural keys. Both shapes therefore have to keep rendering, and the
+        boundary between them has to do something defensible.
+        """
         self.add_permissions("dcim.view_location", "extras.view_objectchange")
         location_type = LocationType.objects.get(name="Campus")
         with context_managers.web_request_context(self.user):
@@ -229,39 +259,76 @@ class ChangeLogViewTest(ModelViewTestCase):
                 location_type=location_type,
             )
 
-        # create objectchange without object_data_v2
+        # Two consecutive legacy records: v1 on both sides, which is what a pre-1.2 changelog
+        # looks like all the way down.
         with context_managers.web_request_context(self.user):
             location.description = "changed description1"
             location.validated_save()
-        oc_without_object_data_v2_1 = get_changes_for_model(location).first()
-        oc_without_object_data_v2_1.object_data_v2 = None
-        oc_without_object_data_v2_1.validated_save()
-        with self.subTest("previous ObjectChange has object_data_v2, current ObjectChange does not"):
-            resp = self.client.get(oc_without_object_data_v2_1.get_absolute_url())
-            self.assertContains(resp, escape('"description": "initial description"'))
-            self.assertContains(resp, escape('"description": "changed description1"'))
+        legacy_1 = make_legacy_change_record(get_changes_for_model(location).first(), location)
 
-        # create second objectchange without object_data_v2
         with context_managers.web_request_context(self.user):
             location.description = "changed description2"
             location.validated_save()
-        oc_without_object_data_v2_2 = get_changes_for_model(location).first()
-        oc_without_object_data_v2_2.object_data_v2 = None
-        oc_without_object_data_v2_2.validated_save()
-        with self.subTest("previous and current ObjectChange do not have object_data_v2"):
-            resp = self.client.get(oc_without_object_data_v2_2.get_absolute_url())
+        legacy_2 = make_legacy_change_record(get_changes_for_model(location).first(), location)
+
+        with self.subTest("both records legacy: v1 is diffed against v1"):
+            resp = self.client.get(legacy_2.get_absolute_url())
             self.assertContains(resp, escape('"description": "changed description1"'))
             self.assertContains(resp, escape('"description": "changed description2"'))
 
-        # create objectchange with object_data_v2
+        with self.subTest("legacy record with a legacy predecessor renders its own snapshot"):
+            resp = self.client.get(legacy_1.get_absolute_url())
+            self.assertContains(resp, escape('"description": "changed description1"'))
+
+        # The upgrade boundary: a current record whose predecessor is legacy. This happens exactly
+        # once per object, and the two snapshots cannot be diffed against each other.
         with context_managers.web_request_context(self.user):
             location.description = "changed description3"
             location.validated_save()
-        oc_with_object_data_v2 = get_changes_for_model(location).first()
-        with self.subTest("previous ObjectChange does not have object_data_v2, current ObjectChange does"):
-            resp = self.client.get(oc_with_object_data_v2.get_absolute_url())
-            self.assertContains(resp, escape('"description": "changed description2"'))
+        current = get_changes_for_model(location).first()
+        with self.subTest("legacy predecessor, current record: the current state renders, no diff"):
+            self.assertIsNone(current.object_data)
+            self.assertIsNotNone(current.object_data_v2)
+            resp = self.client.get(current.get_absolute_url())
             self.assertContains(resp, escape('"description": "changed description3"'))
+
+    def test_object_data_not_written_for_new_records(self):
+        """New change records carry object_data_v2 only; the legacy column is left null.
+
+        This is the observable half of migration 0146 and the reason it is a Tier C change: the
+        column is still present in the REST and GraphQL payloads and is now null rather than
+        absent. null is the correct JSON for "not recorded" -- an empty object would be a value,
+        and would say something untrue about a record that has no v1 snapshot.
+        """
+        self.add_permissions("dcim.view_location", "extras.view_objectchange")
+        location_type = LocationType.objects.get(name="Campus")
+        with context_managers.web_request_context(self.user):
+            location = Location.objects.create(
+                name="testobjectchangenulldata",
+                description="initial description",
+                status=self.location_status,
+                location_type=location_type,
+            )
+        create_change = get_changes_for_model(location).first()
+        self.assertIsNone(create_change.object_data)
+        self.assertIsNotNone(create_change.object_data_v2)
+        self.assertEqual(create_change.object_data_v2["description"], "initial description")
+
+        with context_managers.web_request_context(self.user):
+            location.description = "changed description"
+            location.validated_save()
+        update_change = get_changes_for_model(location).first()
+        self.assertIsNone(update_change.object_data)
+
+        # Two current records diff against each other through v2, which is the only path that
+        # matters for anything written from here on.
+        snapshots = update_change.get_snapshots()
+        self.assertEqual(snapshots["prechange"], create_change.object_data_v2)
+        self.assertEqual(snapshots["postchange"], update_change.object_data_v2)
+        # Asserted per key rather than on the whole dict: this test class defines custom fields,
+        # so their defaults also appear in the diff and are not what this test is about.
+        self.assertEqual(snapshots["differences"]["added"]["description"], "changed description")
+        self.assertEqual(snapshots["differences"]["removed"]["description"], "initial description")
 
     def test_objectchange_skips_add_conditional_prefetch(self):
         """
@@ -344,8 +411,10 @@ class ChangeLogAPITest(APITestCase):
         oc = get_changes_for_model(location).first()
         self.assertEqual(oc.changed_object, location)
         self.assertEqual(oc.action, ObjectChangeActionChoices.ACTION_CREATE)
-        self.assertEqual(oc.object_data["custom_fields"], data["custom_fields"])
-        self.assertEqual(oc.object_data["tags"], sorted([self.tags[0].name, self.tags[1].name]))
+        self.assertEqual(oc.object_data_v2["custom_fields"], data["custom_fields"])
+        self.assertEqual(
+            sorted(tag["name"] for tag in oc.object_data_v2["tags"]), sorted([self.tags[0].name, self.tags[1].name])
+        )
         self.assertEqual(oc.user_id, self.user.pk)
 
     @tag("example_app")
@@ -381,8 +450,8 @@ class ChangeLogAPITest(APITestCase):
         oc = get_changes_for_model(location).first()
         self.assertEqual(oc.changed_object, location)
         self.assertEqual(oc.action, ObjectChangeActionChoices.ACTION_UPDATE)
-        self.assertEqual(oc.object_data["custom_fields"], data["custom_fields"])
-        self.assertEqual(oc.object_data["tags"], [self.tags[2].name])
+        self.assertEqual(oc.object_data_v2["custom_fields"], data["custom_fields"])
+        self.assertEqual(sorted(tag["name"] for tag in oc.object_data_v2["tags"]), [self.tags[2].name])
         self.assertEqual(oc.user_id, self.user.pk)
 
     def test_partial_update_object(self):
@@ -415,10 +484,10 @@ class ChangeLogAPITest(APITestCase):
         # Get only the most recent OC
         oc = get_changes_for_model(location).first()
         self.assertEqual(oc.changed_object, location)
-        self.assertEqual(oc.object_data["description"], data["description"])
+        self.assertEqual(oc.object_data_v2["description"], data["description"])
         self.assertEqual(oc.action, ObjectChangeActionChoices.ACTION_UPDATE)
-        self.assertEqual(oc.object_data["custom_fields"], location.custom_field_data)
-        self.assertEqual(oc.object_data["tags"], [self.tags[2].name])
+        self.assertEqual(oc.object_data_v2["custom_fields"], location.custom_field_data)
+        self.assertEqual(sorted(tag["name"] for tag in oc.object_data_v2["tags"]), [self.tags[2].name])
         self.assertEqual(oc.user_id, self.user.pk)
 
     def test_delete_object(self):
@@ -443,9 +512,11 @@ class ChangeLogAPITest(APITestCase):
         self.assertEqual(oc.changed_object, None)
         self.assertEqual(oc.object_repr, location.name)
         self.assertEqual(oc.action, ObjectChangeActionChoices.ACTION_DELETE)
-        self.assertEqual(oc.object_data["custom_fields"]["my_field"], "ABC")
-        self.assertEqual(oc.object_data["custom_fields"]["my_field_select"], "Bar")
-        self.assertEqual(oc.object_data["tags"], sorted([tag.name for tag in self.tags[:2]]))
+        self.assertEqual(oc.object_data_v2["custom_fields"]["my_field"], "ABC")
+        self.assertEqual(oc.object_data_v2["custom_fields"]["my_field_select"], "Bar")
+        self.assertEqual(
+            sorted(tag["name"] for tag in oc.object_data_v2["tags"]), sorted([tag.name for tag in self.tags[:2]])
+        )
         self.assertEqual(oc.user_id, self.user.pk)
 
     @override_settings(EXEMPT_VIEW_PERMISSIONS=["*"])
@@ -623,47 +694,43 @@ class ObjectChangeModelTest(TestCase):  # TODO: change to BaseModelTestCase once
             self.assertIsNone(snapshots["differences"]["removed"])
             self.assertEqual(snapshots["differences"]["added"], initial_object_change.object_data_v2)
 
-        # first objectchange without object_data_v2
+        # A legacy record -- v1 only -- whose predecessor is a current record. This is the
+        # upgrade boundary seen from the other side, and the two shapes cannot be diffed.
         with context_managers.web_request_context(self.user):
             location.description = "changed description1"
             location.validated_save()
-        oc_without_object_data_v2_1 = get_changes_for_model(location).first()
-        oc_without_object_data_v2_1.object_data_v2 = None
-        oc_without_object_data_v2_1.validated_save()
-        with self.subTest("test get_snapshots previous ObjectChange has object_data_v2, current ObjectChange does not"):
-            snapshots = oc_without_object_data_v2_1.get_snapshots()
-            self.assertEqual(snapshots["prechange"], initial_object_change.object_data)
-            self.assertEqual(snapshots["postchange"], oc_without_object_data_v2_1.object_data)
-            self.assertEqual(snapshots["differences"]["removed"], {"description": "initial description"})
-            self.assertEqual(snapshots["differences"]["added"], {"description": "changed description1"})
+        legacy_1 = make_legacy_change_record(get_changes_for_model(location).first(), location)
+        with self.subTest("legacy record, current predecessor: no prechange, incomparable shapes"):
+            snapshots = legacy_1.get_snapshots()
+            self.assertIsNone(snapshots["prechange"])
+            self.assertEqual(snapshots["postchange"], legacy_1.object_data)
+            self.assertIsNone(snapshots["differences"]["removed"])
+            self.assertEqual(snapshots["differences"]["added"], legacy_1.object_data)
 
-        # second objectchange without object_data_v2
+        # Two consecutive legacy records: the v1-to-v1 fallback, unchanged by migration 0146 and
+        # the reason object_data has to keep being readable.
         with context_managers.web_request_context(self.user):
             location.description = "changed description2"
             location.validated_save()
-        oc_without_object_data_v2_2 = get_changes_for_model(location).first()
-        oc_without_object_data_v2_2.object_data_v2 = None
-        oc_without_object_data_v2_2.validated_save()
-        with self.subTest("test get_snapshots previous and current ObjectChange do not have object_data_v2"):
-            snapshots = oc_without_object_data_v2_2.get_snapshots()
-            self.assertEqual(snapshots["prechange"], oc_without_object_data_v2_1.object_data)
-            self.assertEqual(snapshots["postchange"], oc_without_object_data_v2_2.object_data)
+        legacy_2 = make_legacy_change_record(get_changes_for_model(location).first(), location)
+        with self.subTest("both records legacy: v1 diffed against v1"):
+            snapshots = legacy_2.get_snapshots()
+            self.assertEqual(snapshots["prechange"], legacy_1.object_data)
+            self.assertEqual(snapshots["postchange"], legacy_2.object_data)
             self.assertEqual(snapshots["differences"]["removed"], {"description": "changed description1"})
             self.assertEqual(snapshots["differences"]["added"], {"description": "changed description2"})
 
-        # objectchange with object_data_v2
+        # A current record whose predecessor is legacy: the upgrade boundary itself.
         with context_managers.web_request_context(self.user):
             location.description = "changed description3"
             location.validated_save()
         oc_with_object_data_v2 = get_changes_for_model(location).first()
-        with self.subTest(
-            "test get_snapshots previous ObjectChange does not have object_data_v2, current ObjectChange does"
-        ):
+        with self.subTest("current record, legacy predecessor: no prechange, incomparable shapes"):
             snapshots = oc_with_object_data_v2.get_snapshots()
-            self.assertEqual(snapshots["prechange"], oc_without_object_data_v2_2.object_data)
-            self.assertEqual(snapshots["postchange"], oc_with_object_data_v2.object_data)
-            self.assertEqual(snapshots["differences"]["removed"], {"description": "changed description2"})
-            self.assertEqual(snapshots["differences"]["added"], {"description": "changed description3"})
+            self.assertIsNone(snapshots["prechange"])
+            self.assertEqual(snapshots["postchange"], oc_with_object_data_v2.object_data_v2)
+            self.assertIsNone(snapshots["differences"]["removed"])
+            self.assertEqual(snapshots["differences"]["added"], oc_with_object_data_v2.object_data_v2)
 
         # objectchange action delete
         location_pk = location.pk
