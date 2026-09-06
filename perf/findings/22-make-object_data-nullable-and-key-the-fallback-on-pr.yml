@@ -1,7 +1,7 @@
 ---
 seq: 22
 commit: 9b8831711
-status: parked
+status: accepted
 behaviour: C
 migration: M0
 flags: []
@@ -20,7 +20,19 @@ result:
     575.8ms of 4525.7ms deferred (12.7%), 4.5ms per call against v2's 14.4ms -- 3.2x, where
     finding 16 measured 12x. The ratio narrowed because finding 13 made v2 cheaper, so v1
     is a larger share of what remains than when it was first measured
-wall_clock: −0.26% on a datacenter apply, weighted — indistinguishable from zero on the REST path
+wall_clock: −0.26% on a datacenter apply, weighted — taken for storage, not for speed
+storage: 'The axis the write-path measurement never looked at, and the one it is being taken on.
+  Measured on a datacenter/large changelog of 16,717 records: extras_objectchange is 63 MB total,
+  of which object_data is **7,585 kB -- 11.8%** at an average of 465 bytes per row (object_data_v2
+  averages 1,772). Dropping the v1 write removes roughly an eighth of the changelog table''s growth
+  from here on. It does not shrink existing rows: records already written keep their v1 snapshot,
+  and finding 23 established those cannot be converted to v2 at any price.
+
+
+  That 11.8% is a bigger deal than it looks for deployments running long CHANGELOG_RETENTION,
+  where extras_objectchange becomes one of the largest tables in the database. NTC has customers
+  in exactly that position. That is product knowledge rather than something this branch measured,
+  and it is the reason the change is being taken after the performance case for it collapsed.'
 remeasured_2026_09_06: 'Re-measured before deciding whether to implement, on the branch tip
   (083ca44ab) against the same change re-applied (perf/exp-finding-22, a clean re-application of
   9b8831711). **The recorded prize has halved, and the branch''s own finding 31 is what took it.**
@@ -57,17 +69,35 @@ caveat: object_data is null for every record written after this lands. Both the 
   rather than comparing two v1 snapshots, because a v1 snapshot and a v2 snapshot are different
   shapes and cannot be diffed. With CHANGELOG_RETENTION at its 90-day default those records
   are long gone; where retention is 0 they persist.
-note: '**Verdict as of 2026-09-06: do not implement.** The cost is unchanged -- two public API
-  payload changes, a get_snapshots semantics change for pre-1.2 records, 13 test updates and a
-  deprecation cycle -- and the benefit on the path that matters is now −2.1% of queries and a wall
-  clock indistinguishable from zero. Finding 39 established that the write path should be judged
-  on wall clock rather than query count; judged that way this change has nothing left to offer the
-  REST API.
+note: '**Taken on storage, not on speed, and the distinction matters.** The performance case for
+  this change collapsed between being recorded and being implemented: −2.1% of queries and a wall
+  clock indistinguishable from zero on the REST path, against an unchanged Tier C cost. Measured
+  on write-path performance alone -- the axis this branch is chartered on -- the answer was no,
+  and that analysis is kept above rather than deleted.
 
 
-  Where it would still be worth something is pure-ORM bulk writes -- a Job, a data migration,
-  nbshell -- where Tier 1W puts it at −7.7% queries and roughly −9% wall on a 100-object create
-  loop. That is a real case and a narrow one, and it does not justify changing a public payload.
+  It is being taken because that was the wrong question. object_data is 11.8% of the changelog
+  table and the table grows without bound where retention is long. Removing a snapshot that is
+  written for every record and read by nothing is a storage and redundancy argument, and it stands
+  whether or not it is fast. Pure-ORM bulk writes -- a Job, a data migration, nbshell -- also keep
+  −7.7% queries and roughly −9% wall on a 100-object create loop, which is a real if narrow bonus.
+
+
+  **What the tests now cover, since the payload change is the whole cost.** The null case:
+  new records carry object_data_v2 and a null object_data, and diff against each other through v2
+  (test_object_data_not_written_for_new_records). The non-null case: records whose only snapshot
+  is v1 still render and still diff v1-against-v1. And the upgrade boundary, which happens once
+  per object and is the only genuinely new behaviour -- a current record whose predecessor is
+  legacy reports no prechange rather than diffing two incomparable shapes. The legacy fixtures are
+  now built explicitly with serialize_object rather than obtained by nulling half of a current
+  record, because that trick stops working the moment object_data is no longer written and would
+  have produced records in a state Nautobot has never created.
+
+
+  **Two production readers the original cost analysis missed, both checked and both safe.**
+  extras/webhooks.py:210 already reads object_data_v2 first and falls back to object_data, so
+  webhook payloads are unchanged. extras/signals.py:152 caches v1 into pre_object_data, but
+  get_snapshots consumes it as `pre_object_data_v2 or pre_object_data` and v2 is still populated.
 
 
   **The general lesson is worth more than the verdict.** A recorded prize is a measurement of a
