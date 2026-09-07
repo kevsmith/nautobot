@@ -10,7 +10,7 @@ what goes first.
 
 **The deliverable is in shape.** `perf/report.md` is 14KB in the target format,
 all three cumulative rows carry real stock-versus-branch numbers, and
-`perf/verify_report.py` passes 1,491 checks. `perf/recommended` is built and
+`perf/scripts/verify_report.py` passes 1,491 checks. `perf/recommended` is built and
 independently verified. The full suite is green on the measured tree.
 
 **Genuinely remaining, in order:**
@@ -58,14 +58,14 @@ independently verified. The full suite is green on the measured tree.
    to ignore everything under `perf/` except `report.md` and `methodology.md`.
    Mechanical but wide — these all carry script paths and would need updating
    in the same commit:
-   - **Container invocations**: `/source/perf/tier1_queries.py` and friends
+   - **Container invocations**: `/source/perf/scripts/tier1_queries.py` and friends
      appear in `run_experiment.sh`, `run_screen_ab.sh`, `apply_arm.sh`,
      `measure.sh` and the README's worked examples.
    - **Script-to-script references**: `dc.sh`, `arm_control.sh`, `quiesce.sh`
      and `reset_db.sh` call each other by path.
    - **`README.md`** names most scripts in prose, several with line numbers.
-   - **Findings `site` fields** name harness paths — `perf/screen_writes.py`,
-     `perf/compare_screen.py`, `perf/tier1_queries.py`. These render into
+   - **Findings `site` fields** name harness paths — `perf/scripts/screen_writes.py`,
+     `perf/scripts/compare_screen.py`, `perf/scripts/tier1_queries.py`. These render into
      `methodology.md`, so they must move with the files or the paths go stale.
    - **`is_product_change()`** in `build_report.py` classifies a finding as
      harness-versus-product by whether every path in `site` starts with
@@ -238,7 +238,7 @@ useless for a wall-clock comparison.
       "exercises 49" conflated full-page with exercised — 49 understates by 47
       exactly as 166 overstates by 70. All four numbers now reported
       separately, and finding 37 carries the correction — **1 pt**
-- [x] `perf/compare_screen.py`: diff two screen runs by measurement id, emit
+- [x] `perf/scripts/compare_screen.py`: diff two screen runs by measurement id, emit
       matched coverage plus per-model and aggregate deltas as JSON the report
       can read. Findings 39/41/42 each did this by hand — **2 pts**
 - [x] Both screens: rank on db time alongside queries per object. `db_ms` is
@@ -266,7 +266,7 @@ so Phase 3 needs no change either way.
 - [x] Backfill the 7 missing `commit` fields. Known: 34 → `2100781f0`,
       36 → `e29a09f28`, 42 → `af659dfd2`. For 23, 24, 27 and 41 the change was
       never implemented — leave those empty, which is itself informative — **1 pt**
-- [x] **DONE** (built; `perf/recommended` at `85fbb16c4`). Original: `perf/build_branch.py`: rebuild the branch commit by commit with
+- [x] **DONE** (built; `perf/recommended` at `85fbb16c4`). Original: `perf/scripts/build_branch.py`: rebuild the branch commit by commit with
       `cherry-pick -n`, excluding `development/` and `perf/`, committing each
       with a message generated from the finding's `summary` + `basis` +
       `result` + `caveat`. Same source as the report, so the two cannot
@@ -475,9 +475,9 @@ obsolete rather than restating it.
 
 ## Phase 6 — verification before showing anyone
 
-- [x] `python3 perf/build_report.py --check` exits zero
+- [x] `python3 perf/scripts/build_report.py --check` exits zero
 - [x] **Every number traces, and it is now a committed script rather than a
-      one-off.** `perf/verify_report.py` runs 1,385 checks — commit SHAs resolve
+      one-off.** `perf/scripts/verify_report.py` runs 1,385 checks — commit SHAs resolve
       on `perf/recommended`, no finding points at a reverted commit, no baseline
       record is implausible, cumulative figures recompute from their sources,
       and every Reason cell is a finding's own words. Currently: **no problems**

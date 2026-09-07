@@ -7,7 +7,7 @@ behaviour: A
 migration: '-'
 flags: []
 title: A cable create costs 220 queries, and what that broke downstream
-site: perf/probe_cable_bulk.py - perf/capture_proxy.py
+site: perf/scripts/probe_cable_bulk.py - perf/scripts/capture_proxy.py
 summary: 'Creating one cable with real terminations costs ~220 queries and 0.34 seconds,
   linear from 25 to 96 cables per request with no batching advantage in queries at all. That
   is five times what the write screen reports for dcim.cable, because the screen''s generated

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "_comment": "The report's cumulative section, one entry per aggregate. Each entry names the tree it describes, so a figure that has fallen behind the branch says so in the rendered table instead of relying on someone remembering. `file` is a perf/compare_screen.py output under perf/baselines/; `figures` is for an aggregate that is not screen output.",
+  "_comment": "The report's cumulative section, one entry per aggregate. Each entry names the tree it describes, so a figure that has fallen behind the branch says so in the rendered table instead of relying on someone remembering. `file` is a perf/scripts/compare_screen.py output under perf/baselines/; `figures` is for an aggregate that is not screen output.",
   "current_tree": "90dbd96ffbeae6d1b9ed83b3e1042af10f95cdcc6fcc19e4a734be0d30ff36bf",
   "aggregates": [
     {

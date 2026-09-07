@@ -7,7 +7,7 @@ behaviour: A
 migration: '-'
 flags: []
 title: Second read screening pass — what the four fixes removed, and what the ranking cannot see
-site: perf/screen_reads.py
+site: perf/scripts/screen_reads.py
 summary: 'Re-run of the screen against 4a925fb43, the tree carrying findings 30, 31, 34 and 36,
   and directly comparable to the first run: same instrument, same page size of 25, same dataset
   (8,925 interfaces, 2,902 devices, 3,278 cables), 518 measurements over 166 list endpoints in

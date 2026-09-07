@@ -7,8 +7,8 @@ behaviour: A
 migration: '-'
 flags: []
 title: A container restart biases the measurement that follows it, and arm alternation does not cancel it
-site: perf/sync.sh - perf/probe_ui_only.py
-summary: 'perf/dc.sh restart returns when the container has started, not when it is ready.
+site: perf/scripts/sync.sh - perf/scripts/probe_ui_only.py
+summary: 'perf/scripts/dc.sh restart returns when the container has started, not when it is ready.
   uwsgi then forks three workers that each import Nautobot, and the nautobot container is
   pinned to two physical cores (cpuset 0,1,4,5). An in-process probe launched into that
   window competes with those imports for the cores it is being measured on. The result is

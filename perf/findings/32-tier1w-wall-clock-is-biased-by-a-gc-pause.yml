@@ -7,7 +7,7 @@ behaviour: A
 migration: '-'
 flags: []
 title: Tier 1W's wall clock is biased by a GC pause that three alternating rounds cannot cancel
-site: perf/tier1w_writes.py - perf/probe_f31_wall.py
+site: perf/scripts/tier1w_writes.py - perf/scripts/probe_f31_wall.py
 summary: tier1w_writes.py runs a warmup plus three reps of each operation and reports the wall
   clock of the LAST rep. A gen-2 cyclic garbage collection costs about 200ms in this process
   and recurs on a period set by allocation count -- which is deterministic for a given tree.
@@ -25,7 +25,7 @@ result:
   exposure: '~200ms on operations tier1w reports between 25ms and 300ms, where it is up to 8x
     the true cost; ~6-7% on the ~3s bulk operations.'
 wall_clock: not applicable — a measurement artifact, not a change
-wall_clock_detail: 'The fix is an instrument, not an edit to tier1w: perf/probe_f31_wall.py
+wall_clock_detail: 'The fix is an instrument, not an edit to tier1w: perf/scripts/probe_f31_wall.py
   runs nine reps of each write operation and reports the median, min, max and per-rep timings,
   so one pause cannot move the answer. Observed round-to-round spread on that instrument is
   6-13% max-to-min within a round, and the round medians agree to about 2.6% across rounds --

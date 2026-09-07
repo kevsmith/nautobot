@@ -7,7 +7,7 @@ behaviour: A
 migration: '-'
 flags: []
 title: Query capture silently returns zero once the connection's query log saturates
-site: perf/tier1_queries.py - perf/compare.py
+site: perf/scripts/tier1_queries.py - perf/scripts/compare.py
 summary: 'The stock arm of a 57-scenario Tier 1 run reported `query_count: 0` for its last six
   scenarios. Not failures: status 200, no error, a full response body, and a content hash
   byte-identical to the branch arm''s for the same URL. The branch arm measured those same six
