@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import contextlib
 import logging
 import os
 import platform
@@ -45,6 +46,7 @@ from nautobot.core.api.utils import get_serializer_for_model
 from nautobot.core.celery import app as celery_app
 from nautobot.core.exceptions import FilterSetFieldNotFound
 from nautobot.core.models.fields import TagsField
+from nautobot.core.models.utils import cache_natural_key_field_lookups
 from nautobot.core.utils.data import is_uuid, render_jinja2
 from nautobot.core.utils.filtering import get_all_lookup_expr_for_field, get_filterset_parameter_form_field
 from nautobot.core.utils.lookup import get_form_for_model
@@ -353,14 +355,32 @@ class ModelViewSetMixin:
         self.restrict_queryset(request, *args, **kwargs)
 
     def dispatch(self, request, *args, **kwargs):
-        try:
-            return super().dispatch(request, *args, **kwargs)
-        except ProtectedError as e:
-            protected_objects = list(e.protected_objects)
-            msg = f"Unable to delete object. {len(protected_objects)} dependent objects were found: "
-            msg += ", ".join([f"{obj} ({obj.pk})" for obj in protected_objects])
-            self.logger.warning(msg)
-            return self.finalize_response(request, Response({"detail": msg}, status=409), *args, **kwargs)
+        # `natural_key_field_lookups` is a classproperty, so it is re-derived on every access. Deriving it
+        # for Device reads the DEVICE_UNIQUENESS Constance key, and for Location the
+        # LOCATION_NAME_AS_NATURAL_KEY key plus the cached Location tree depth -- all Redis reads. Serializing
+        # a page of Interfaces walks Interface -> device -> location and re-derives that chain once per
+        # object: 1025 Redis round trips for ?limit=100, against 23 SQL queries.
+        #
+        # Memoize it for the duration of one *read* request. This is the same reasoning that already scopes
+        # the cache to a single serialize_object_v2() call, extended to the smallest safe unit of the read
+        # path: configuration cannot change partway through a request, and a safe method cannot create the
+        # deeper Location or change the config that would make a cached value stale. Writes deliberately keep
+        # recomputing -- a POST can deepen the Location tree and then serialize the result in the same
+        # request, and must see the new depth.
+        scope = (
+            cache_natural_key_field_lookups()
+            if request.method in ("GET", "HEAD", "OPTIONS")
+            else contextlib.nullcontext()
+        )
+        with scope:
+            try:
+                return super().dispatch(request, *args, **kwargs)
+            except ProtectedError as e:
+                protected_objects = list(e.protected_objects)
+                msg = f"Unable to delete object. {len(protected_objects)} dependent objects were found: "
+                msg += ", ".join([f"{obj} ({obj.pk})" for obj in protected_objects])
+                self.logger.warning(msg)
+                return self.finalize_response(request, Response({"detail": msg}, status=409), *args, **kwargs)
 
     def finalize_response(self, request, response, *args, **kwargs):
         # In the case of certain errors, we might not even get to the point of setting request.accepted_media_type
