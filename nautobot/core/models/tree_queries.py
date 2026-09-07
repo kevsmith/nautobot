@@ -3,6 +3,7 @@ import uuid
 from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Case, When
+from django.db.models.constants import LOOKUP_SEP
 from django.db.models.signals import post_delete, post_save
 from tree_queries.compiler import TreeQuery
 from tree_queries.models import TreeNode
@@ -11,6 +12,10 @@ from tree_queries.query import TreeManager as TreeManager_, TreeQuerySet as Tree
 from nautobot.core.models import BaseManager, querysets
 from nautobot.core.signals import invalidate_max_depth_cache
 from nautobot.core.utils.cache import cache_get_or_set, construct_cache_key
+
+# How many levels of a tree's `parent` chain to fetch per query when walking it without tree fields.
+# Chains deeper than this simply take another query per additional block of this many levels.
+ANCESTOR_JOIN_DEPTH = 4
 
 
 class TreeQuerySet(TreeQuerySet_, querysets.RestrictedQuerySet):
@@ -35,13 +40,32 @@ class TreeQuerySet(TreeQuerySet_, querysets.RestrictedQuerySet):
         if hasattr(of, "tree_depth"):
             return super().ancestors(of, include_self=include_self)
 
-        # In the other case, traverse the `parent` foreign key until the root.
-        ancestor_pks = []
-        if include_self:
-            ancestor_pks.append(of.pk)
-        while of := of.parent:
+        # In the other case, traverse the `parent` foreign key until the root. Following that foreign key one
+        # node at a time costs a query per tree level, so each cache miss pulls the next ANCESTOR_JOIN_DEPTH
+        # levels in a single query instead; links whose `parent` is already cached on the instance (because
+        # something else walked the same chain earlier in this request) cost nothing.
+        ancestors = []
+        node = of
+        parent_field = self.model._meta.get_field("parent")
+        while node.parent_id is not None:
+            if "parent" in node._state.fields_cache:
+                node = node.parent
+            else:
+                fetched = (
+                    self.model.objects.without_tree_fields()
+                    .select_related(LOOKUP_SEP.join(["parent"] * ANCESTOR_JOIN_DEPTH))
+                    .get(pk=node.parent_id)
+                )
+                # Populate the foreign-key cache the way plain `node.parent` attribute access would have, so
+                # that walking this chain leaves callers no worse off than before. Without this, later
+                # `instance.parent` reads that used to be free become queries again.
+                parent_field.set_cached_value(node, fetched)
+                node = fetched
             # Insert in reverse order so that the root is the first element
-            ancestor_pks.insert(0, of.pk)
+            ancestors.insert(0, node)
+        if include_self:
+            ancestors.append(of)
+        ancestor_pks = [ancestor.pk for ancestor in ancestors]
         # Maintain API compatibility by returning a queryset instead of a list directly.
         # Reference:
         # https://stackoverflow.com/questions/4916851/django-get-a-queryset-from-array-of-ids-in-specific-order
