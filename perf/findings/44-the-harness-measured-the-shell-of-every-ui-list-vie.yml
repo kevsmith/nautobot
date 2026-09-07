@@ -37,13 +37,13 @@ result:
     and for the write path. The 2,235 -> 695 read aggregate is unaffected as an arithmetic
     claim -- those scenarios measured what they measured -- but it does not cover list-view
     row rendering at all, which was never in the denominator.
-wall_clock: not applicable — this measures the instrument, not a change to Nautobot
+wall_clock: "not applicable: this measures the instrument rather than a change to Nautobot"
 basis: every ui.*.list measurement covered the page shell and not the rows
 controls: The load-independent facts are the request count per page, the URLs, and the initiator
   types; those are what this finding claims. Every timing was taken while the measurement
   host ran a full test suite at loadavg 1.5 to 2.0, against arm_control.sh's gate of 0.7 --
   the harness would have refused to measure under these conditions, and finding 35 is why
-  the gate exists. The document-versus-XHR ratio is more robust than the absolutes since both
+  the gate exists. The document-versus-XHR ratio is more reliable than the absolutes since both
   requests met the same contention, but a longer request has more opportunity to be descheduled
   than a shorter one, so even the ratio is indicative. Real timings come from the on-host
   driver under the quiesce gate with the arms alternated.

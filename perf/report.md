@@ -24,9 +24,9 @@ Stock `next` against this branch, one box, arms alternated, both trees proved di
 
 | Measurement | Coverage | Queries | Database time | Wall clock |
 |---|---|---|---|---|
-| Read loop, 57 scenarios | 57 scenarios on both arms | 3,166 → 1,824 (−42.4%) | — | 33,606 ms → 22,892 ms (−31.9%) |
-| Write screen, every POST endpoint | 252 of 257 measurements | 22,925 → 19,101 (−16.7%) | 12,233 ms → 10,106 ms (−17.4%) | 60 s → 44 s (−27.6%) |
-| Whole-workflow apply, 9,972 objects | 9,972 objects across 68 models, row counts identical on both arms | 846,932 → 706,499 (−16.6%) | 34,641 ms → 30,169 ms (−12.9%) | 1,978 s → 1,245 s (−37.1%) |
+| Read loop, 57 scenarios | 57 scenarios on both arms | 3,166 -> 1,824 (−42.4%) | - | 33,606 ms -> 22,892 ms (−31.9%) |
+| Write screen, every POST endpoint | 252 of 257 measurements | 22,925 -> 19,101 (−16.7%) | 12,233 ms -> 10,106 ms (−17.4%) | 60 s -> 44 s (−27.6%) |
+| Whole-workflow apply, 9,972 objects | 9,972 objects across 68 models, row counts identical on both arms | 846,932 -> 706,499 (−16.6%) | 34,641 ms -> 30,169 ms (−12.9%) | 1,978 s -> 1,245 s (−37.1%) |
 
 - **Read loop, 57 scenarios**: on one host with the arms alternated and both trees proved different by content hash. The scenario set includes the 18 row-rendering requests that finding 44 showed were never measured, and **the branch changes not one query on any of them** -- yet their wall clock falls a median 18.6%, because the work removed is Python rather than SQL. The document half of a list view is unchanged at a median -1.3%; wall clock is the sum of per-endpoint medians over the 57 endpoints answering on both arms, so it is a workload total rather than a per-page figure; 47 of 54 improved, 3 unchanged, 4 up to +2.6%; the median moved -8.3%; and **46% of the total saving is one item**, `api.interface.depth1`; 3 measurements below 100ms are excluded, where a per-measurement wall figure cannot be trusted for sign (finding 43).
 - **Write screen, every POST endpoint**: 186 of 252 measurements improved on query count, 66 unchanged, **none worse**; query savings run **1.3% to 49.8%** per measurement, median 8.2%; on wall clock 132 of 132 improved, 0 unchanged, **none worse**; the median moved -16.0%; and **19% of the total saving is one item**, `dcim-api:interfacevdcassignment-list create.x10`; 120 measurements below 100ms are excluded, where a per-measurement wall figure cannot be trusted for sign (finding 43).
@@ -69,18 +69,18 @@ Measured, kept, and applied to the tree. Each Reason is that change measured on 
 | 08 | [Cut the residual duplicate queries on object detail pages](methodology.md#cut-the-residual-duplicate-queries-on-object-detail-pages) | `B1` | −46 queries on detail pages; ~−9% on an independent A/B | `05bb2c9b1` |
 | 09 | [Build nested serializers once, and share one instance per cabled row](methodology.md#build-nested-serializers-once-and-share-one-instance-per-cabled-row) | `B1` | −45.8% api.interface.depth1 | `be22f09bb` |
 | 10 | [Walk tree ancestor chains in blocks instead of one query per level](methodology.md#walk-tree-ancestor-chains-in-blocks-instead-of-one-query-per-level) | `A` | −8 queries on detail pages; below what wall clock could resolve | `436f1ef6c` |
-| 11 | [Use the caching TemplateColumn everywhere, not just device tables](methodology.md#use-the-caching-templatecolumn-everywhere-not-just-device-tables) | `A` `third-party-coupled` | consistency — 67 call sites left on the uncached column | `3eda79d26` |
+| 11 | [Use the caching TemplateColumn everywhere, not just device tables](methodology.md#use-the-caching-templatecolumn-everywhere-not-just-device-tables) | `A` `third-party-coupled` | consistency: 67 call sites left on the uncached column | `3eda79d26` |
 | 12 | [Build the nav menu once per request instead of once per component](methodology.md#build-the-nav-menu-once-per-request-instead-of-once-per-component) | `A` | −24% ui.device.detail, −25% ui.rack.detail | `e388b1fde` |
 | 13 | [Reuse one API serializer per model when change-logging a transaction](methodology.md#reuse-one-api-serializer-per-model-when-change-logging-a-transaction) | `B1` | −28% bulk create | `9924ece48` |
 | 14 | [Resolve natural keys from a whole-table map for small reference models](methodology.md#resolve-natural-keys-from-a-whole-table-map-for-small-reference-models) | `B1` | −15% api.interface.depth1 | `dfc4631f9` |
-| 22 | [Stop writing ObjectChange.object_data, with the column made nullable](methodology.md#stop-writing-objectchangeobject-data-with-the-column-made-nullable) | `C` `M0` | storage — object_data is 11.8% of the changelog table | `cb1c6c454` |
+| 22 | [Stop writing ObjectChange.object_data, with the column made nullable](methodology.md#stop-writing-objectchangeobject-data-with-the-column-made-nullable) | `C` `M0` | storage: object_data is 11.8% of the changelog table | `cb1c6c454` |
 | 25 | [Join parent_bay when serializing nested Devices](methodology.md#join-parent-bay-when-serializing-nested-devices) | `A` | −5.8% api.interface.depth1 | `ad1e84161` |
 | 26 | [Prefetch cable paths for peer terminations that are not on the page](methodology.md#prefetch-cable-paths-for-peer-terminations-that-are-not-on-the-page) | `B1` | −14.4% api.interface.depth1 | `13273fc7f` |
 | 30 | [Prefetch both ends of an interface connection, which the serializer renders in full](methodology.md#prefetch-both-ends-of-an-interface-connection-which-the-serializer-renders-in-full) | `B1` | −61.3% api.interface-connections at limit 50, −49.6% at limit 25 | `60a5f0950` |
-| 31 | [Fix the tag cache in serialize_object, which can never fire for an untagged object](methodology.md#fix-the-tag-cache-in-serialize-object-which-can-never-fire-for-an-untagged-object) | `C` | correctness — the tag cache could never fire; −6.9% bulk create | `7d2851d6e` |
+| 31 | [Fix the tag cache in serialize_object, which can never fire for an untagged object](methodology.md#fix-the-tag-cache-in-serialize-object-which-can-never-fire-for-an-untagged-object) | `C` | correctness: the tag cache could never fire; −6.9% bulk create | `7d2851d6e` |
 | 34 | [Prefetch the cable walk for power- and console-connections, the two endpoints finding 30 left](methodology.md#prefetch-the-cable-walk-for-power--and-console-connections-the-two-endpoints-finding-30-left) | `B1` | −51.0% power-connections at limit 50, −42.7% at limit 25 | `c51de5381` |
 | 36 | [Prefetch the cable's terminations for cable-to-cable-terminations at depth 1](methodology.md#prefetch-the-cables-terminations-for-cable-to-cable-terminations-at-depth-1) | `B1` | −75.6% at limit 50, −68.1% at limit 25 | `15a15f77f` |
-| 42 | [Route natural_key() through the ancestor walk Nautobot had already optimized](methodology.md#route-natural-key-through-the-ancestor-walk-nautobot-had-already-optimized) | `A` | consistency — natural_key() bypassed the optimized ancestor walk | `85fbb16c4` |
+| 42 | [Route natural_key() through the ancestor walk Nautobot had already optimized](methodology.md#route-natural-key-through-the-ancestor-walk-nautobot-had-already-optimized) | `A` | consistency: natural_key() bypassed the optimized ancestor walk | `85fbb16c4` |
 
 Every commit above is on `perf/recommended` at `git@github.com:kevsmith/nautobot`.
 
@@ -92,12 +92,12 @@ Measurement or blast-radius analysis ruled these out. Listed because a rejected 
 |---:|---|---|---|
 | 15 | [Pre-warm natural-key FK chains with one select_related](methodology.md#pre-warm-natural-key-fk-chains-with-one-select-related) | `A` | +62% api.interface.depth1 |
 | 16 | [Stop double-serializing every change record by writing an empty object_data](methodology.md#stop-double-serializing-every-change-record-by-writing-an-empty-object-data) | `C` | Tier C on two public API contracts |
-| 17 | [Cross-request Redis-backed natural-key map with signal invalidation](methodology.md#cross-request-redis-backed-natural-key-map-with-signal-invalidation) | `B2` | unbounded staleness — bulk_update emits no invalidation signal |
+| 17 | [Cross-request Redis-backed natural-key map with signal invalidation](methodology.md#cross-request-redis-backed-natural-key-map-with-signal-invalidation) | `B2` | unbounded staleness: bulk_update emits no invalidation signal |
 | 18 | [Enable LOCATION_NAME_AS_NATURAL_KEY](methodology.md#enable-location-name-as-natural-key) | `C` | Tier C; an operator setting rather than a code change |
 | 19 | [Process-level per-user nav menu cache](methodology.md#process-level-per-user-nav-menu-cache) | `B2` `security-visible` | authorization decisions in a process-level cache, for ~0.6ms |
 | 20 | [Drop the request argument in render_component_template](methodology.md#drop-the-request-argument-in-render-component-template) | `C` | Tier C for ~1ms once the per-request memo is in place |
 | 21 | [Make tab badges reuse the panel paginator COUNT](methodology.md#make-tab-badges-reuse-the-panel-paginator-count) | `C` | no measurable change |
-| 23 | [Backfill object_data_v2 for historical ObjectChange rows](methodology.md#backfill-object-data-v2-for-historical-objectchange-rows) | `A` `M2` | correctness — v1 rows cannot reconstruct v2 natural keys |
+| 23 | [Backfill object_data_v2 for historical ObjectChange rows](methodology.md#backfill-object-data-v2-for-historical-objectchange-rows) | `A` `M2` | correctness: v1 rows cannot reconstruct v2 natural keys |
 | 24 | [Index maintenance on extras_objectchange, priced at a ~0 ceiling](methodology.md#index-maintenance-on-extras-objectchange-priced-at-a-0-ceiling) | `A` `M0` | −1.7% ceiling, inside the ordering artifact |
 | 27 | [Batch get_prev_change for deferred change logging](methodology.md#batch-get-prev-change-for-deferred-change-logging) | `B1` | −3.1% ceiling, bulk update |
 | 41 | [Natural-key map on three more traversed-into models](methodology.md#natural-key-map-on-three-more-traversed-into-models) | `A` | −0.4% across the write surface |
@@ -105,32 +105,32 @@ Measurement or blast-radius analysis ruled these out. Listed because a rejected 
 
 ## Methodology
 
-An isolated stack — `DEBUG=False`, `PLUGINS = []`, pinned CPU and memory, served under uwsgi —
+An isolated stack (`DEBUG=False`, `PLUGINS = []`, pinned CPU and memory, served under uwsgi)
 against databot `enterprise-campus / large / seed 42` (24,091 objects) for reads and
 `datacenter / large` (11,578 rows) for the whole-workflow write measurements. Every aggregate
 above is a stock-versus-branch delta taken on one host with the arms alternated and both trees
 proved different by content hash before each arm, computed over measurements present on both
-sides. The read figure comes from a 57-scenario loop that measures each list view twice — the
-document, and the separate request the browser fires to render its rows; the write figures come
+sides. The read figure comes from a 57-scenario loop that measures each list view twice: the
+document, and the separate request the browser fires to render its rows. The write figures come
 from a screen enumerating every POST endpoint the URL resolver exposes, plus one end-to-end
-apply that has no read equivalent. A whole test suite — 17,505 tests — passed against the same
+apply that has no read equivalent. A whole test suite of 17,505 tests passed against the same
 tree content hash these measurements were taken against. Absolute figures are not comparable to
 any other machine.
 
 ## Observations
 
-- **Query count cannot see this work.** The request that renders a list view's rows got faster
-  on **18 of 18 pages, a median 18.6%**, while its query count stayed identical to the query on
-  every one of them. The time removed is almost exactly proportional to how much rendering a
-  page does — **correlation 0.97 between a page's cost and the milliseconds saved** — which is
-  what removing a per-row overhead looks like, and is nothing a query counter can see. The
-  rejected FK pre-warm did the reverse: 666 fewer queries, 62% slower.
-- **The database is not the bottleneck** — PostgreSQL executed 325,152 queries in 4.6 seconds
-  across a full baseline run, so every second of user-visible latency measured here is
-  Python-side and addressable in application code.
-- **Five findings exist only because an affordance was added and its call sites were never
-  updated**, which is the one pattern here with a repeatable cause and a far smaller search
-  space to screen than 166 endpoints by cost.
+- Query count cannot see this work. The request that renders a list view's rows got faster on
+  **18 of 18 pages, a median 18.6%**, while its query count stayed identical on every one of
+  them. The time removed is almost exactly proportional to how much rendering a page does
+  (**correlation 0.97** between a page's cost and the milliseconds saved), which is what
+  removing a per-row overhead looks like. The rejected FK pre-warm did the reverse: 666 fewer
+  queries, 62% slower.
+- The database is not the bottleneck. PostgreSQL executed 325,152 queries in 4.6 seconds across
+  a full baseline run, so every second of user-visible latency measured here is Python-side and
+  addressable in application code.
+- Five findings exist only because an affordance was added and its call sites were never
+  updated, the one pattern here with a repeatable cause and a far smaller search space to screen
+  than 166 endpoints by cost.
 
 ---
 

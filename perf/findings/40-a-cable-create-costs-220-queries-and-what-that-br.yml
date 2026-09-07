@@ -41,7 +41,7 @@ result:
     Reproduced exactly with curl --max-time 30 on the same payload: exit 28 at 30.0019s, and the
     server logs the identical hr_write(): Broken pipe. Nautobot completes the request and
     commits it; the client has stopped listening by then, so only the response write fails.'
-wall_clock: not applicable — a cost measurement and a client-side defect, no product change
+wall_clock: "not applicable: a cost measurement and a client-side defect, with no product change"
 controls: 'Every probe POST runs in a rolled-back transaction and the database is reset from the
   template afterwards. The 25/50/96 curve was taken in one process without resets between sizes,
   since nothing is committed. Payloads are rebuilt from cables that already exist, so terminations

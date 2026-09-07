@@ -43,7 +43,7 @@ result:
     scenarios after it went fully to zero. Stock arm total 2,549 against a corrected 3,166,
     so **19.5% of the queries executed were never counted**. A run can therefore be materially
     wrong before it produces any record obviously impossible enough to notice.'
-wall_clock: not applicable — this measures the instrument, not a change to Nautobot
+wall_clock: "not applicable: this measures the instrument rather than a change to Nautobot"
 basis: query capture returned zero for six scenarios that each issued queries
 controls: 'the six were re-measured on the branch arm at the same positions and returned 6 to 11
   queries each, which is what isolates position-and-history from endpoint. Dataset drift was

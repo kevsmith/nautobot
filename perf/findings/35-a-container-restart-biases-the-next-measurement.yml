@@ -22,7 +22,7 @@ result:
     than spread, and the query count went unstable too -- 8, 12 and 13 at the same page size'
   same_arm_twice: 'arm B six times gave 99.1-176.7ms; arm A six times gave 98.5-174.0ms. Both
     arms reach both modes, so the arm is not the variable.'
-wall_clock: not applicable — an instrument defect, not a change
+wall_clock: "not applicable: an instrument defect rather than a change"
 controls: 'found on an endpoint that was a control in the finding 34 experiment, whose code
   path that change never touches. It read +73% with an identical query count, consistently,
   across three alternating rounds.'

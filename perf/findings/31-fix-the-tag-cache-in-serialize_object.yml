@@ -27,7 +27,7 @@ result:
   not improved: bulk.delete.x100 stays at 2019. Django clears an instance's pk on delete, so
     at flush time there is nothing to look the tags up by, and the batch warm skips those rows.
 wall_clock: −6.9% bulk.create.x100.loop, −5.6% deferred
-basis: correctness — the tag cache could never fire; −6.9% bulk create
+basis: "correctness: the tag cache could never fire; −6.9% bulk create"
 wall_clock_detail: 'Three alternating rounds (B/A, A/B, B/A), snapshot restore and container
   restart before every arm, each round the median of nine reps. Round medians then A / B / delta:
   bulk.create.x100.loop 3256/3218/3110 -> 3218 against 3047/2926/2994 -> 2994, −6.9%. bulk.create.x100.deferred
