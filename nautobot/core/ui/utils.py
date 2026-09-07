@@ -60,3 +60,24 @@ def get_absolute_url(value: Optional[Model]) -> str:
             return ""
 
     return ""
+
+
+def get_render_cache(context) -> Optional[dict]:
+    """
+    Return a per-HTTP-request memoization dict for UI component rendering, or None if one isn't available.
+
+    The UI framework renders a given detail page in several passes over the same component tree (tab labels,
+    table-config forms, tab contents), which means the same `Component` methods get called repeatedly with
+    equivalent context. Anything cached here is scoped to a single request and discarded with it.
+    """
+    request = context.get("request") if context is not None else None
+    if request is None:
+        return None
+    cache = getattr(request, "_nautobot_ui_render_cache", None)
+    if cache is None:
+        cache = {}
+        try:
+            request._nautobot_ui_render_cache = cache
+        except AttributeError:  # pragma: no cover - exotic request objects
+            return None
+    return cache
