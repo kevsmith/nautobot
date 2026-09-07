@@ -21,6 +21,20 @@ scenarios:
   - {id: ui.home,            view: "home",                     tags: [ui, dashboard]}
   - {id: ui.search,          view: "search", query: {q: "sw"}, tags: [ui, search]}
 
+  # --- Chrome baseline -----------------------------------------------------
+  #
+  # What every page costs before it renders anything of its own. 404.html
+  # extends 40x.html extends base.html, so this renders the full chrome --
+  # nav menu, header, breadcrumbs, footer, media and javascript includes --
+  # with a static card where the content block goes. No queryset, no filter
+  # form, no table.
+  #
+  # It exists because a list-view document renders its table over
+  # queryset.none() (finding 44), so its measured cost is chrome plus
+  # list-view machinery and nothing separated the two. Subtracting this row
+  # gives the second term. Kevin found the control by mistyping a URL.
+  - {id: ui.chrome.404, path: "/dcim/no-such-page-chrome-control/", expected_status: 404, tags: [ui, control, chrome]}
+
   # --- DCIM lists: the wide tables with many related columns --------------
   - {id: ui.device.list,          view: "dcim:device_list",                              tags: [ui, list, core]}
   - {id: ui.device.list.page100,  view: "dcim:device_list", query: {per_page: 100},      tags: [ui, list, pagination]}
@@ -38,6 +52,35 @@ scenarios:
   - {id: ui.device.interfaces,    view: "dcim:device_interfaces", pick: {model: "dcim.Device", strategy: "max_related:interfaces"}, tags: [ui, tab, worstcase]}
   - {id: ui.rack.detail,          view: "dcim:rack",     pick: {model: "dcim.Rack", strategy: "max_related:devices"},          tags: [ui, detail, elevation]}
   - {id: ui.location.detail,      view: "dcim:location", pick: {model: "dcim.Location", strategy: "max_related:devices"},      tags: [ui, detail, stats]}
+
+
+  # --- UI list views, the request that actually renders rows ---------------
+  #
+  # A Nautobot list view builds its table over `queryset.none()` unless the
+  # request carries HX-Request (core/views/renderers.py:96). The document
+  # request therefore renders a table with no rows in it, and the browser
+  # fetches the real one on a follow-up fired by hx-trigger="load" in
+  # generic/object_list.html. The scenarios above measure the shell; these
+  # measure the rows. Both halves are real -- a page load pays for both --
+  # so both are kept rather than one replacing the other.
+  - {id: ui.device.list.rows, view: "dcim:device_list", headers: {HX-Request: "true"}, tags: [ui, core, list, rows]}
+  - {id: ui.device.list.page100.rows, view: "dcim:device_list", query: {per_page: 100}, headers: {HX-Request: "true"}, tags: [ui, pagination, list, rows]}
+  - {id: ui.device.list.deep.rows, view: "dcim:device_list", query: {per_page: 50, page: 4}, headers: {HX-Request: "true"}, tags: [ui, pagination, list, rows]}
+  - {id: ui.device.list.filtered.rows, view: "dcim:device_list", query: {status: 'Active'}, headers: {HX-Request: "true"}, tags: [ui, filter, list, rows]}
+  - {id: ui.interface.list.rows, view: "dcim:interface_list", query: {per_page: 100}, headers: {HX-Request: "true"}, tags: [ui, core, list, rows]}
+  - {id: ui.cable.list.rows, view: "dcim:cable_list", headers: {HX-Request: "true"}, tags: [ui, list, rows]}
+  - {id: ui.rack.list.rows, view: "dcim:rack_list", headers: {HX-Request: "true"}, tags: [ui, list, rows]}
+  - {id: ui.location.list.rows, view: "dcim:location_list", headers: {HX-Request: "true"}, tags: [ui, tree, list, rows]}
+  - {id: ui.devicetype.list.rows, view: "dcim:devicetype_list", headers: {HX-Request: "true"}, tags: [ui, list, rows]}
+  - {id: ui.prefix.list.rows, view: "ipam:prefix_list", headers: {HX-Request: "true"}, tags: [ui, tree, list, rows]}
+  - {id: ui.prefix.list.page100.rows, view: "ipam:prefix_list", query: {per_page: 100}, headers: {HX-Request: "true"}, tags: [ui, tree, list, rows]}
+  - {id: ui.ipaddress.list.rows, view: "ipam:ipaddress_list", query: {per_page: 100}, headers: {HX-Request: "true"}, tags: [ui, list, rows]}
+  - {id: ui.vlan.list.rows, view: "ipam:vlan_list", headers: {HX-Request: "true"}, tags: [ui, list, rows]}
+  - {id: ui.objectchange.list.rows, view: "extras:objectchange_list", headers: {HX-Request: "true"}, tags: [ui, changelog, list, rows]}
+  - {id: ui.status.list.rows, view: "extras:status_list", headers: {HX-Request: "true"}, tags: [ui, list, rows]}
+  - {id: ui.role.list.rows, view: "extras:role_list", headers: {HX-Request: "true"}, tags: [ui, list, rows]}
+  - {id: ui.tag.list.rows, view: "extras:tag_list", headers: {HX-Request: "true"}, tags: [ui, list, rows]}
+  - {id: ui.circuit.list.rows, view: "circuits:circuit_list", headers: {HX-Request: "true"}, tags: [ui, list, rows]}
 
   # --- IPAM: hierarchy computation is a known hot spot --------------------
   - {id: ui.prefix.list,          view: "ipam:prefix_list",                              tags: [ui, list, tree]}

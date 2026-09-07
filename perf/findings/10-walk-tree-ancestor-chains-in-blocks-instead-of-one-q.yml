@@ -1,6 +1,7 @@
 ---
 seq: 10
 commit: 2e929c137
+recommended_commit: 436f1ef6c
 status: accepted
 behaviour: A
 migration: '-'
@@ -13,6 +14,7 @@ summary: TreeQuerySet.ancestors() falls back to a parent-by-parent walk when tre
 result:
   queries: ui.device.detail 55 -> 52, ui.rack.detail 66 -> 63, total -8
 wall_clock: not measured — below what wall clock could resolve
+basis: −8 queries on detail pages; below what wall clock could resolve
 wall_clock_detail: not measured. Worth 8 queries across three detail pages, below what wall
   clock could resolve on that machine
 tests: core test_tree_queries 11 OK, test_views 95 OK, test_dynamicgroups 92 OK

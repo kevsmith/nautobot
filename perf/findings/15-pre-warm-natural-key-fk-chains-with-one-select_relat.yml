@@ -21,6 +21,7 @@ reason: 'Failed the gate: slower. Location''s natural key is variadic on live tr
   object. PostgreSQL answers it quickly, but Django then materializes wide rows across eight
   tables and instantiates a model object for each. It also added a per-call inspection walk
   to every natural_key(), slowing a depth-0 endpoint it was never meant to touch.'
-note: The most useful result on the branch. The variant that looked three times better by
-  query count was the one that regressed past the original baseline in wall time. Deeper Location
-  trees make it worse, not better.
+note: The clearest demonstration on the branch that query count and wall clock can point in
+  opposite directions. The variant that looked three times better by query count was the one
+  that regressed past the original baseline in wall time. The effect grows with Location tree
+  depth.

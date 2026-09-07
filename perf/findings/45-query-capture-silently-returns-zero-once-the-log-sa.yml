@@ -1,0 +1,91 @@
+---
+seq: 45
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: Query capture silently returns zero once the connection's query log saturates
+site: perf/tier1_queries.py - perf/compare.py
+summary: 'The stock arm of a 57-scenario Tier 1 run reported `query_count: 0` for its last six
+  scenarios. Not failures: status 200, no error, a full response body, and a content hash
+  byte-identical to the branch arm''s for the same URL. The branch arm measured those same six
+  at the same positions correctly. `CaptureQueriesContext` records `len(connection.queries_log)`
+  on entry and exit and slices between them, and that log is a `deque(maxlen=9000)` shared for
+  the life of the process. Once it saturates the length stops growing, so every subsequent
+  capture computes `final - initial = 0`.'
+result:
+  signature: 'six zero-query records, contiguous, at indices 51 to 56 of 57. Contiguity is
+    what identifies the mechanism: a one-time connection recycle at CONN_MAX_AGE=300 would
+    also reset the log and empty one slice, but the next scenario would re-baseline against
+    the shorter log and measure correctly. A saturated deque is a permanent condition, so
+    everything after it reads zero.'
+  bias_direction: the arm that executes more queries saturates first, and that is always the
+    baseline arm -- stock reached scenario 51 having executed roughly 7,647 queries against
+    the branch arm's 5,472. So the failure under-reports the *before* side of every comparison
+    and biases the result in the branch's favour.
+  why_it_was_silent: 'status 200, a plausible 165KB body, and **`query_count_stable: True`**
+    -- all three reps agreed on zero, so every stability check the harness owns passed it.
+    It was caught only because the two arms disagreed in an impossible direction: six API
+    endpoints appearing cheaper on stock than on the branch that optimized them.'
+  committed_baselines_are_clean: all twelve committed baselines scanned for the signature
+    -- status 200, non-empty body, zero queries -- and **zero records match**. The 38-scenario
+    runs never accumulated enough to saturate; it took today's 57-scenario workload on the
+    arm that executes the most queries. No published number is affected.
+  threshold_not_pinned: stock executed ~7,647 queries before the first zero counting three
+    requests per scenario, or 10,196 counting four. The limit is 9,000, so the exact crossing
+    was not proven and the fix deliberately does not depend on it.
+  graduated_not_binary: 'the trailing zeros are the visible tip. Re-running the same arm with
+    the log cleared per capture shows the failure degrades progressively as the deque fills:
+    api.interface.depth1 reported **495 queries against a true 1,067** -- understated by 572,
+    46% of its value -- while still looking like an ordinary measurement, and only the six
+    scenarios after it went fully to zero. Stock arm total 2,549 against a corrected 3,166,
+    so **19.5% of the queries executed were never counted**. A run can therefore be materially
+    wrong before it produces any record obviously impossible enough to notice.'
+wall_clock: not applicable — this measures the instrument, not a change to Nautobot
+basis: query capture returned zero for six scenarios that each issued queries
+controls: 'the six were re-measured on the branch arm at the same positions and returned 6 to 11
+  queries each, which is what isolates position-and-history from endpoint. Dataset drift was
+  ruled out against `expected-counts.txt` (2902 / 8925 / 3278 / 2937, exact match) and the arm
+  swap was ruled out by content hash -- stock `0e1d03a4e` against branch `90dbd96ff`.'
+tests: n/a; harness only, no product code
+caveat: null
+note: 'Three fixes, and only the first is the bug.
+
+
+  **Clear the log before each capture.** A measurement should not depend on how much ran before
+  it. This makes run length irrelevant and is correct whichever trigger applied, which matters
+  because the arithmetic above does not pin the threshold.
+
+
+  **Raise the per-connection limit from 9,000 to 18,000.** Defence in depth for the residual
+  case the first fix does not cover: a single request exceeding the limit on its own. `bulk.delete.x100`
+  already issues 2,222 queries, so 9,000 was about four times the largest operation measured
+  here -- thinner headroom than a larger dataset or a new bulk operation deserves. Set on
+  the connection inside the harness rather than in product settings, so the instrument''s
+  configuration stays in the instrument.
+
+
+  **Refuse an implausible record.** No authenticated Django page serves a 200 with a body
+  in zero queries; there is a session lookup and a user fetch before the view runs. That combination
+  is an instrument failure rather than a fast page, and it now fails loudly in `tier1_queries.py`
+  and is refused by `compare.py`''s availability check. This is the fix that generalises:
+  the first two close one hole each, and this one closes the class. The next variant of a
+  silent-zero will announce itself instead of waiting for someone to notice that two arms
+  disagree in an impossible direction.
+
+
+  **The partial undercounts are the dangerous half.** A zero is at least absurd on its face,
+  which is how this was caught. An endpoint reporting 495 of its 1,067 queries is not absurd
+  at all -- it is a plausible number, stable across reps, on a status-200 response, and nothing
+  in the harness or in a reader''s intuition would flag it. The plausibility guard catches
+  the zeros; nothing catches a 46% undercount except clearing the log, which is why that fix
+  is the one that matters rather than the guard.
+
+
+
+  **The instrument passed its own stability check while reporting nothing.** That is the part
+  worth remembering. `query_count_stable` compares reps against each other, so three reps
+  agreeing on a wrong answer reads as confidence. A stability check cannot detect a systematic
+  failure -- only a plausibility check can, and the harness had none until now.'

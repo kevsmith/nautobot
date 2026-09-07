@@ -11,6 +11,7 @@ summary: Would skip all 70 RequestContext binds outright rather than memoizing t
 result:
   in_process: ~1ms residual after the per-request memo
 wall_clock: ≈−2% detail pages (~1ms)
+basis: Tier C for ~1ms once the per-request memo is in place
 wall_clock_detail: ~1ms residual after the per-request memo
 caveat: Rendered output changes for permission-restricted users.
 reason: Tier C for ~1ms once the memo is in place. Not worth it.
