@@ -7,7 +7,7 @@ instruments, the baselines and the working behind each change are in
 
 | | |
 | --- | --- |
-| Measured against | `next` · 3.3.0a0 |
+| Measured against | `next` at `ce01a0464` · 3.3.0a0 |
 | Dataset | databot `enterprise-campus / large` for reads, `datacenter / large` for writes |
 | Changes proposed | 33 |
 | Accepted on this branch | **22** |
@@ -134,6 +134,6 @@ any other machine.
 
 ---
 
-Measured against `nautobot/next` at 3.3.0a0 on an isolated stack with pinned resources. Harness, workload definition, findings and baseline data are on the `perf/experiments` branch under `perf/`; every scenario and operation above is reproducible with `perf/scripts/run_experiment.sh`. Instruments, baselines and per-finding working are in `perf/methodology.md`.
+Measured against `nautobot/next` at `ce01a0464` (3.3.0a0) on an isolated stack with pinned resources. Harness, workload definition, findings and baseline data are on the `perf/experiments` branch under `perf/`; every scenario and operation above is reproducible with `perf/scripts/run_experiment.sh`. Instruments, baselines and per-finding working are in `perf/methodology.md`.
 
 Both files are generated. Edit `perf/findings/*.yml` for numbers and `perf/report.template.md` or `perf/methodology.template.md` for narrative, then run `perf/scripts/build_report.py`. `--check` exits non-zero when they have drifted apart.
