@@ -255,6 +255,8 @@ class ModelViewSetMixin:
 
         select_fields = []
         prefetch_fields = []
+        # Related models reached through a nested (`?depth`) serializer, keyed by the field name that reaches them.
+        nested_fk_related_models = {}
 
         for field_instance in serializer.fields.values():
             if field_instance.write_only:
@@ -281,6 +283,8 @@ class ModelViewSetMixin:
                     continue
                 if isinstance(model_field, ForeignKey):
                     select_fields.append(field_instance.source)
+                    if isinstance(field_instance, drf_serializers.Serializer):
+                        nested_fk_related_models[field_instance.source] = model_field.related_model
 
         # Prefetch deeper relations needed for this object's natural key (e.g. for `natural_slug`) to avoid N+1 queries.
         try:
@@ -294,6 +298,19 @@ class ModelViewSetMixin:
                 # Single-level FKs are already covered by select_fields above.
                 if prefix not in select_fields:
                     natural_key_prefetch_fields.add(prefix)
+        # A nested serializer renders the *related* object's `natural_slug`/`display`, which walks that object's own
+        # natural-key relations (e.g. `device.location.parent.parent...`). Those lookups sit two or more levels below
+        # the root model, so the loop above does not reach them, and without prefetching them each nested object walks
+        # its chain one query per hop.
+        for source, related_model in nested_fk_related_models.items():
+            try:
+                related_natural_key_field_lookups = related_model.natural_key_field_lookups
+            except AttributeError:
+                continue
+            for lookup in related_natural_key_field_lookups:
+                if "__" in lookup:
+                    prefix, _ = lookup.rsplit("__", 1)
+                    natural_key_prefetch_fields.add(f"{source}__{prefix}")
         # Add to prefetch_fields rather than select_fields to prevent unnecessary query expansion.
         prefetch_fields.extend(sorted(natural_key_prefetch_fields))
 
