@@ -46,12 +46,17 @@ arm)
   # Finding 35: three uwsgi workers each import Nautobot on two pinned cores, and
   # a measurement started inside that window reads bimodally high for its whole
   # arm. Three alternating rounds does not cancel it. Wait for the load to fall.
-  for i in $(seq 1 90); do
+  # 180s was not enough. Chaining runs -- a screen, then an arm swap, then an apply --
+  # leaves the box warm, and loadavg decays slowly, so the gate aborted an arm that was
+  # otherwise fine and left an empty database behind. The ceiling stays where it is
+  # (finding 35: a measurement started under load reads bimodally high for its whole arm);
+  # only the patience changes.
+  for i in $(seq 1 "${PERF_LOAD_WAIT_TRIES:-150}"); do
     load="$(cut -d' ' -f1 /proc/loadavg)"
     awk -v l="$load" 'BEGIN{exit !(l<=0.7)}' && { echo "ready (loadavg $load)"; exit 0; }
-    sleep 2
+    sleep 4
   done
-  echo "load did not settle (loadavg $load)" >&2
+  echo "load did not settle after $((${PERF_LOAD_WAIT_TRIES:-150} * 4))s (loadavg $load)" >&2
   exit 1
   ;;
 
