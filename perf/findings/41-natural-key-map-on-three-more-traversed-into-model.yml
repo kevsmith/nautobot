@@ -8,7 +8,7 @@ migration: '-'
 flags: []
 title: Natural-key map on three more traversed-into models
 site: nautobot/ipam/models.py - nautobot/dcim/models/devices.py
-summary: 'A new screening instrument (perf/screen_natural_keys.py) ranked every model by the
+summary: 'A new screening instrument (perf/scripts/screen_natural_keys.py) ranked every model by the
   foreign-key hops its natural key walks, and by which models get traversed *into*. Location
   and Tenant already opt into finding 14''s whole-table map; ipam.namespace (13 source models,
   7,151 rows), ipam.prefix (10 models, 7,782) and dcim.module (10 models, 12,722) did not.

@@ -7,7 +7,7 @@ behaviour: A
 migration: '-'
 flags: []
 title: The write screening matrix — every POST endpoint, ranked on cost per created object
-site: perf/screen_writes.py - perf/payloads.py
+site: perf/scripts/screen_writes.py - perf/scripts/payloads.py
 summary: 'The read screen''s counterpart, built to the same rules: enumerate from the URL
   resolver at run time, normalize to cost per object, and never let an unmeasured model read
   as a cheap one. 152 of the resolver''s 166 API list endpoints accept POST; 105 were measured
@@ -88,7 +88,7 @@ controls: 'Rollback isolation was measured against the alternative rather than a
 
   **--isolation reset needed three corrections before it was a control rather than a trap**,
   and each is a way a write screen can produce confident wrong numbers. It cannot shell out to
-  perf/reset_db.sh, because this runs inside the container and that script drives docker
+  perf/scripts/reset_db.sh, because this runs inside the container and that script drives docker
   compose from the host -- so the clone is issued over a second psycopg2 connection, carrying a
   reimplementation of the migration fingerprint that --verify-reset checks against the shell
   one (they agree byte for byte). force_login writes a django_session row, so the client has to

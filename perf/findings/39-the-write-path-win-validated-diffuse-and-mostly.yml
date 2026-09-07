@@ -7,7 +7,7 @@ behaviour: A
 migration: '-'
 flags: []
 title: The −37% write-path win is real, diffuse, and mostly not SQL
-site: perf/screen_writes.py - whole-workflow databot apply
+site: perf/scripts/screen_writes.py - whole-workflow databot apply
 summary: 'Queue item 1, answered. Kevin measured a datacenter dataset apply at 495s against
   perf/verified versus 786s against stock next, on his own hardware, single runs. Reproduced
   here as a controlled A/B on the measurement host: same box, same dataset (datacenter/large,

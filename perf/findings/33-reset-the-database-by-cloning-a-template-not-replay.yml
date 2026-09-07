@@ -7,7 +7,7 @@ behaviour: A
 migration: '-'
 flags: []
 title: Reset the database by cloning a template, not by replaying the snapshot
-site: perf/reset_db.sh - perf/probe_clone_warmup.sh
+site: perf/scripts/reset_db.sh - perf/scripts/probe_clone_warmup.sh
 summary: restore_snapshot.sh takes 49 seconds, and four of its five phases are things a
   measurement loop does not need every iteration. CREATE DATABASE ... TEMPLATE copies the
   files instead, which returns the database to baseline in 1.3 seconds with the app left

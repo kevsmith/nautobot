@@ -114,10 +114,10 @@ NAUTOBOT_URL=http://localhost:8180 NAUTOBOT_TOKEN=<token> databot apply perf/dat
 databot dump
 
 # 3. Baseline. Tier 1 resolves the workload and dumps the URL list for Tier 2.
-docker compose exec nautobot python /source/perf/tier1_queries.py \
+docker compose exec nautobot python /source/perf/scripts/tier1_queries.py \
     --out /source/perf/baselines/tier1-baseline.json \
     --dump-urls /source/perf/results/urls.json
-python3 perf/tier2_latency.py --urls perf/results/urls.json \
+python3 perf/scripts/tier2_latency.py --urls perf/results/urls.json \
     --urls-from-tier1 perf/baselines/tier1-baseline.json --top 25 \
     --out perf/baselines/tier2-baseline.json
 ```
@@ -133,7 +133,7 @@ One experiment per commit. For each:
 5. Commit with the hypothesis, the method, and the before/after numbers.
 
 ```bash
-python3 perf/compare.py --baseline perf/baselines/tier1-baseline.json \
+python3 perf/scripts/compare.py --baseline perf/baselines/tier1-baseline.json \
                         --current  perf/results/tier1-current.json
 ```
 
@@ -295,7 +295,7 @@ since-deleted object is not possible at any cost. Record why, and stop.
 
 `build_report.py --check` proves the report was rendered from the current
 sources. It does not prove the sources agree with each other.
-`perf/verify_report.py` does, in 1,385 checks:
+`perf/scripts/verify_report.py` does, in 1,385 checks:
 
 - every commit SHA in the accepted table resolves on the branch the report names
 - no finding points at a commit that was later reverted
@@ -360,7 +360,7 @@ as confidence. Only a plausibility check catches a systematic failure.
 ## Findings are structured data, and the reports are generated
 
 `perf/findings/*.yml` is the source of record for every experiment: its tier,
-flags, caveat, instruments, controls, tests and status. `perf/build_report.py`
+flags, caveat, instruments, controls, tests and status. `perf/scripts/build_report.py`
 renders two documents from those files plus the committed baselines, filling the
 `<!--GEN:...-->` markers in each template. Narrative prose stays in the
 templates, where writing it by hand is the point.
@@ -386,8 +386,8 @@ that produced it. A finding's `note`, `controls`, `tests` and
 `wall_clock_detail` render only in `methodology.md`; everything else renders in
 both places from the same YAML, so neither can drift from the other.
 
-    python3 perf/build_report.py            # write both documents
-    python3 perf/build_report.py --check    # exit 1 if either has drifted
+    python3 perf/scripts/build_report.py            # write both documents
+    python3 perf/scripts/build_report.py --check    # exit 1 if either has drifted
 
 This exists because the report drifted five commits behind the tree once and
 carried a figure a later commit had already retracted. Under a framing where the
@@ -469,15 +469,15 @@ signal during an experiment.
 
 ## Built: a one-second database reset
 
-`perf/reset_db.sh` returns the database to baseline by cloning a pristine template
+`perf/scripts/reset_db.sh` returns the database to baseline by cloning a pristine template
 (`CREATE DATABASE ... TEMPLATE`) rather than replaying the snapshot. 1.3 seconds
 against `restore_snapshot.sh`'s 49, with the app left running -- `DROP DATABASE ...
 WITH (FORCE)` evicts the pooled connections and Django reconnects on the next
 request. celery survives it too.
 
-    perf/restore_snapshot.sh        # establish baseline (the authority, 49s)
-    perf/reset_db.sh --build        # build the template from it (one time, 3.7s)
-    perf/reset_db.sh                # reset (1.3s) -- as often as you like
+    perf/scripts/restore_snapshot.sh        # establish baseline (the authority, 49s)
+    perf/scripts/reset_db.sh --build        # build the template from it (one time, 3.7s)
+    perf/scripts/reset_db.sh                # reset (1.3s) -- as often as you like
 
 Two things this buys and one it costs.
 
@@ -503,7 +503,7 @@ moment nobody chose.
 
 ## Built: the read screening matrix
 
-`perf/screen_reads.py` enumerates every REST list endpoint from the URL resolver
+`perf/scripts/screen_reads.py` enumerates every REST list endpoint from the URL resolver
 at run time -- never from a list in a file, so it cannot rot as models come and
 go -- and measures `list`, `list?depth=1`, `detail` and `detail?depth=1` for
 each. 518 measurements in 84 seconds.
@@ -559,14 +559,14 @@ is a product question, not a measurement one.
 
 ## Built: the write screening matrix
 
-`perf/screen_writes.py` is the read screen's counterpart, built to the same three
+`perf/scripts/screen_writes.py` is the read screen's counterpart, built to the same three
 rules. It enumerates from the URL resolver at run time; it takes writability from
 the DRF router's own action map on the URL callback rather than inferring it from
 the viewset class; and it normalizes to cost per *created* object. 152 of the 166
 API list endpoints accept POST. 105 were measured across `create.x1`,
 `create.x10` and `update.x1` — 257 measurements in 211 seconds. See finding 38.
 
-    perf/dc.sh exec -T nautobot python /source/perf/screen_writes.py \
+    perf/scripts/dc.sh exec -T nautobot python /source/perf/scripts/screen_writes.py \
         --out /source/perf/results/screen-writes.json
     # --dry-run   build payloads and report coverage; issue no requests
     # --isolation reset   commit for real, then reset_db.sh + one discarded request
@@ -604,7 +604,7 @@ satisfy, 19 whose required related model has no rows in this dataset, 4 whose
 uniqueness constraint spans foreign keys over tables of fewer than ten rows, 2
 returning HTTP 500, and 1 with no derivable value.
 
-**Where the payloads come from.** `perf/payloads.py`, from `serializer.fields` —
+**Where the payloads come from.** `perf/scripts/payloads.py`, from `serializer.fields` —
 the same source DRF's OPTIONS metadata is built from, read directly rather than
 over HTTP so the field *objects* are available. That matters: a related field's
 `queryset` and the model field's `limit_choices_to` are what make it possible to
@@ -668,12 +668,12 @@ are omitted and they are write work.
 
 ## Built: whole-workflow A/B on two trees
 
-`perf/arm_control.sh` and `perf/apply_arm.sh` run the same workload against two
+`perf/scripts/arm_control.sh` and `perf/scripts/apply_arm.sh` run the same workload against two
 different versions of Nautobot on one box. Built to settle whether the −37%
 write-path win was real (finding 39); reusable for any claim that only shows up
 at whole-workflow scale.
 
-    perf/apply_arm.sh <git-ref> <label>    # empty db -> swap tree -> timed apply
+    perf/scripts/apply_arm.sh <git-ref> <label>    # empty db -> swap tree -> timed apply
 
 Four things it does that a hand-run A/B would not, each because of a rule this
 branch paid for:
@@ -706,10 +706,10 @@ of fix this branch is best at.
 
 ## Built: a capture proxy, for when the evidence is in flight
 
-`perf/capture_proxy.py` forwards every request to Nautobot unchanged and writes
+`perf/scripts/capture_proxy.py` forwards every request to Nautobot unchanged and writes
 the request and response bodies to disk on any 5xx.
 
-    python perf/capture_proxy.py --listen 8199 --target http://localhost:8180
+    python perf/scripts/capture_proxy.py --listen 8199 --target http://localhost:8180
     NAUTOBOT_URL=http://localhost:8199 databot apply ...
 
 It exists because Django logs `Internal Server Error: /path` and Nautobot's
@@ -730,10 +730,10 @@ listening at 30 seconds".
 | Nautobot UI | http://localhost:8180 (admin / admin) |
 | API token | `0123456789abcdef0123456789abcdef01234567` |
 | celery_worker | 8181; Postgres and Redis are not published to the host |
-| Compose project | `nautobot-perf-3-3` (all commands via `perf/dc.sh`) |
+| Compose project | `nautobot-perf-3-3` (all commands via `perf/scripts/dc.sh`) |
 | Dataset | databot `enterprise-campus / large / seed 42`, 24,091 objects |
-| Reset (fast) | `perf/reset_db.sh` — 1.3s template clone; discard one request after |
-| Restore (authority) | `perf/restore_snapshot.sh` (uses `perf/snapshot-large.sql`, gitignored) — 49s |
+| Reset (fast) | `perf/scripts/reset_db.sh` — 1.3s template clone; discard one request after |
+| Restore (authority) | `perf/scripts/restore_snapshot.sh` (uses `perf/snapshot-large.sql`, gitignored) — 49s |
 
 ## Parity checklist for an apples-to-apples environment comparison
 
@@ -788,7 +788,7 @@ against 977 SQL queries, so a network hop to Redis is not a rounding error.
 - where TLS terminates, reverse proxy, geography. Measured from here, TLS handshake to the
   demo was ~70ms, so network was not the story -- server time was 1,051ms for 50 devices.
 
-**Measurement note.** `perf/tier2_latency.py` runs against any URL with a token, so it works
+**Measurement note.** `perf/scripts/tier2_latency.py` runs against any URL with a token, so it works
 against a hosted instance unchanged. `tier1_queries.py` / `tier1w_writes.py` need to run
 inside the container, so a replica you control gets the full three-instrument treatment that
 a black-box hosted instance cannot.

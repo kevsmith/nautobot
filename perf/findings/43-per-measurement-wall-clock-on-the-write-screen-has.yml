@@ -8,7 +8,7 @@ migration: '-'
 flags: []
 title: Per-measurement wall clock on the write screen has a magnitude floor, and reps do not
   raise it
-site: perf/screen_writes.py - perf/compare_screen.py
+site: perf/scripts/screen_writes.py - perf/scripts/compare_screen.py
 summary: Building the report's cumulative section surfaced 21 measurements that improved on
   query count and read *slower* on wall clock, worst +42.5%, in a comparison whose aggregate
   is −23.9%. The write screen already runs three reps after a discarded warmup and reports

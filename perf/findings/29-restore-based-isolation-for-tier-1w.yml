@@ -7,7 +7,7 @@ behaviour: A
 migration: '-'
 flags: []
 title: Replace Tier 1W's rolled-back transactions with restore-based isolation
-site: perf/tier1w_writes.py - perf/probe_commit_cost.py
+site: perf/scripts/tier1w_writes.py - perf/scripts/probe_commit_cost.py
 summary: Tier 1W runs each operation inside transaction.atomic() and raises to unwind it,
   which buys identical starting state -- the bulk triple depends on it, since all three create
   the same 100 rows with the same names -- at the cost of never committing. With a dedicated

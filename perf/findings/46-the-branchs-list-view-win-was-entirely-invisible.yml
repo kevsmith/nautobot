@@ -7,7 +7,7 @@ behaviour: A
 migration: '-'
 flags: []
 title: The branch's list-view win was entirely in the request the harness never issued
-site: perf/tier2_latency.py - perf/workload.yml
+site: perf/scripts/tier2_latency.py - perf/workload.yml
 summary: 'First stock-versus-branch wall-clock A/B over the 57-scenario workload, on one host,
   arms alternated, both trees proved different by content hash, cassowary at n=30 c=1 per
   endpoint. It answers a question the harness could not previously ask: finding 44 established
