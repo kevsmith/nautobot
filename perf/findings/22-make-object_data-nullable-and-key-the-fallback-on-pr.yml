@@ -21,8 +21,8 @@ result:
     575.8ms of 4525.7ms deferred (12.7%), 4.5ms per call against v2's 14.4ms -- 3.2x, where
     finding 16 measured 12x. The ratio narrowed because finding 13 made v2 cheaper, so v1
     is a larger share of what remains than when it was first measured
-wall_clock: −0.26% on a datacenter apply, weighted — taken for storage, not for speed
-basis: storage — object_data is 11.8% of the changelog table
+wall_clock: −0.26% on a datacenter apply, weighted; taken for storage rather than speed
+basis: "storage: object_data is 11.8% of the changelog table"
 storage: 'The axis the write-path measurement never looked at, and the one it is being taken on.
   Measured on a datacenter/large changelog of 16,717 records: extras_objectchange is 63 MB total,
   of which object_data is **7,585 kB -- 11.8%** at an average of 465 bytes per row (object_data_v2

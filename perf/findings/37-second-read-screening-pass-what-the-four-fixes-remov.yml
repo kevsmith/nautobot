@@ -6,7 +6,7 @@ status: accepted
 behaviour: A
 migration: '-'
 flags: []
-title: Second read screening pass — what the four fixes removed, and what the ranking cannot see
+title: Second read screening pass, and the ranking's blind spot
 site: perf/scripts/screen_reads.py
 summary: 'Re-run of the screen against 4a925fb43, the tree carrying findings 30, 31, 34 and 36,
   and directly comparable to the first run: same instrument, same page size of 25, same dataset
@@ -42,7 +42,7 @@ result:
     of >=10 objects. 47 returned 1-9 rows and 70 returned zero -- including cluster, virtualmachine,
     vminterface, module and the whole modules/templates family, tag, service and rir. A zero-row
     endpoint reads as cheap and is actually unmeasured.'
-wall_clock: not applicable — an instrument, not a change
+wall_clock: "not applicable: an instrument rather than a change"
 controls: 'nine models (jobs, contactassociation, objectchange, users, one wireless assignment)
   returned different response bytes between the two runs. Row counts and query counts are identical
   for all nine, so the drift is field-level -- timestamps, last_login, job metadata -- and does not

@@ -6,7 +6,7 @@ status: accepted
 behaviour: A
 migration: '-'
 flags: []
-title: The write screening matrix — every POST endpoint, ranked on cost per created object
+title: Write screening matrix, every POST endpoint ranked on cost per created object
 site: perf/scripts/screen_writes.py - perf/scripts/payloads.py
 summary: 'The read screen''s counterpart, built to the same rules: enumerate from the URL
   resolver at run time, normalize to cost per object, and never let an unmeasured model read
@@ -55,7 +55,7 @@ result:
     ipam_ipaddress, ipam_namespace and extras_objectchange are byte-identical before and after
     a full run: 2902 / 8925 / 3278 / 595 / 2937 / 1 / 36552. 257 measured writes, nothing left
     behind.'
-wall_clock: not applicable — an instrument, not a change
+wall_clock: "not applicable: an instrument rather than a change"
 controls: 'Rollback isolation was measured against the alternative rather than assumed from
   finding 29. Both modes were run over the five measured dcim.device* models, three rounds each
   way with the arms alternated (rb, rs, rb, rs, rs, rb), 13 operations compared on medians.
