@@ -28,7 +28,7 @@ from nautobot.core.api.views import ModelViewSet
 from nautobot.core.models.querysets import count_related
 from nautobot.core.templatetags.helpers import bettertitle, validated_api_viewname, validated_viewname
 from nautobot.dcim import filters
-from nautobot.dcim.constants import TERMINATION_FK_FIELDS
+from nautobot.dcim.constants import TERMINATION_CABLE_COLUMN_FK_FIELDS, TERMINATION_FK_FIELDS
 from nautobot.dcim.models import (
     Cable,
     CablePath,
@@ -706,7 +706,6 @@ def _with_connection_prefetches(queryset):
       pays; `cable_paths__destination` is prefetched for all three regardless.
     - the serializer renders `tags`.
     """
-    from nautobot.dcim.constants import TERMINATION_CABLE_COLUMN_FK_FIELDS
     from nautobot.dcim.models.cables import CableToCableTermination
 
     return queryset.select_related("device", "cable_termination__cable").prefetch_related(
@@ -834,7 +833,22 @@ class CableViewSet(NautobotModelViewSet):
 class CableToCableTerminationViewSet(NautobotModelViewSet):
     """API endpoint for the cable→termination join model."""
 
-    queryset = CableToCableTermination.objects.select_related("cable", *TERMINATION_FK_FIELDS)
+    # At `?depth=1` the nested `CableSerializer` renders `termination_a`/`termination_b`, each of
+    # which calls `Cable._get_termination_attr` -> `self.terminations.all()`. That method iterates
+    # `.all()` precisely so a prefetched cache is honored; nothing here was prefetching it, so all
+    # twelve calls per row went to the database -- 300 of this endpoint's 487 queries on a page of
+    # 25. `select_related` on the prefetched rows resolves each one's per-type termination FK,
+    # which is the same walk finding 34 prefetches for the `*-connections` endpoints.
+    queryset = CableToCableTermination.objects.select_related("cable", *TERMINATION_FK_FIELDS).prefetch_related(
+        Prefetch(
+            "cable__terminations",
+            queryset=CableToCableTermination.objects.select_related(*TERMINATION_CABLE_COLUMN_FK_FIELDS),
+        ),
+        # `_first_cable_path` / `_destination` on the nested termination serializer. The row's
+        # termination is whichever of the nine per-type FKs is non-null, so the prefetch is issued
+        # for all nine: nine fixed queries in place of two per row.
+        *(f"{fk}__cable_paths__destination" for fk in TERMINATION_FK_FIELDS),
+    )
     serializer_class = serializers.CableToCableTerminationSerializer
     filterset_class = filters.CableToCableTerminationFilterSet
 
