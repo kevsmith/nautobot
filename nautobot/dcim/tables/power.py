@@ -6,6 +6,7 @@ from nautobot.core.tables import (
     ChoiceFieldColumn,
     LinkedCountColumn,
     TagColumn,
+    TemplateColumn,
     ToggleColumn,
 )
 from nautobot.dcim.models import PowerFeed, PowerPanel
@@ -81,10 +82,10 @@ class PowerFeedTable(StatusTableMixin, CableTerminationTable):
     power_path = tables.Column()
     occupied_positions = tables.Column(accessor="occupied_positions", verbose_name="Position", orderable=False)
     phase_designation = tables.Column(accessor="phase_designation", verbose_name="Phase Designation", orderable=False)
-    max_utilization = tables.TemplateColumn(template_code="{{ value }}%")
+    max_utilization = TemplateColumn(template_code="{{ value }}%")
     connection = tables.Column(orderable=False)
     available_power = tables.Column(verbose_name="Available power (VA)")
-    utilization = tables.TemplateColumn(template_code=UTILIZATION_GRAPH, orderable=False, verbose_name="Utilization")
+    utilization = TemplateColumn(template_code=UTILIZATION_GRAPH, orderable=False, verbose_name="Utilization")
     tags = TagColumn(url_name="dcim:powerfeed_list")
     actions = ButtonsColumn(PowerFeed)
 

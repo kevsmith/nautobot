@@ -10,6 +10,7 @@ from nautobot.core.tables import (
     ButtonsColumn,
     LinkedCountColumn,
     TagColumn,
+    TemplateColumn,
     ToggleColumn,
 )
 from nautobot.core.templatetags.helpers import hyperlinked_object, placeholder, render_boolean
@@ -346,8 +347,8 @@ class VRFTable(StatusTableMixin, BaseTable):
     name = tables.LinkColumn()
     rd = tables.Column(verbose_name="RD")
     tenant = TenantColumn()
-    import_targets = tables.TemplateColumn(template_code=VRF_TARGETS, orderable=False)
-    export_targets = tables.TemplateColumn(template_code=VRF_TARGETS, orderable=False)
+    import_targets = TemplateColumn(template_code=VRF_TARGETS, orderable=False)
+    export_targets = TemplateColumn(template_code=VRF_TARGETS, orderable=False)
     tags = TagColumn(url_name="ipam:vrf_list")
 
     class Meta(BaseTable.Meta):
@@ -376,7 +377,7 @@ class VRFDeviceAssignmentTable(BaseTable):
         linkify=lambda record: record.vrf.namespace.get_absolute_url(),
         accessor="vrf__namespace__name",
     )
-    related_object_type = tables.TemplateColumn(
+    related_object_type = TemplateColumn(
         template_code="""
         {% if record.device %}
             Device
@@ -387,7 +388,7 @@ class VRFDeviceAssignmentTable(BaseTable):
         {% endif %}
         """
     )
-    related_object_name = tables.TemplateColumn(
+    related_object_name = TemplateColumn(
         template_code="""
         {% if record.device %}
             <a href="{{ record.device.get_absolute_url }}">{{ record.device.name }}</a>
@@ -480,7 +481,7 @@ class RIRTable(BaseTable):
 
 class PrefixTable(StatusTableMixin, RoleTableMixin, BaseTable):
     pk = ToggleColumn()
-    prefix = tables.TemplateColumn(
+    prefix = TemplateColumn(
         template_code=PREFIX_COPY_LINK,
         attrs={
             "td": {
@@ -558,7 +559,7 @@ class PrefixTable(StatusTableMixin, RoleTableMixin, BaseTable):
 
 
 class PrefixDetailTable(PrefixTable):
-    utilization = tables.TemplateColumn(template_code=UTILIZATION_GRAPH, orderable=False)
+    utilization = TemplateColumn(template_code=UTILIZATION_GRAPH, orderable=False)
     tenant = TenantColumn()
     tags = TagColumn(url_name="ipam:prefix_list")
 
@@ -613,7 +614,7 @@ class PrefixDetailTable(PrefixTable):
 
 class IPAddressTable(StatusTableMixin, RoleTableMixin, BaseTable):
     pk = ToggleColumn()
-    address = tables.TemplateColumn(
+    address = TemplateColumn(
         template_code=IPADDRESS_COPY_LINK,
         verbose_name="IP Address",
         attrs={
@@ -651,7 +652,7 @@ class IPAddressTable(StatusTableMixin, RoleTableMixin, BaseTable):
         display_field="name",
         verbose_name="Virtual Machines",
     )
-    actions = tables.TemplateColumn(
+    actions = TemplateColumn(
         template_code=IPADDRESS_OR_RANGE_ACTIONS,
         attrs={
             "td": {"class": "d-print-none text-end text-nowrap nb-actions nb-w-0"},
@@ -759,7 +760,7 @@ class IPAddressDetailTable(IPAddressTable):
 
 class IPAddressAssignTable(StatusTableMixin, BaseTable):
     pk = ToggleColumn(visible=True)
-    address = tables.TemplateColumn(template_code=IPADDRESS_ASSIGN_COPY_LINK, verbose_name="IP Address")
+    address = TemplateColumn(template_code=IPADDRESS_ASSIGN_COPY_LINK, verbose_name="IP Address")
     # TODO: add interface M2M
 
     class Meta(BaseTable.Meta):
@@ -786,8 +787,8 @@ class IPAddressAssignTable(StatusTableMixin, BaseTable):
 class IPAddressRangeTable(StatusTableMixin, RoleTableMixin, BaseTable):
     pk = ToggleColumn()
     name = tables.Column(linkify=True, empty_values=[])
-    start_address = tables.TemplateColumn(template_code=IPADDRESSRANGE_COPY, order_by=("start_host",))
-    end_address = tables.TemplateColumn(template_code=IPADDRESSRANGE_COPY, order_by=("end_host",))
+    start_address = TemplateColumn(template_code=IPADDRESSRANGE_COPY, order_by=("start_host",))
+    end_address = TemplateColumn(template_code=IPADDRESSRANGE_COPY, order_by=("end_host",))
     size = tables.Column(accessor="size", orderable=False, verbose_name="Size")
     parent = tables.Column(linkify=True, verbose_name="Parent Prefix")
     namespace = tables.Column(linkify=True, accessor="parent__namespace")
@@ -839,8 +840,8 @@ class InterfaceIPAddressTable(StatusTableMixin, BaseTable):
     List IP addresses assigned to a specific Interface.
     """
 
-    address = tables.TemplateColumn(template_code=IPADDRESS_COPY_LINK, verbose_name="IP Address")
-    # vrf = tables.TemplateColumn(template_code=VRF_LINK, verbose_name="VRF")
+    address = TemplateColumn(template_code=IPADDRESS_COPY_LINK, verbose_name="IP Address")
+    # vrf = TemplateColumn(template_code=VRF_LINK, verbose_name="VRF")
     tenant = TenantColumn()
 
     class Meta(BaseTable.Meta):
@@ -849,7 +850,7 @@ class InterfaceIPAddressTable(StatusTableMixin, BaseTable):
 
 
 class IPAddressInterfaceTable(InterfaceTable):
-    name = tables.TemplateColumn(
+    name = TemplateColumn(
         # Keep in sync with DeviceModuleInterfaceTable.name.template_code
         template_code=(
             '<span class="mdi mdi-'
@@ -989,7 +990,7 @@ class VLANGroupTable(BaseTable):
 
 class VLANTable(StatusTableMixin, RoleTableMixin, BaseTable):
     pk = ToggleColumn()
-    vid = tables.TemplateColumn(template_code=VLAN_LINK, verbose_name="ID")
+    vid = TemplateColumn(template_code=VLAN_LINK, verbose_name="ID")
     vlan_group = tables.Column(linkify=True)
     location_count = LinkedCountColumn(
         viewname="dcim:location_list",
@@ -1018,7 +1019,7 @@ class VLANTable(StatusTableMixin, RoleTableMixin, BaseTable):
 
 
 class VLANDetailTable(VLANTable):
-    prefixes = tables.TemplateColumn(template_code=VLAN_PREFIXES, orderable=False, verbose_name="Prefixes")
+    prefixes = TemplateColumn(template_code=VLAN_PREFIXES, orderable=False, verbose_name="Prefixes")
     tenant = TenantColumn()
     tags = TagColumn(url_name="ipam:vlan_list")
 
@@ -1123,7 +1124,7 @@ class ServiceTable(BaseTable):
     pk = ToggleColumn()
     name = tables.Column(linkify=True)
     parent = tables.LinkColumn(order_by=("device", "virtual_machine"))
-    ports = tables.TemplateColumn(template_code="{{ record.port_list }}", verbose_name="Ports")
+    ports = TemplateColumn(template_code="{{ record.port_list }}", verbose_name="Ports")
     tags = TagColumn(url_name="ipam:service_list")
     actions = ButtonsColumn(Service, buttons=["changelog", "edit", "delete"])
 
