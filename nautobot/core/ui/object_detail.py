@@ -1561,10 +1561,21 @@ class KeyValueTablePanel(Panel):
         if self.data and self.context_data_key != "data":
             raise ValueError("The data and context_data_key parameters are mutually exclusive")
 
+    def _get_data_cached(self, context: Context):
+        """
+        Per-request memoized `get_data()`; see `Component._cached_call()`.
+
+        A panel that derives its data from the object rather than from a static `data` dict is asked for that
+        data twice per render: once by `should_render()`, to decide whether the panel has anything to show,
+        and again by `render_body_content()`, to show it. Where `get_data()` computes something -- rack
+        space/power utilization, prefix utilization -- that doubles the queries behind the panel.
+        """
+        return self._cached_call(context, "get_data", lambda: self.get_data(context))
+
     def should_render(self, context: Context):
         if not super().should_render(context):
             return False
-        return bool(self.get_data(context))
+        return bool(self._get_data_cached(context))
 
     def get_data(self, context: Context):
         """
@@ -1704,7 +1715,7 @@ class KeyValueTablePanel(Panel):
 
     def render_body_content(self, context: Context):
         """Render key-value pairs as table rows, using `render_key()` and `render_value()` methods as applicable."""
-        data = self.get_data(context)
+        data = self._get_data_cached(context)
 
         if not data:
             return format_html('<tr><td colspan="2">{}</td></tr>', placeholder(data))
@@ -2053,7 +2064,7 @@ class GroupedKeyValueTablePanel(KeyValueTablePanel):
 
     def render_body_content(self, context: Context):
         """Render groups of key-value pairs to HTML."""
-        data = self.get_data(context)
+        data = self._get_data_cached(context)
 
         if not data:
             return format_html('<tr><td colspan="2">{}</td></tr>', placeholder(data))

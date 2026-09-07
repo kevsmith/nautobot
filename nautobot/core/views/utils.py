@@ -318,7 +318,10 @@ def prepare_cloned_fields(instance):
     applicable.
     """
     form_class = get_form_for_model(instance)
-    form = form_class(instance=instance) if form_class is not None else None
+    # `base_fields` is the form's declared fields, which is all this needs and, unlike instantiating the form,
+    # costs no queries. Building e.g. a `DeviceForm` here just to read `to_field_name` off a handful of fields
+    # is several queries on every detail page render.
+    form_fields = form_class.base_fields if form_class is not None else {}
     params = []
     for field_name in getattr(instance, "clone_fields", []):
         field = instance._meta.get_field(field_name)
@@ -329,14 +332,13 @@ def prepare_cloned_fields(instance):
         # Example: Location.parent, LocationForm().fields["parent"].to_field_name = "name", so use name rather than PK.
         if isinstance(field, ForeignKey):
             related_object = getattr(instance, field_name)
+            form_field = form_fields.get(field_name)
             if (
                 related_object is not None
-                and form is not None
-                and field_name in form.fields
-                and hasattr(form.fields[field_name], "to_field_name")
-                and form.fields[field_name].to_field_name is not None
+                and form_field is not None
+                and getattr(form_field, "to_field_name", None) is not None
             ):
-                field_value = getattr(related_object, form.fields[field_name].to_field_name)
+                field_value = getattr(related_object, form_field.to_field_name)
 
         # Swap out False with URL-friendly value
         if field_value is False:
