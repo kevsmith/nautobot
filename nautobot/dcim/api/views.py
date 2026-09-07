@@ -685,10 +685,43 @@ class ModuleBayViewSet(NautobotModelViewSet):
 #
 
 
+def _with_connection_prefetches(queryset):
+    """Add the prefetches a cabled endpoint's serializer reads, to any component queryset.
+
+    The three `*-connections` endpoints serialize cabled device components and each pays the same
+    per-row lookups walking from a component to its cable, that cable's other terminations, and
+    its tags. Attribution found five call sites at exactly one query per rendered component on all
+    three; interface-connections adds two more because its serializer also resolves each end's
+    cable path and destination.
+
+    Applied to `Interface` for interface-connections (finding 30) and to `ConsolePort` /
+    `PowerPort` for the other two, which is why it takes the queryset rather than building one.
+
+    - `.cable` reads the join-table row and then the cable. Its own docstring prescribes the fix:
+      "Use select_related("cable_termination__cable") on the parent queryset to avoid the queries."
+    - `_get_cable_peer_rows` walks `cable.terminations`, and resolving each row's `termination`
+      reads whichever per-type FK is set, hence the `select_related` on the prefetched rows.
+    - `_first_cable_path` and `_destination` need the endpoint's `CablePath` and that path's
+      destination, which is a GenericForeignKey. These are the two that only interface-connections
+      pays; `cable_paths__destination` is prefetched for all three regardless.
+    - the serializer renders `tags`.
+    """
+    from nautobot.dcim.constants import TERMINATION_CABLE_COLUMN_FK_FIELDS
+    from nautobot.dcim.models.cables import CableToCableTermination
+
+    return queryset.select_related("device", "cable_termination__cable").prefetch_related(
+        Prefetch(
+            "cable_termination__cable__terminations",
+            queryset=CableToCableTermination.objects.select_related(*TERMINATION_CABLE_COLUMN_FK_FIELDS),
+        ),
+        "cable_paths__destination",
+        "tags",
+    )
+
+
 class ConsoleConnectionViewSet(ListModelMixin, GenericViewSet):
     queryset = (
-        ConsolePort.objects.select_related("device")
-        .prefetch_related("cable_paths__destination")
+        _with_connection_prefetches(ConsolePort.objects)
         .filter(cable_paths__destination_id__isnull=False)
         .distinct()
     )
@@ -701,8 +734,7 @@ class ConsoleConnectionViewSet(ListModelMixin, GenericViewSet):
 
 class PowerConnectionViewSet(ListModelMixin, GenericViewSet):
     queryset = (
-        PowerPort.objects.select_related("device")
-        .prefetch_related("cable_paths__destination")
+        _with_connection_prefetches(PowerPort.objects)
         .filter(cable_paths__destination_id__isnull=False)
         .distinct()
     )
@@ -728,32 +760,8 @@ class InterfaceConnectionPermissions(TokenPermissions):
 
 
 def _interface_connection_endpoint_queryset():
-    """The Interface queryset behind each end of an interface connection.
-
-    `InterfaceConnectionSerializer` embeds a full `InterfaceSerializer` for both ends, so each row
-    renders two complete interfaces -- and every per-interface lookup is therefore paid twice per
-    row. Attribution of a page of 25 found 350 of its 359 queries in seven call sites at exactly
-    50 each; these prefetches are those seven sites, in order:
-
-    - `.cable` reads the join-table row and then the cable. Its own docstring prescribes the fix:
-      "Use select_related("cable_termination__cable") on the parent queryset to avoid the queries."
-    - `_get_cable_peer_rows` walks `cable.terminations`, and resolving each row's `termination`
-      reads whichever per-type FK is set, hence the `select_related` on the prefetched rows.
-    - `_first_cable_path` and `_destination` need the endpoint's `CablePath` and that path's
-      destination, which is a GenericForeignKey.
-    - the serializer renders `tags`.
-    """
-    from nautobot.dcim.constants import TERMINATION_CABLE_COLUMN_FK_FIELDS
-    from nautobot.dcim.models.cables import CableToCableTermination
-
-    return Interface.objects.select_related("device", "cable_termination__cable").prefetch_related(
-        Prefetch(
-            "cable_termination__cable__terminations",
-            queryset=CableToCableTermination.objects.select_related(*TERMINATION_CABLE_COLUMN_FK_FIELDS),
-        ),
-        "cable_paths__destination",
-        "tags",
-    )
+    """The Interface queryset behind each end of an interface connection (finding 30)."""
+    return _with_connection_prefetches(Interface.objects)
 
 
 class InterfaceConnectionViewSet(ListModelMixin, GenericViewSet):
