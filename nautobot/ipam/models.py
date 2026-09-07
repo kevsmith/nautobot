@@ -146,6 +146,11 @@ class NamespaceParentedModelMixin:
 class Namespace(PrimaryModel):
     """Container for unique IPAM objects."""
 
+    # Namespace appears inside 13 other models' natural key field lookups (every IPAM object
+    # reaches one), so resolving that hop one attribute at a time costs a query per hop per
+    # object. Small table; see `BaseModel.natural_key_map`.
+    natural_key_map_enabled = True
+
     name = models.CharField(max_length=CHARFIELD_MAX_LENGTH, unique=True, db_index=True)
     description = models.CharField(max_length=CHARFIELD_MAX_LENGTH, blank=True)
     location = models.ForeignKey(
@@ -648,6 +653,10 @@ class Prefix(PrimaryModel):
     A Prefix can also be assigned to a VLAN where appropriate.
     Prefixes are always ordered by `namespace` and `ip_version`, then by `network` and `prefix_length`.
     """
+
+    # Reached by 10 other models' natural keys, notably IPAddress and everything that traverses
+    # through it. Above NATURAL_KEY_MAP_MAX_ROWS the map declines itself and the walk resumes.
+    natural_key_map_enabled = True
 
     network = VarbinaryIPField(
         null=False,
