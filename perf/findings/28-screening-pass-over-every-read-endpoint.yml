@@ -7,7 +7,7 @@ behaviour: A
 migration: '-'
 flags: []
 title: Screening pass over every read endpoint, and what it found
-site: perf/screen_reads.py
+site: perf/scripts/screen_reads.py
 summary: The inner loop measures 38 hand-picked scenarios. This enumerates every REST list
   endpoint from the URL resolver at run time and measures list, list?depth=1, detail and detail?depth=1
   for each, normalizing to cost per returned object so a 5-row model and a 6,556-row one are

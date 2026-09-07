@@ -67,8 +67,8 @@ resolved through `reverse()`, and objects are selected by strategy at run time �
 baked-in primary key — so the workload survives a reseed and fails loudly if a view is renamed.
 
 The inner loop is 38 read scenarios and 13 write operations. Two screening instruments cover
-the surface the inner loop does not: `perf/screen_reads.py` enumerates every REST list endpoint
-from the URL resolver and measures 518 read scenarios, and `perf/screen_writes.py` does the
+the surface the inner loop does not: `perf/scripts/screen_reads.py` enumerates every REST list endpoint
+from the URL resolver and measures 518 read scenarios, and `perf/scripts/screen_writes.py` does the
 same for the 152 endpoints that accept POST. Both normalize to cost per object, and both are
 ranking instruments rather than gates.
 
@@ -278,7 +278,9 @@ current head of it:
   content hash `90dbd96ffbeae6d1b9ed83b3e1042af10f95cdcc6fcc19e4a734be0d30ff36bf`. The hash is
   quoted rather than a commit because that is what `arm_control.sh` proves before each arm, so
   the suite and the measurements are attached to the same artefact rather than to a branch name
-  that moves.
+  that moves. The tree has since gained two test modules, which changes that hash -- test files
+  live under `nautobot/` and `arm_control.sh` hashes every `.py` under it. Nothing measured here
+  moved: the difference is test code only, and it was added after every figure above was taken.
 - **The new request-scoped state is now tested, and the third-party coupling fails loudly.**
   It was neither before. `CachingTemplateColumnCouplingTestCase` renders the same cell through
   the caching column and through django-tables2's stock `TemplateColumn` and asserts the output
@@ -298,7 +300,7 @@ current head of it:
 ## Further caveats
 
 - **The write screen measures a floor, and the factor is now bounded for most of the surface.**
-  `perf/screen_writes.py` populates required fields only. Re-running it with `--include-optional`
+  `perf/scripts/screen_writes.py` populates required fields only. Re-running it with `--include-optional`
   and comparing 73 models measured both ways puts the median understatement at **1.00×** — for
   the typical model the floor is the cost — with a mean of 1.31× and a maximum of 4.96×; 10 of 73
   exceed 1.5×. **What it cannot bound is the part that matters**: 27 models could not be measured

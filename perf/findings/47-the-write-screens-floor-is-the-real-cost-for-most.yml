@@ -7,7 +7,7 @@ behaviour: A
 migration: '-'
 flags: []
 title: The write screen's floor is the real cost for most models, and unreachable for the expensive ones
-site: perf/screen_writes.py - perf/payloads.py
+site: perf/scripts/screen_writes.py - perf/scripts/payloads.py
 summary: '`screen_writes.py` populates required fields only, so every figure it reports is the
   floor cost of a create. The caveat said any model whose expensive work hangs off an *optional*
   relation is understated by an unknown factor. `--include-optional` re-runs the screen with
