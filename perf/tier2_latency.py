@@ -114,7 +114,13 @@ def main():
 
     with open(args.urls) as fh:
         scenarios = json.load(fh)
-    pairs = [(sc["id"], sc["url"]) for sc in scenarios
+    # (id, url, scenario headers). The headers matter: a Nautobot list view
+    # renders its table over queryset.none() unless the request carries
+    # HX-Request, so two scenarios can share a URL and measure different work.
+    # Dropping them here would have timed the ui.*.list.rows scenarios at the
+    # same URL as their shell twins and reported the pair as two measurements
+    # of the rows.
+    pairs = [(sc["id"], sc["url"], sc.get("headers") or {}) for sc in scenarios
              if sc.get("method", "GET") == "GET"
              and (not args.only or args.only in sc["id"])]
 
@@ -123,17 +129,18 @@ def main():
     if args.urls_from_tier1 and args.top:
         with open(args.urls_from_tier1) as fh:
             t1 = json.load(fh)
-        ranked = [(r["id"], r["url"]) for r in t1["endpoints"] if r["status"] == 200]
+        ranked = [r["id"] for r in t1["endpoints"] if r["status"] == 200]
         wanted = set(ranked[: args.top])
-        pairs = [p for p in pairs if p in wanted]
+        pairs = [p for p in pairs if p[0] in wanted]
 
     print(f"load-testing {len(pairs)} endpoints "
           f"(n={args.requests} c={args.concurrency})", file=sys.stderr)
 
     records = []
-    for i, (view_name, url) in enumerate(pairs, 1):
+    expected_by_id = {sc["id"]: sc.get("expected_status", 200) for sc in scenarios}
+    for i, (view_name, url, scenario_headers) in enumerate(pairs, 1):
         full = args.base_url.rstrip("/") + url
-        headers = []
+        headers = [f"{k}: {v}" for k, v in scenario_headers.items()]
         # cassowary splits header values on commas, so a multi-value Accept is
         # rejected outright. Send one value -- and send it: without an explicit
         # Accept, DRF serves the *browsable HTML API* for /api/ endpoints, which
@@ -146,7 +153,11 @@ def main():
             headers.append(f"Cookie: sessionid={args.session}")
 
         status, size, location = probe(full, headers, args.timeout)
-        if status != 200:
+        # A control scenario declares the status it is supposed to return. The
+        # 404 chrome baseline is the case in hand: refusing to time it would
+        # discard the only measurement of what a page costs before it renders
+        # anything of its own.
+        if status != expected_by_id.get(view_name, 200):
             where = f" -> {location}" if location else ""
             print(f"[{i}/{len(pairs)}] {view_name} SKIPPED -- probe returned "
                   f"{status}{where} ({size} bytes); not timing an endpoint that "

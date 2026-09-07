@@ -1,6 +1,7 @@
 ---
 seq: 22
-commit: 9b8831711
+commit: 3c683a405
+recommended_commit: cb1c6c454
 status: accepted
 behaviour: C
 migration: M0
@@ -21,6 +22,7 @@ result:
     finding 16 measured 12x. The ratio narrowed because finding 13 made v2 cheaper, so v1
     is a larger share of what remains than when it was first measured
 wall_clock: −0.26% on a datacenter apply, weighted — taken for storage, not for speed
+basis: storage — object_data is 11.8% of the changelog table
 storage: 'The axis the write-path measurement never looked at, and the one it is being taken on.
   Measured on a datacenter/large changelog of 16,717 records: extras_objectchange is 63 MB total,
   of which object_data is **7,585 kB -- 11.8%** at an average of 465 bytes per row (object_data_v2
@@ -69,60 +71,62 @@ caveat: object_data is null for every record written after this lands. Both the 
   rather than comparing two v1 snapshots, because a v1 snapshot and a v2 snapshot are different
   shapes and cannot be diffed. With CHANGELOG_RETENTION at its 90-day default those records
   are long gone; where retention is 0 they persist.
-note: '**Taken on storage, not on speed, and the distinction matters.** The performance case for
-  this change collapsed between being recorded and being implemented: −2.1% of queries and a wall
-  clock indistinguishable from zero on the REST path, against an unchanged Tier C cost. Measured
-  on write-path performance alone -- the axis this branch is chartered on -- the answer was no,
-  and that analysis is kept above rather than deleted.
+note: '**Taken on storage, not on speed, and the distinction matters.** The performance case
+  for this change collapsed between being recorded and being implemented: −2.1% of queries
+  and a wall clock indistinguishable from zero on the REST path, against an unchanged Tier
+  C cost. Measured on write-path performance alone -- the axis this branch is chartered on
+  -- the answer was no, and that analysis is kept above rather than deleted.
 
 
   It is being taken because that was the wrong question. object_data is 11.8% of the changelog
-  table and the table grows without bound where retention is long. Removing a snapshot that is
-  written for every record and read by nothing is a storage and redundancy argument, and it stands
-  whether or not it is fast. Pure-ORM bulk writes -- a Job, a data migration, nbshell -- also keep
-  −7.7% queries and roughly −9% wall on a 100-object create loop, which is a real if narrow bonus.
+  table and the table grows without bound where retention is long. Removing a snapshot that
+  is written for every record and read by nothing is a storage and redundancy argument, and
+  it stands whether or not it is fast. Pure-ORM bulk writes -- a Job, a data migration, nbshell
+  -- also keep −7.7% queries and roughly −9% wall on a 100-object create loop, which is a
+  real if narrow bonus.
 
 
   **What the tests now cover, since the payload change is the whole cost.** The null case:
-  new records carry object_data_v2 and a null object_data, and diff against each other through v2
-  (test_object_data_not_written_for_new_records). The non-null case: records whose only snapshot
-  is v1 still render and still diff v1-against-v1. And the upgrade boundary, which happens once
-  per object and is the only genuinely new behaviour -- a current record whose predecessor is
-  legacy reports no prechange rather than diffing two incomparable shapes. The legacy fixtures are
-  now built explicitly with serialize_object rather than obtained by nulling half of a current
-  record, because that trick stops working the moment object_data is no longer written and would
-  have produced records in a state Nautobot has never created.
+  new records carry object_data_v2 and a null object_data, and diff against each other through
+  v2 (test_object_data_not_written_for_new_records). The non-null case: records whose only
+  snapshot is v1 still render and still diff v1-against-v1. And the upgrade boundary, which
+  happens once per object and is the only genuinely new behaviour -- a current record whose
+  predecessor is legacy reports no prechange rather than diffing two incomparable shapes.
+  The legacy fixtures are now built explicitly with serialize_object rather than obtained
+  by nulling half of a current record, because that trick stops working the moment object_data
+  is no longer written and would have produced records in a state Nautobot has never created.
 
 
   **Two production readers the original cost analysis missed, both checked and both safe.**
-  extras/webhooks.py:210 already reads object_data_v2 first and falls back to object_data, so
-  webhook payloads are unchanged. extras/signals.py:152 caches v1 into pre_object_data, but
-  get_snapshots consumes it as `pre_object_data_v2 or pre_object_data` and v2 is still populated.
+  extras/webhooks.py:210 already reads object_data_v2 first and falls back to object_data,
+  so webhook payloads are unchanged. extras/signals.py:152 caches v1 into pre_object_data,
+  but get_snapshots consumes it as `pre_object_data_v2 or pre_object_data` and v2 is still
+  populated.
 
 
-  **The general lesson is worth more than the verdict.** A recorded prize is a measurement of a
-  tree that no longer exists. This one was taken before finding 31 landed, and finding 31 removed
-  half of it -- so the branch competed with itself and the ledger did not notice. Anything parked
-  for later should be re-measured before it is implemented, not just before it is proposed. The
-  commit that first measured this said as much ("a recorded prize can go stale") and re-measured
-  finding 16''s number before proceeding; the same discipline applied one step later would have
-  caught this without a re-implementation.
+  **The general lesson, separate from the verdict.** A recorded prize is a measurement of
+  a tree that no longer exists. This one was taken before finding 31 landed, and finding 31
+  removed half of it -- so one finding removed half of another''s prize and nothing in the
+  ledger flagged it. Anything parked for later should be re-measured before it is implemented,
+  not just before it is proposed. The commit that first measured this said as much ("a recorded
+  prize can go stale") and re-measured finding 16''s number before proceeding; the same discipline
+  applied one step later would have caught this without a re-implementation.
 
 
-  What the nullable route buys over 43db1b018, which wrote {} into the NOT NULL column,
-  is not the 2 queries -- both save those. It is that {} makes the field present and lying:
-  an empty dict is not "no data", so updating the 13 tests to match it would have encoded
+  What the nullable route buys over 43db1b018, which wrote {} into the NOT NULL column, is
+  not the 2 queries, since both save those. It is that {} makes the field present and wrong:
+  an empty dict does not mean "no data", so updating the 13 tests to match it would have encoded
   a falsehood. null is the correct JSON for "not recorded", so those same test updates become
   legitimate. A Tier C change whose tests can be honestly updated is a different proposition
   from one whose tests cannot.
 
 
-  Two things established on the way that outlive this finding. Every object_data site turned
-  out to be paired with an object_data_v2 site -- signals.py at 152/153, 391/392 and 488/489
-  -- so the write path needed no other changes. And get_snapshots carried a latent AttributeError:
-  its mixed-format branch dereferenced prior_change.object_data without checking prior_change
-  is not None, reachable in principle for an UPDATE whose prior changelog was pruned on a
-  record lacking v2. Unreachable today because every record has v1.'
+  Two things established on the way, both outside this finding''s scope. Every object_data
+  site turned out to be paired with an object_data_v2 site -- signals.py at 152/153, 391/392
+  and 488/489 -- so the write path needed no other changes. And get_snapshots carried a latent
+  AttributeError: its mixed-format branch dereferenced prior_change.object_data without checking
+  prior_change is not None, reachable in principle for an UPDATE whose prior changelog was
+  pruned on a record lacking v2. Unreachable today because every record has v1.'
 controls: 'read path unaffected: Tier 1 total 695, all 38 endpoints 200/302, gate PASS'
 tests: extras test_models 295 OK, extras test_api 1475 OK, and **13 failures in extras test_changelog**
   -- 7 errors from assertions on oc.object_data[...] against None, 6 failures across test_legacy_object_data

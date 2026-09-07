@@ -67,26 +67,26 @@ controls: 'Arms alternated (pilot A, B, A, B) and the tree proved different befo
   a whole arm bimodally.'
 tests: n/a; measurement only, no product code
 caveat: null
-note: 'The queue proposed answering this by reverting finding 13 alone and re-timing. That would
-  have given one number and a yes/no. Running the write screen against both arms instead gives
-  the per-model breakdown above for the same machine time, and the answer it produces is not the
-  one the yes/no would have suggested: no single finding accounts for the win, so there is no
-  finding-13-shaped thing for the write matrix to go hunting.
+note: 'The queue proposed answering this by reverting finding 13 alone and re-timing. That
+  would have given one number and a yes/no. Running the write screen against both arms instead
+  gives the per-model breakdown above for the same machine time, and the answer it produces
+  is not the one the yes/no would have suggested: no single finding accounts for the win,
+  so there is no finding-13-shaped thing for the write matrix to go hunting.
 
 
-  **The most useful number here is the one that took the longest to see.** 662 seconds saved and
-  2.9 of them are database execution. Every instrument on this branch until now has gated on
-  query count, and query count would have rated this work at −13% when it is worth −31%. The
-  read side does not behave this way -- there, db time and query count track each other closely
-  (finding 38). The write path is where they come apart, and any future write experiment should
-  report both or it will undervalue exactly the kind of fix this branch is best at.
+  **The number that took longest to see.** 662 seconds saved and 2.9 of them are database
+  execution. Every instrument on this branch until now has gated on query count, and query
+  count would have rated this work at −13% when it is worth −31%. The read side does not behave
+  this way -- there, db time and query count track each other closely (finding 38). The write
+  path is where they come apart, and any future write experiment should report both or it
+  will undervalue this class of fix.
 
 
-  **The inference this finding originally carried was wrong, and the way it was wrong is the
-  lesson.** The first pair of applies both hit a client-side timeout on 16 cable batches. I
-  modelled that as 480 seconds of work thrown away on each arm and subtracted it, producing a
-  tidy "adjusted −40.5%". Two things were wrong: the work was not thrown away (the server
-  committed and the client confirmed), and the real cost was 146s rather than 480s. The measured
-  post-fix pair is −33.7%. An adjustment computed from a counted constant still rests on a story
-  about what the constant means, and that story was never checked. Where a re-run is affordable,
-  re-run rather than adjust.'
+  **The inference this finding originally carried was wrong.** The first pair of applies both
+  hit a client-side timeout on 16 cable batches. I modelled that as 480 seconds of work thrown
+  away on each arm and subtracted it, producing a tidy "adjusted −40.5%". Two things were
+  wrong: the work was not thrown away (the server committed and the client confirmed), and
+  the real cost was 146s rather than 480s. The measured post-fix pair is −33.7%. An adjustment
+  computed from a counted constant still rests on a story about what the constant means, and
+  that story was never checked. A re-run was affordable here, and it was the better choice
+  than an adjustment.'

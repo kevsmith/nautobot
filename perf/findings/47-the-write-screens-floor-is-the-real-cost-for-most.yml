@@ -1,0 +1,50 @@
+---
+seq: 47
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: The write screen's floor is the real cost for most models, and unreachable for the expensive ones
+site: perf/screen_writes.py - perf/payloads.py
+summary: '`screen_writes.py` populates required fields only, so every figure it reports is the
+  floor cost of a create. The caveat said any model whose expensive work hangs off an *optional*
+  relation is understated by an unknown factor. `--include-optional` re-runs the screen with
+  every writable optional field populated, which bounds that factor -- for the models where a
+  populated payload can be built at all.'
+result:
+  the_factor: 'across 73 models measured both ways at create.x10, the median understatement is
+    **1.00x** -- for the typical model the floor is the cost. Mean 1.31x, max **4.96x**. 33 of 73
+    are understated by more than 1.1x, 10 by more than 1.5x, 6 by more than 2x, 4 by more than
+    3x. Largest: ipam.prefixlocationassignment 69 -> 342 queries (4.96x),
+    ipam.vlanlocationassignment 69 -> 287 (4.16x), dcim.virtualchassis 108 -> 431 (3.99x),
+    ipam.vlan 138 -> 423 (3.07x).'
+  where_it_cannot_reach: '**27 of the 100 models the floor run measured could not be measured
+    with populated payloads at all**, because a payload carrying every optional field could not
+    be built or was rejected. They include the expensive ones the caveat was written about:
+    dcim.cable, dcim.interface, dcim.powerfeed, dcim.interfacevdcassignment, dcim.poweroutlet,
+    dcim.virtualdevicecontext. So this bounds the factor everywhere except where it matters most.'
+  cable_is_still_quantified_elsewhere: 'finding 40 measured a genuinely connected cable at ~220
+    queries against the screen''s floor figure of 44.9, which is 4.9x -- by attribution rather
+    than by payload, and consistent with the top of the range measured here.'
+wall_clock: not applicable — this measures the instrument, not a change to Nautobot
+basis: the floor understates by a median of 1.00x, a max of 4.96x, and unknowably for 27 models
+controls: 'both runs on the same branch tree and the same dataset, create.x10 only so the
+  comparison is like for like, and rollback isolation in both so neither mutates state. Models
+  present in only one run are reported separately rather than dropped, since their absence is
+  the result.'
+tests: n/a; harness only, no product code
+caveat: null
+note: 'The caveat this was meant to retire cannot be retired, and the shape of what is left is
+  more useful than a clean answer would have been. "Understated by an unknown factor" becomes
+  "not understated at all for the median model, up to 5x for four of 73, and still unknown for
+  the 27 the method cannot reach" -- and those 27 are exactly the models anyone would care about,
+  because a model with expensive optional relations is both the one most understated and the one
+  hardest to build a payload for. The two properties have the same cause.
+
+
+  **What it does settle** is that the ranking is not systematically wrong. If the floor
+  understated everything by a large factor the whole ordering would be suspect; a median of 1.00x
+  says the ranking is sound for most of the surface, with four known outliers and a named list of
+  models where it should not be trusted.'

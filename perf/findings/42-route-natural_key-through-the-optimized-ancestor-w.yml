@@ -1,7 +1,8 @@
 ---
 seq: 42
 id: null
-commit: null
+commit: af659dfd2
+recommended_commit: 85fbb16c4
 status: accepted
 behaviour: A
 migration: '-'
@@ -27,6 +28,7 @@ result:
     -- ipam.ipaddress and ipam.ipaddressrange pay the map''s build query without traversing into
     the mapped tables often enough to recoup it.'
 wall_clock: −0.2% on a datacenter apply — inside variance, and not the reason to take it
+basis: consistency — natural_key() bypassed the optimized ancestor walk
 controls: 'Four arms measured on the same box against the same dataset from the same empty
   template, each swap proved by a content hash over nautobot/**/*.py: fda67f172 (neither),
   9dba9144c (map only), 90dbd96ff (both), against ce01a0464 stock next from the earlier series.
@@ -37,31 +39,31 @@ tests: '**Not run.** Landed at Kevin''s direction without a suite run, because t
   2-2.5 hours. This touches natural_key(), which every serialization path goes through, so the
   gap is real and is recorded here rather than implied.'
 caveat: null
-note: 'Taken on query count and code duplication, not on speed. Wall clock across the three arms
-  is 1257 / 1251 / 1254 seconds -- a six-second spread, inside the 0.2% within-arm reproducibility
-  this host holds. Nobody will perceive this. What it removes is 11,674 database round trips per
-  apply and a hand-rolled ancestor walk that was strictly worse than the one twenty files away.
+note: 'Taken on query count and code duplication, not on speed. Wall clock across the three
+  arms is 1257 / 1251 / 1254 seconds -- a six-second spread, inside the 0.2% within-arm reproducibility
+  this host holds. Nobody will perceive this. What it removes is 11,674 database round trips
+  per apply and a hand-rolled ancestor walk that duplicated a better one twenty files away.
 
 
-  **Two predictions I made and measurement killed.** First, that the ancestor routing would
-  contribute nothing over HTTP: the write screen showed it doing exactly zero there, because the
-  screen posts one model at a time and the whole-table map is already warm. On a real apply --
-  9,972 objects across 68 models, many requests, many cache scopes -- it owns 63% of the saving.
-  The screen and an apply are not the same HTTP path, and this is the third time today the screen
-  under-read something the apply caught, after cable cost (44.9 against 220 queries) and the map
-  flags themselves.
+  **Two predictions I made that measurement contradicted.** First, that the ancestor routing
+  would contribute nothing over HTTP: the write screen showed it doing exactly zero there,
+  because the screen posts one model at a time and the whole-table map is already warm. On
+  a real apply -- 9,972 objects across 68 models, many requests, many cache scopes -- it owns
+  63% of the saving. The screen and an apply are not the same HTTP path, and this is the third
+  time today the screen under-read something the apply caught, after cable cost (44.9 against
+  220 queries) and the map flags themselves.
 
 
   Second, finding 41 declined those three map flags at −0.4% off the write screen. On an apply
-  they are worth 4,316 queries. The screen averages 105 models; an apply creates thousands of
-  rows in a handful of them. **Ranking a change by an instrument whose weighting does not match
-  the workload is how both errors happened.**
+  they are worth 4,316 queries. The screen averages 105 models; an apply creates thousands
+  of rows in a handful of them. **Ranking a change by an instrument whose weighting does not
+  match the workload is how both errors happened.**
 
 
-  **This is the fifth instance of one pattern on this branch**: an affordance added and its call
-  sites never updated. Finding 7 built a caching TemplateColumn and only device tables adopted it
-  (finding 11 was the cleanup); finding 34 was _with_connection_prefetches with two endpoints left
-  behind; finding 36 was .all() written to be prefetch-friendly and never prefetched; and
-  CableSerializer._apply_terminations still does not use defer_cable_path_rebuilds(), which is
-  item 3 on the queue. Screening endpoints by cost finds symptoms; screening affordances by
-  adoption finds causes.'
+  **This is the fifth instance of one pattern on this branch**: an affordance added and its
+  call sites never updated. Finding 7 built a caching TemplateColumn and only device tables
+  adopted it (finding 11 was the cleanup); finding 34 was _with_connection_prefetches with
+  two endpoints left behind; finding 36 was .all() written to be prefetch-friendly and never
+  prefetched; and CableSerializer._apply_terminations still does not use defer_cable_path_rebuilds(),
+  which is item 3 on the queue. Screening affordances by adoption searches a far smaller space
+  than a cost screen over every endpoint, and it points at causes rather than symptoms.'

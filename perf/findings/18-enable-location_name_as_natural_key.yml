@@ -12,6 +12,7 @@ result:
   in_process: -12% on api.interface.depth1 standalone; ~2 points on top of the whole-table
     map
 wall_clock: −12% api.interface.depth1
+basis: Tier C; an operator setting rather than a code change
 wall_clock_detail: -12% on api.interface.depth1 standalone; ~2 points on top of the whole-table
   map
 caveat: Composite keys change for Location and for every device component that includes a

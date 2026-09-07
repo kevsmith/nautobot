@@ -1,0 +1,81 @@
+---
+seq: 44
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: The harness measured the shell of every UI list view and never the rows
+site: perf/workload.yml - perf/tier1_queries.py - perf/workload.py
+summary: 'A Nautobot list view builds its table over queryset.none() unless the request carries
+  HX-Request (nautobot/core/views/renderers.py:96). The document therefore renders a table with
+  no rows in it, and the browser fetches the real one on a follow-up request fired by
+  hx-trigger="load" in generic/object_list.html:152. The harness never sent that header -- zero
+  occurrences across workload.yml, workload.py, tier1_queries.py and bench_endpoints.py -- so
+  all 20 ui.*.list scenarios measured a page that rendered nothing. ui.interface.list asks for
+  per_page=100 and rendered none of the 100.'
+result:
+  anatomy: 'measured in Firefox against the perf instance, per-request TTFB from the Performance
+    API. A list view is two requests to the same URL: the document renders the shell and an
+    htmx XHR renders the rows. dcim/devices/?per_page=50 fired 2 requests, 50 rows rendered
+    by the second; dcim/interfaces/?per_page=100 fired 2, 100 rows by the second. **The request
+    count and which request renders the rows are the result here.** The timings taken alongside
+    them (document 471ms then XHR 692ms; 453ms then 1195ms) put roughly 60 to 70% of each
+    page''s server time in the unmeasured request, but they are indicative only and no figure
+    should be quoted from them -- see controls.'
+  detail_pages_are_not_split: device detail is one request with no htmx follow-up, so the
+    108 -> 52 query reduction recorded for it covers the whole page and needs no correction.
+    Location detail is the document plus one small /api/dcim/locations/<id>/stats/ fetch,
+    a different shape from the list-view split and also unmeasured. Request counts, not timings.
+  what_it_invalidates: finding 07's control ("ui.device.list and ui.interface.list both within
+    noise across three rounds") and finding 12's ("ui.interface.list flat") were taken on
+    empty tables and say nothing about list views. Finding 11 converted 67 TemplateColumn
+    call sites across the ipam, circuits and dcim tables and carries no wall-clock number
+    at all; every bit of that work happens in the unmeasured request.
+  not_affected: query counts and wall clock for API endpoints, for the 7 UI detail pages,
+    and for the write path. The 2,235 -> 695 read aggregate is unaffected as an arithmetic
+    claim -- those scenarios measured what they measured -- but it does not cover list-view
+    row rendering at all, which was never in the denominator.
+wall_clock: not applicable — this measures the instrument, not a change to Nautobot
+basis: every ui.*.list measurement covered the page shell and not the rows
+controls: The load-independent facts are the request count per page, the URLs, and the initiator
+  types; those are what this finding claims. Every timing was taken while the measurement
+  host ran a full test suite at loadavg 1.5 to 2.0, against arm_control.sh's gate of 0.7 --
+  the harness would have refused to measure under these conditions, and finding 35 is why
+  the gate exists. The document-versus-XHR ratio is more robust than the absolutes since both
+  requests met the same contention, but a longer request has more opportunity to be descheduled
+  than a shorter one, so even the ratio is indicative. Real timings come from the on-host
+  driver under the quiesce gate with the arms alternated.
+tests: n/a; harness only, no product code
+caveat: null
+note: 'Found because Kevin''s dev-tools spot checks said list views were faster and the harness
+  said their query counts had not moved. I read the query counts as "not faster" and said so,
+  which is precisely the error this branch exists to warn about -- and worse than the usual form
+  of it, because the instrument was not merely blind to the improvement, it was pointed at a
+  different request.
+
+
+  **The reachable conclusion was available in the code and I did not go looking for it.** The
+  renderers.py:96 short-circuit is one line, `queryset if htmx_request else queryset.none()`, and
+  it explains why every list view sat at 9 to 13 queries whatever the page size and whatever the
+  dataset. That constancy was in the baseline the whole time and got read as "list views are
+  already efficient" rather than as "these numbers do not depend on the data, so they cannot be
+  measuring the data".
+
+
+  **The fix keeps both halves.** 18 ui.*.list.rows twins now carry HX-Request: true, generated
+  from the existing list scenarios so none was missed, and the workload goes from 39 to 57
+  scenarios. The shell scenarios stay, because a page load pays for both requests and dropping
+  either one just moves the blind spot. render_cumulative now sums the intersection of the two
+  arms rather than each file whole -- otherwise the next stock run would have compared 57
+  scenarios against a 38-scenario baseline and rendered the difference as a regression.
+
+
+  **A browser was the only instrument in play that could have caught this.** Tier 1 and the read
+  screen both drive the Django test client at one URL per scenario; Tier 2 drives HTTP but from
+  the same URL list. None of them knows a page is two requests. The general rule is that an
+  instrument built from a list of URLs cannot discover a request it was not told about, so
+  something that observes a real client belongs in the harness -- not for timing, where it has no
+  reps, no arm alternation and no quiesce gate, but for establishing what a page actually asks
+  for.'
