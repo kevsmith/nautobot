@@ -42,5 +42,8 @@
       },
       "note": "both arms from a database reset to the same empty template, arms alternated, trees proved different by content hash, and each arm ended with identical row counts -- 536 devices, 1,616 interfaces, 1,648 cables -- so the two runs did the same work. **Of the 733 seconds saved, 4.5 are database execution**"
     }
-  ]
+  ],
+  "stock_ref": "next",
+  "stock_commit": "ce01a0464",
+  "_stock_comment": "The commit the stock arm of every aggregate here was measured against. verify_report.py asserts the ref still resolves to it: if next moves, the figures describe a tree that no longer exists and want re-measuring, which should fail a check rather than be noticed by someone eventually."
 }
