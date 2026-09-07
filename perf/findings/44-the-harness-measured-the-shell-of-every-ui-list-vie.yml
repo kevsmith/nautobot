@@ -7,7 +7,7 @@ behaviour: A
 migration: '-'
 flags: []
 title: The harness measured the shell of every UI list view and never the rows
-site: perf/workload.yml - perf/tier1_queries.py - perf/workload.py
+site: perf/workload.yml - perf/scripts/tier1_queries.py - perf/scripts/workload.py
 summary: 'A Nautobot list view builds its table over queryset.none() unless the request carries
   HX-Request (nautobot/core/views/renderers.py:96). The document therefore renders a table with
   no rows in it, and the browser fetches the real one on a follow-up request fired by
