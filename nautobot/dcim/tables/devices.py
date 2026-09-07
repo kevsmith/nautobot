@@ -9,6 +9,7 @@ from nautobot.core.tables import (
     ColoredLabelColumn,
     LinkedCountColumn,
     TagColumn,
+    TemplateColumn,
     ToggleColumn,
 )
 from nautobot.core.templatetags.helpers import HTML_NONE, humanize_speed
@@ -153,8 +154,8 @@ class PlatformTable(BaseTable):
 
 
 class VirtualChassisMembersTable(BaseTable):
-    name = tables.TemplateColumn(order_by=("_name",), template_code=DEVICE_LINK, verbose_name="Device")
-    vc_position = tables.TemplateColumn(
+    name = TemplateColumn(order_by=("_name",), template_code=DEVICE_LINK, verbose_name="Device")
+    vc_position = TemplateColumn(
         verbose_name="Position", template_code='<span class="badge badge-default">{{ record.vc_position }}</span>'
     )
     master = BooleanColumn(accessor="is_vc_master", verbose_name="Master")
@@ -178,7 +179,7 @@ class VirtualChassisMembersTable(BaseTable):
 
 class DeviceTable(StatusTableMixin, RoleTableMixin, BaseTable):
     pk = ToggleColumn()
-    name = tables.TemplateColumn(order_by=("_name",), template_code=DEVICE_LINK)
+    name = TemplateColumn(order_by=("_name",), template_code=DEVICE_LINK)
     tenant = TenantColumn()
     location = tables.Column(linkify=True)
     rack = tables.Column(linkify=True)
@@ -200,7 +201,7 @@ class DeviceTable(StatusTableMixin, RoleTableMixin, BaseTable):
     vc_position = tables.Column(verbose_name="VC Position")
     vc_priority = tables.Column(verbose_name="VC Priority")
     device_redundancy_group = tables.Column(linkify=True)
-    device_redundancy_group_priority = tables.TemplateColumn(
+    device_redundancy_group_priority = TemplateColumn(
         template_code="""{% if record.device_redundancy_group %}<span class="badge badge-default">{{ record.device_redundancy_group_priority|default:'None' }}</span>{% else %}<span class="text-secondary">—</span>{% endif %}"""
     )
     controller_managed_device_group = tables.Column(linkify=True, verbose_name="Device Group")
@@ -208,7 +209,7 @@ class DeviceTable(StatusTableMixin, RoleTableMixin, BaseTable):
     secrets_group = tables.Column(linkify=True)
     capabilities = tables.Column(orderable=False, accessor="controller_managed_device_group.capabilities")
     manufacturer = tables.Column(orderable=False, accessor="device_type.manufacturer")
-    parent_device = tables.TemplateColumn(template_code=PARENT_DEVICE, orderable=False)
+    parent_device = TemplateColumn(template_code=PARENT_DEVICE, orderable=False)
     parent_bay = tables.Column(orderable=False)
     tags = TagColumn(url_name="dcim:device_list")
     actions = ButtonsColumn(Device)
@@ -269,7 +270,7 @@ class DeviceTable(StatusTableMixin, RoleTableMixin, BaseTable):
 
 
 class DeviceImportTable(StatusTableMixin, RoleTableMixin, BaseTable):
-    name = tables.TemplateColumn(template_code=DEVICE_LINK)
+    name = TemplateColumn(template_code=DEVICE_LINK)
     tenant = TenantColumn()
     location = tables.Column(linkify=True)
     rack = tables.Column(linkify=True)
@@ -411,7 +412,7 @@ class CableTerminationTable(BaseTable):
     # `cable` is a property on CableTermination subclasses (resolved via the cable_termination
     # join row), not a real model field, so the column is not DB-orderable.
     cable = tables.Column(linkify=True, orderable=False)
-    cable_peer = tables.TemplateColumn(
+    cable_peer = TemplateColumn(
         accessor="get_cable_peers",
         template_code=CABLETERMINATION,
         orderable=False,
@@ -430,7 +431,7 @@ class PathEndpointTable(CableTerminationTable):
     # The far-end of each CablePath originating from this endpoint (one per breakout lane).
     # Distinct from `cable_peer` on the parent CableTerminationTable, which shows the immediate
     # peer across the directly-connected cable rather than the resolved path destination.
-    connection = tables.TemplateColumn(
+    connection = TemplateColumn(
         accessor="get_connected_endpoints",
         template_code=PATHENDPOINT,
         verbose_name="Connection",
@@ -711,13 +712,13 @@ class DeviceModulePowerOutletTable(PowerOutletTable):
 
 class BaseInterfaceTable(StatusTableMixin, RoleTableMixin, BaseTable):
     enabled = BooleanColumn()
-    ip_addresses = tables.TemplateColumn(
+    ip_addresses = TemplateColumn(
         template_code=INTERFACE_IPADDRESSES,
         orderable=False,
         verbose_name="IP Addresses",
     )
     untagged_vlan = tables.Column(linkify=True)
-    tagged_vlans = tables.TemplateColumn(
+    tagged_vlans = TemplateColumn(
         template_code=INTERFACE_TAGGED_VLANS,
         orderable=False,
         verbose_name="Tagged VLANs",
@@ -1145,7 +1146,7 @@ class DeviceDeviceBayTable(DeviceBayTable):
 class DeviceModuleBayTable(ModuleBayTable):
     # Hierarchical tree link with an HTMX expand button; nested bays are loaded on demand via the
     # `dcim:modulebay_nestedbays` action. Falls back to a plain icon+link when `hide_hierarchy_ui` is set.
-    name = tables.TemplateColumn(
+    name = TemplateColumn(
         template_code=MODULEBAY_TREE_LINK,
         order_by=("_name",),
         attrs={"td": {"class": "nb-tree-element text-nowrap", "data-pk": lambda record: str(record.pk)}},
@@ -1335,7 +1336,7 @@ class InterfaceRedundancyGroupTable(StatusTableMixin, BaseTable):
 
     pk = ToggleColumn()
     name = tables.Column(linkify=True)
-    interfaces = tables.TemplateColumn(
+    interfaces = TemplateColumn(
         template_code=INTERFACE_REDUNDANCY_GROUP_INTERFACES,
         orderable=False,
         verbose_name="Interfaces",
@@ -1373,12 +1374,12 @@ class InterfaceRedundancyGroupAssociationTable(BaseTable):
     interface_redundancy_group = tables.Column(linkify=True, verbose_name="Group Name")
     interface_redundancy_group__virtual_ip = tables.Column(linkify=True, verbose_name="Virtual IP")
     interface_redundancy_group__protocol_group_id = tables.Column(verbose_name="Group ID")
-    priority = tables.TemplateColumn(template_code=INTERFACE_REDUNDANCY_INTERFACE_PRIORITY)
+    priority = TemplateColumn(template_code=INTERFACE_REDUNDANCY_INTERFACE_PRIORITY)
     interface__device = tables.Column(linkify=True)
     interface = tables.Column(linkify=True)
     interface__status = ColoredLabelColumn()
     interface_redundancy_group__status = ColoredLabelColumn(verbose_name="Group Status")
-    interface__ip_addresses = tables.TemplateColumn(
+    interface__ip_addresses = TemplateColumn(
         template_code=INTERFACE_REDUNDANCY_GROUP_INTERFACES_IPADDRESSES,
         orderable=False,
         verbose_name="IP Addresses",
@@ -1575,7 +1576,7 @@ class ControllerManagedDeviceGroupTable(BaseTable):
     """Table for list view."""
 
     pk = ToggleColumn()
-    name = tables.TemplateColumn(template_code=TREE_LINK, attrs={"td": {"class": "text-nowrap"}})
+    name = TemplateColumn(template_code=TREE_LINK, attrs={"td": {"class": "text-nowrap"}})
     weight = tables.Column()
     controller = tables.Column(linkify=True)
     tenant = TenantColumn()

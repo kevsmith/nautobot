@@ -12,6 +12,7 @@ from django.urls import reverse
 from django.utils.html import format_html, format_html_join
 from django.utils.http import urlencode
 from django.utils.safestring import mark_safe
+from django.template import Context, Template
 from django.utils.text import Truncator
 import django_tables2
 from django_tables2.data import TableData, TableQuerysetData
@@ -418,6 +419,38 @@ class BaseTable(django_tables2.Table):
 #
 
 
+class TemplateColumn(django_tables2.TemplateColumn):
+    """A `TemplateColumn` that compiles its `template_code` once instead of once per cell.
+
+    `django_tables2.TemplateColumn.render()` calls `Template(self.template_code)` for every cell it
+    renders, so a table re-parses the same template source once per row per column -- nearly 300
+    compiles for a 49-row Interface table. A column's `template_code` is fixed at construction, so the
+    compiled `Template` can be reused; this is what Django's cached template loader already does for
+    the `template_name` branch of the same method. Compiled templates are immutable and hold no
+    per-render state, so sharing one across requests and threads is safe.
+
+    Falls back to the parent implementation when `template_code` is unset (the `template_name` branch
+    is already cached) or if a future django_tables2 drops the `get_context_data()` hook this uses.
+    """
+
+    _compiled_template = None
+    _compiled_template_code = None
+
+    def render(self, record, table, value, bound_column, **kwargs):
+        if not self.template_code or not hasattr(self, "get_context_data"):
+            return super().render(record, table, value, bound_column, **kwargs)
+        if self._compiled_template is None or self._compiled_template_code != self.template_code:
+            self._compiled_template = Template(self.template_code)
+            self._compiled_template_code = self.template_code
+        parent_context = getattr(table, "context", Context())
+        context = self.get_context_data(
+            record=record, table=table, value=value, bound_column=bound_column, **kwargs
+        )
+        with parent_context.update(context):
+            parent_context["request"] = getattr(table, "request", None)
+            return self._compiled_template.render(parent_context)
+
+
 class ToggleColumn(django_tables2.CheckBoxColumn):
     """
     Extend CheckBoxColumn to add a "toggle all" checkbox in the column header.
@@ -457,7 +490,7 @@ class BooleanColumn(django_tables2.Column):
         return helpers.render_boolean(value)
 
 
-class ButtonsColumn(django_tables2.TemplateColumn):
+class ButtonsColumn(TemplateColumn):
     """
     Render detail, changelog, edit, and delete buttons for an object.
 
@@ -563,7 +596,7 @@ class ButtonsColumn(django_tables2.TemplateColumn):
         return ""
 
 
-class ApprovalButtonsColumn(django_tables2.TemplateColumn):
+class ApprovalButtonsColumn(TemplateColumn):
     """
     Render detail, changelog, approve, deny, and comment buttons for an approval workflow stage.
 
@@ -648,7 +681,7 @@ class ColorColumn(django_tables2.Column):
         return format_html('<span class="label nb-color-block" style="background-color: #{}">&nbsp;</span>', value)
 
 
-class ColoredLabelColumn(django_tables2.TemplateColumn):
+class ColoredLabelColumn(TemplateColumn):
     """
     Render a colored label (e.g. for DeviceRoles).
     """
@@ -776,7 +809,7 @@ class LinkedCountColumn(django_tables2.Column):
         return helpers.placeholder(value)
 
 
-class TagColumn(django_tables2.TemplateColumn):
+class TagColumn(TemplateColumn):
     """
     Display a list of tags assigned to the object.
     """
