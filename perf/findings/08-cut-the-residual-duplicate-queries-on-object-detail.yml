@@ -1,6 +1,7 @@
 ---
 seq: 8
 commit: 0ccf16a4e
+recommended_commit: 05bb2c9b1
 status: accepted
 behaviour: B1
 migration: '-'
@@ -14,6 +15,7 @@ summary: 'Three independent causes: Panel.get_data() called twice per render; re
 result:
   queries: ui.device.detail 68 -> 55, ui.rack.detail 77 -> 66, total -46
 wall_clock: −9% detail pages, own A/B inconclusive
+basis: −46 queries on detail pages; ~−9% on an independent A/B
 wall_clock_detail: own A/B inconclusive and no number claimed from it -- ui.rack.detail swung
   84 to 110ms across two runs of the same config, larger than the effect. An independent interleaved
   measurement at 125 samples per config put it at roughly -8.7ms on rack and -8.5ms on device

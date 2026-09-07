@@ -1,0 +1,87 @@
+---
+seq: 46
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: The branch's list-view win was entirely in the request the harness never issued
+site: perf/tier2_latency.py - perf/workload.yml
+summary: 'First stock-versus-branch wall-clock A/B over the 57-scenario workload, on one host,
+  arms alternated, both trees proved different by content hash, cassowary at n=30 c=1 per
+  endpoint. It answers a question the harness could not previously ask: finding 44 established
+  that every ui.*.list scenario measured a page rendering no rows, so the branch''s effect on
+  list views had never been measured at all. It is substantial, and it is invisible to every
+  deterministic signal the harness owns.'
+result:
+  the_split: 'the document half of a list view is unchanged -- median **−1.3%** across 18
+    scenarios, range −5.7% to +2.6%, which is noise. The row-rendering half improves on **18
+    of 18**, median **−18.6%**, best −33.1% (dcim.cable), worst −7.6%. Largest absolute movers:
+    ui.interface.list.rows 1272 -> 902ms, ui.prefix.list.rows 1556 -> 1226ms, ui.device.list.rows
+    1041 -> 786ms.'
+  no_queries_moved: '**Tier 1 measured all 18 row-rendering scenarios as identical across
+    the two arms** -- same query count, same duplicate count, to the query. So this is an
+    18.6% median wall-clock improvement with zero SQL difference. Every deterministic signal
+    this harness owns reports the branch as having done nothing to list views.'
+  chrome_baseline: ui.chrome.404 -- full chrome, static content, 3 queries -- is **82ms**.
+    Zero-row list documents run 151 to 256ms, so per-model list machinery on top of chrome
+    is 68 to 174ms, a 2.5x spread. The cheap end is extras models (objectchange, role, status
+    at 68 to 70ms); the dear end is dcim and ipam (location 174, prefix 154). **The per-model
+    term dominates, not the chrome.**
+  aggregate: 'summed per-endpoint median server time across all 57 endpoints answering on
+    both arms: **33,606ms -> 22,892ms, −31.9%**. 25 endpoints moved more than 10%. Largest:
+    api.interface.depth1 6420 -> 1514ms (−76.4%), api.interface.list 1626 -> 779ms (−52.1%),
+    api.device.list.depth1 1853 -> 1153ms (−37.8%).'
+  what_the_saving_scales_with: across the 18 row-rendering scenarios, the milliseconds removed
+    correlate with the page's own cost at **pearson +0.97, spearman +0.95** -- the branch
+    removes a roughly constant fraction of whatever rendering a page does. By cost band the
+    median improvement is −9.4% below 300ms, −19.1% from 300 to 900ms, and −24.5% above 900ms.
+    That is the signature of a per-row overhead being removed rather than a fixed cost, and
+    it is orthogonal to database access, which is why query count is identical on every one.
+wall_clock: −31.9% summed median server time across 57 endpoints
+basis: list-view row rendering is 18.6% faster with zero query change
+controls: 'both arms through arm_control.sh: path-scoped checkout, container restart because uwsgi
+  has no autoreloader, then a wait for loadavg below 0.7. Tree hashes recorded per arm and proved
+  different -- branch 90dbd96ff against stock 0e1d03a4e. Every endpoint probed for a 200 before
+  timing, none skipped, zero failures reported by cassowary on either arm. ui.chrome.404 carries
+  expected_status 404 and is exempted from the 200 gate rather than excluded from the run.'
+tests: n/a; measurement only, no product code
+caveat: null
+note: 'This is the read-path counterpart to finding 39, and it lands the same way. There,
+  a −33.7% write win was spread across 40 models with no single finding accountable, and query
+  count would have rated the work at −13%. Here, an 18.6% median win on the request users
+  spend most of their time waiting for is invisible to query count entirely -- not undervalued,
+  invisible, because the counts are identical to the query.
+
+
+  **It also settles a contradiction that was open for most of a day.** Two readings of the
+  chrome cost disagreed: a browser session under load put the 404 at 274ms and a zero-row
+  list document at 357ms, making chrome the dominant term; the committed quiet-box numbers
+  put ui.search at 81ms with identical chrome, making the per-model term dominant. On a gated
+  box the 404 is **82ms**, within a millisecond of ui.search, so the committed reading was
+  right and the browser figures were inflated 3.3x by a test suite competing for the same
+  cpuset. The lesson is not that the browser was the wrong instrument -- it found finding
+  44, which nothing else could have -- but that a measurement taken outside the quiesce gate
+  cannot arbitrate between two that were taken inside it.
+
+
+  **What this does not say.** The aggregate sums per-endpoint medians with every endpoint
+  weighted equally, which is the same method the write screen uses, so the two rows in the
+  report are comparable to each other. It is not traffic-weighted, and nothing in this harness
+  knows the traffic mix. A −31.9% summed figure is not a claim that any particular user gets
+  31.9% of their time back.
+
+
+
+  **A mechanism I proposed and the data did not support.** I attributed this to findings 07
+  and 11 -- the caching TemplateColumn -- on the strength of the biggest movers being dcim
+  and ipam tables, which is what finding 11 converted. Tested properly by counting TemplateColumn-derived
+  columns per table class and correlating against improvement, it comes out at **pearson +0.09,
+  spearman +0.05**: no relationship. The counter is also not trustworthy -- it reports zero
+  columns for CableTable and InterfaceTable, which plainly have them, so those tables build
+  columns somewhere a static walk cannot see. Either way the attribution is unproven, and
+  what the data does support is the magnitude relationship above. This is the sixth hypothesis
+  on this branch formed by reading code and killed by measuring, and the first one where the
+  eyeballed pattern was a genuine correlation with the wrong variable: the big movers really
+  are dcim and ipam tables, and they are also the expensive ones.'

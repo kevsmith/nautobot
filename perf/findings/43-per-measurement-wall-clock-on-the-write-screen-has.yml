@@ -1,0 +1,54 @@
+---
+seq: 43
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: Per-measurement wall clock on the write screen has a magnitude floor, and reps do not
+  raise it
+site: perf/screen_writes.py - perf/compare_screen.py
+summary: Building the report's cumulative section surfaced 21 measurements that improved on
+  query count and read *slower* on wall clock, worst +42.5%, in a comparison whose aggregate
+  is −23.9%. The write screen already runs three reps after a discarded warmup and reports
+  medians, so those figures are medians rather than single samples and more reps cannot be
+  the fix. Banding the 153 improved measurements by their absolute cost shows why.
+result:
+  bands: 'baseline wall 25-100ms: n=55, median −4.7%, worst +42.5%, 17 of 55 slower. 100-400ms:
+    n=62, median −15.7%, worst +5.4%, 4 of 62 slower. 400ms and above: n=36, median −38.1%,
+    worst −1.9%, **0 of 36 slower**.'
+  floor: 'every one of the 21 wall-slower measurements has a baseline under 265ms, median 48.9ms,
+    against a median of 200.8ms across all 153 improved. The sign of a per-measurement wall
+    figure is unreliable below roughly 100ms and reliable above roughly 400ms.'
+  queries_unaffected: all 153 improved measurements fell on query count, between 1.8% and 47.5%,
+    median 6.8%. Query counts are deterministic, so the spread there is the result rather than
+    the noise.
+wall_clock: not applicable — this measures the instrument, not a change to Nautobot
+basis: per-measurement wall clock is unusable below ~100ms, whatever the rep count
+controls: computed from the two committed arms of finding 39 (`screen-writes-dc-next.json` against
+  `screen-writes-dc.json`), both taken at reps=3 with medians, so the bands compare like with
+  like and no new measurement was required
+tests: n/a; harness only, no product code
+caveat: null
+note: 'This is finding 32''s conclusion arriving on a second instrument. There it was Tier 1W --
+  a recurring GC pause meant no wall figure below a few hundred milliseconds meant anything, and
+  three alternating rounds could not cancel it. Here it is the write screen, the mechanism is
+  whatever jitter a 40ms request carries rather than a GC pause specifically, and the boundary
+  lands in the same place. Two instruments, independently, put the usable floor at a few hundred
+  milliseconds.
+
+
+  **The practical consequence is a reporting rule rather than a code change.** A per-measurement
+  wall figure should not be published without its absolute magnitude alongside it, and a range
+  across measurements should not be published at all on this axis: quoting "wall clock ranged from
+  −59.8% to +42.5%" would advertise a 42% regression that is noise, on a comparison whose
+  aggregate is −23.9%. The aggregate is unaffected -- it sums absolute milliseconds across 260
+  measurements, where the small ones contribute little and their jitter cancels.
+
+
+  **What the banding also shows is not noise.** The median improvement rises monotonically with
+  the cost of the operation: −4.7%, −15.7%, −38.1% across the three bands. The expensive half of
+  the write surface is where this branch does its work, which is the half a user waits on. That
+  belongs in a conversation about where the wins are rather than in the report, where a band table
+  needs the reader to already know the test environment.'

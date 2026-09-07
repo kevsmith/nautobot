@@ -2,6 +2,7 @@
 seq: 25
 id: null
 commit: 4c9635e52
+recommended_commit: ad1e84161
 status: accepted
 behaviour: A
 migration: '-'
@@ -44,5 +45,5 @@ note: 'Found by attribution rather than by reading code, and the attribution pre
   Rollout candidates: every viewset whose serializer nests a Device carries the same cost.
   FrontPort, RearPort, ConsolePort, PowerPort and the other component viewsets are the obvious
   set, and they use the same connection_prefetch_related_fields() helper. Left for a follow-up
-  so this commit''s number stays attributable, exactly as the TemplateColumn fix was rolled
-  out separately from its measurement.'
+  so this commit''s number stays attributable, as the TemplateColumn fix was rolled out separately
+  from its measurement.'

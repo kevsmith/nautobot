@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render perf/report.md from perf/findings/*.yml and the committed baselines.
+"""Render perf/report.md and perf/methodology.md from perf/findings/*.yml and the baselines.
 
 The report is the deliverable on this branch -- the tree may never be merged. It
 drifted five commits behind the code once, carrying a figure a later commit had
@@ -7,16 +7,21 @@ retracted, so it is generated rather than maintained.
 
 Numbers live in exactly two places: perf/findings/*.yml for what each experiment
 found, and perf/baselines/*.json for what the instruments measured. This script
-reads both and fills the <!--GEN:...--> markers in perf/report.template.md.
+reads both and fills the <!--GEN:...--> markers in the two templates.
 Narrative prose stays in the template, where writing it by hand is the point.
+
+Two documents, because they answer different questions. perf/report.md is for a
+reader deciding what to adopt and what it is worth; perf/methodology.md is for a
+reader auditing a number. They were one file for a while, and the working
+crowded out the result: 55% of a 155KB report was per-finding evidence.
 
 Markdown rather than HTML, deliberately: a markdown diff shows which number
 moved, so drift becomes visible in review rather than merely detectable by
 --check. It also removes escaping and tag-balancing from a tool whose whole job
 is not being wrong.
 
-    python3 perf/build_report.py            # write perf/report.md
-    python3 perf/build_report.py --check    # exit 1 if it is stale
+    python3 perf/build_report.py            # write both documents
+    python3 perf/build_report.py --check    # exit 1 if either is stale
 """
 
 import argparse
@@ -39,22 +44,34 @@ GROUPS = [
     (
         "accepted",
         "Accepted",
-        "Measured, kept, and applied to the tree. Each entry states what it changed, what "
-        "that was worth, and any caveat a release note would have to carry.",
-    ),
-    (
-        "parked",
-        "Parked",
-        "Measured and not rejected -- the win is real and the reason for waiting is stated. "
-        "These are decisions someone can revisit, not conclusions.",
+        "Measured, kept, and applied to the tree. Each Reason is that change measured on its "
+        "own, and several reduce the same cost by different routes -- they do not sum, and the "
+        "cumulative table above is the measured total.",
     ),
     (
         "rejected",
         "Rejected",
-        "Plausible optimizations that measurement or blast-radius analysis killed. These are "
-        "results rather than omissions: they say what a tempting option actually costs.",
+        "Measurement or blast-radius analysis ruled these out. Listed because a rejected "
+        "optimization prices an option someone would otherwise retry.",
     ),
 ]
+
+# Flags cut across both axes and make any cell stricter. They render in the same
+# table cell as the tier, so a flag with no definition in front of the reader is
+# a label they have to guess at -- and both of these carry the part of the risk
+# the tier cannot express.
+FLAG_HELP = {
+    "third-party-coupled": (
+        "Reimplements or depends on internals of a dependency, so an upgrade can change "
+        "behaviour rather than break a signature. Correct against the pinned version, and a "
+        "differential test now renders the same cell both ways so a divergence fails a test "
+        "instead of producing wrong output."
+    ),
+    "security-visible": (
+        "Touches an authorisation decision rather than a displayed value, so a stale or shared "
+        "result is a permissions bug."
+    ),
+}
 
 TIER_HELP = {
     "A": "no observable change",
@@ -75,20 +92,18 @@ def anchor(text):
 
 
 def group_of(f):
-    """Classify by what was decided.
+    """Classify by what was decided: accepted, or not.
 
-    Three buckets, and every finding lands in exactly one. `not-taken` and
+    Two buckets, and every finding lands in exactly one. `not-taken` and
     `priced` join `rejected`: from a reader's point of view they are all "we
-    looked and we are not doing it", and the distinction between them lives in
-    each finding's own `reason`. `proposed` joins `parked` for the same reason --
-    it is something still open rather than something closed.
+    looked and we are not doing it", and the distinction -- killed on principle
+    against closed on magnitude -- lives in each finding's own `reason`.
+
+    There is no "parked" bucket. There was one while the ledger still carried
+    open decisions; every non-accepted finding has since been measured and
+    closed, so a third heading would have been an empty promise of follow-up.
     """
-    status = f["status"]
-    if status == "accepted":
-        return "accepted"
-    if status in ("parked", "proposed"):
-        return "parked"
-    return "rejected"
+    return "accepted" if f["status"] == "accepted" else "rejected"
 
 
 def is_product_change(f):
@@ -141,6 +156,11 @@ def validate(findings):
                 f"finding {f['seq']}: wall_clock {f['wall_clock']!r} should lead with a signed "
                 "percentage, or say 'not measured — <reason>'"
             )
+        for flag in f.get("flags") or []:
+            if flag not in FLAG_HELP:
+                problems.append(f"finding {f['seq']}: flag {flag!r} has no definition in FLAG_HELP")
+        if f.get("basis") and len(str(f["basis"])) > 90:
+            problems.append(f"finding {f['seq']}: basis is {len(str(f['basis']))} chars, over 90")
         if f.get("behaviour") not in ("A", "B1", "B2", "C"):
             problems.append(f"finding {f['seq']}: behaviour {f.get('behaviour')!r} not a tier")
         # A caveat is a release note for something being adopted. A finding that
@@ -154,6 +174,19 @@ def validate(findings):
     return problems
 
 
+def basis(f):
+    """Why a finding was accepted or rejected, in one table cell.
+
+    Wall clock is the reason for most of them, so `wall_clock` is the default
+    and no finding has to repeat itself. The field exists for the ones where it
+    is not: 42 was taken for consistency at -0.2%, 22 for storage, 23 was
+    refused on correctness, and three accepted changes have no wall-clock
+    figure at all. A "not measured" cell in the reason column said nothing
+    about why anyone kept the change.
+    """
+    return f.get("basis") or f["wall_clock"]
+
+
 def tiers(f):
     bits = [f["behaviour"]]
     if f.get("migration", "-") != "-":
@@ -162,26 +195,12 @@ def tiers(f):
     return " ".join(f"`{b}`" for b in bits)
 
 
-# The summary table shows the three instruments by name. `result` accumulated ten
-# different keys across 27 findings -- expected, cost, observed, measured_prize,
-# unmeasured, note -- so a column showing "whichever came first" read as a notes
-# field rather than a measurement. Those keys still appear in each finding's own
-# detail table; only the summary is restricted.
-QUERY_KEYS = ("queries",)
-CACHE_KEYS = ("config_reads", "redis_reads")
-CELL_MAX = 46
-
-
-def instrument(f, keys):
-    """The first of `keys` present in a finding's result, trimmed for a table cell."""
-    r = f.get("result") or {}
-    for key in keys:
-        if key in r:
-            value = str(r[key])
-            if len(value) > CELL_MAX:
-                value = value[: CELL_MAX - 1].rstrip(" ,;") + "…"
-            return value
-    return "—"
+# The instruments, as opposed to the evidence. `result` accumulated 30-odd
+# ad-hoc keys across 42 findings -- attribution, staged, residual, response,
+# screen, ceiling -- each of them a paragraph of supporting detail. They are
+# real and they are kept, but in perf/methodology.md: a reader deciding whether
+# to adopt a change needs the four instruments, not the working.
+CORE_RESULT_KEYS = ("queries", "duplicates", "in_process", "wall", "config_reads", "redis_reads")
 
 
 def load_runs(pattern, key):
@@ -206,51 +225,65 @@ def load_runs(pattern, key):
 
 
 def render_factbar(findings):
+    """What the numbers were taken over. Not the numbers themselves.
+
+    Every figure moved to the cumulative table directly below this, because a
+    fact bar carrying a headline and a table repeating it made the reader check
+    whether the two agreed. What is left is the shape of the exercise: which
+    tree, which dataset, how much was proposed and how much survived.
+
+    "Accepted changes to Nautobot" read as upstream acceptance to the first
+    reviewer who saw it, and it was the first number on the page. These are
+    accepted on this branch by the person who measured them; anything
+    upstreamed would go through review and very likely change.
+    """
     product = [f for f in findings if is_product_change(f)]
-    accepted = sum(1 for f in product if f["status"] == "accepted")
+    accepted = [f for f in product if f["status"] == "accepted"]
     rows = [
-        ("Branch", "`next` · 3.3.0a0"),
-        ("Dataset", "databot `enterprise-campus / large / seed 42` · 24,091 objects"),
-        ("Read scenarios", "38"),
-        ("Write operations", "13"),
-        ("Findings recorded", str(len(findings))),
-        ("Accepted changes to Nautobot", str(accepted)),
-        ("Harness findings", str(len(findings) - len(product))),
+        ("Measured against", "`next` \u00b7 3.3.0a0"),
+        ("Dataset", "databot `enterprise-campus / large` for reads, `datacenter / large` for writes"),
+        ("Changes proposed", f"{len(product)}"),
+        ("Accepted on this branch", f"**{len(accepted)}**"),
+        ("Rejected", f"{len(product) - len(accepted)}"),
+        (
+            "Experiments recorded",
+            f"{len(findings)}, of which {len(findings) - len(product)} measured the harness itself",
+        ),
     ]
-    # Three reference points: large-tier1-baseline is where the work started,
-    # uwsgi-tier1-baseline is where round two started, and uwsgi-tier1-current
-    # is the tree as it stands, refreshed whenever an experiment is accepted.
-    # The headline compares the original baseline against current so it cannot
-    # lag the tree.
-    base = PERF / "baselines" / "large-tier1-baseline.json"
-    r2 = PERF / "baselines" / "uwsgi-tier1-baseline.json"
-    cur = PERF / "baselines" / "uwsgi-tier1-current.json"
-    after = cur if cur.exists() else r2
-
-    def total(path):
-        return sum(e["query_count"] for e in json.loads(path.read_text())["endpoints"])
-
-    if base.exists() and after.exists():
-        bt, ct = total(base), total(after)
-        rows.append(("Queries", f"**{bt:,} → {ct:,}** ({(ct - bt) / bt * 100:+.1f}%)"))
-    if cur.exists() and r2.exists() and total(cur) != total(r2):
-        rows.append(("Since the round-two baseline", f"{total(r2):,} → {total(cur):,}"))
     body = "\n".join(f"| {k} | {v} |" for k, v in rows)
     return f"| | |\n| --- | --- |\n{body}"
 
 
 def render_provenance():
-    prov = PERF / ".provenance.json"
+    """Where each number in the report came from, named so it can be checked.
+
+    Lists the cumulative sources rather than every instrument the harness owns:
+    those are what the report actually renders now, and naming files it no
+    longer reads invited a reader to go looking for a figure that was not
+    there.
+    """
     bits = []
+    prov = PERF / ".provenance.json"
     if prov.exists():
         p = json.loads(prov.read_text())
         bits.append(f"tree `{p.get('commit')}` with {p.get('dirty_paths')} dirty path(s)")
-    bits.append(
-        "read-path queries from `perf/baselines/uwsgi-tier1-current.json` against "
-        "`large-tier1-baseline.json`; write path from `uwsgi-tier1w-baseline.json`"
-    )
-    bits.append("in-process wall clock from `uwsgi-bench-r{1,2,3}.json`")
-    bits.append("HTTP wall clock from `uwsgi-tier2-c1-r{1,2,3}.json`, concurrency 1, median")
+    index = PERF / "baselines" / "cumulative.json"
+    if index.exists():
+        spec = json.loads(index.read_text())
+        for agg in spec.get("aggregates", []):
+            if agg.get("file"):
+                bits.append(f"{agg['key']} from `perf/baselines/{agg['file']}`")
+            elif agg.get("source") == "tier1":
+                names = [
+                    agg.get("baseline_file", "large-tier1-baseline.json"),
+                    agg.get("current_file", "uwsgi-tier1-current.json"),
+                ]
+                if agg.get("wall_baseline_file"):
+                    names += [agg["wall_baseline_file"], agg["wall_current_file"]]
+                bits.append(f"{agg['key']} from " + " + ".join(f"`{n}`" for n in names))
+            elif agg.get("figures"):
+                bits.append(f"{agg['key']} from findings 39 and 40")
+    bits.append("per-change figures from `perf/findings/*.yml`")
     return (
         "> Generated by `perf/build_report.py` from `perf/findings/` and "
         "`perf/baselines/`. Do not edit this file.\n>\n> Sources: " + "; ".join(bits) + "."
@@ -275,54 +308,250 @@ def render_tier2():
     return "\n".join(lines)
 
 
-def render_cumulative(findings):
-    """Read-path cumulative effect in query counts, from the baselines.
+def _fmt_count(n):
+    return f"{n:,.0f}"
 
-    Queries only, and deliberately so. Query counts are machine-independent --
-    the same 957 and 346 reproduced across two different CPU architectures and
-    host operating systems -- so a delta between the original baseline and the
-    current tree is meaningful. Wall clock is not: round one ran on Apple
-    Silicon and round two on an Intel part with turbo disabled, 4-6x apart in
-    absolute terms. Absolute wall clock for the current host is reported
-    separately, as a reference rather than a delta.
+
+def _ms_formatter(*values):
+    """One unit for the whole pair, chosen from the larger side.
+
+    Formatting each value on its own produced "63 s → 48,059 ms", which is a
+    23% improvement rendered as a 763-fold regression.
     """
-    base = PERF / "baselines" / "large-tier1-baseline.json"
-    cur = PERF / "baselines" / "uwsgi-tier1-current.json"
-    if not (base.exists() and cur.exists()):
-        return "_No cumulative read-path measurement committed yet._"
+    if max(values) >= 60_000:
+        return lambda ms: f"{ms / 1000:,.0f} s"
+    return lambda ms: f"{ms:,.0f} ms"
 
-    def load(path):
-        return {e["id"]: e for e in json.loads(path.read_text())["endpoints"]}
 
-    b, c = load(base), load(cur)
-    accepted = sum(1 for f in findings if f["status"] == "accepted" and is_product_change(f))
+def _delta(before, after, fmt):
+    pct = (after - before) / before * 100 if before else 0.0
+    # U+2212 for the sign, matching the figures typed into the findings; an
+    # ASCII hyphen next to them reads as a different kind of number.
+    sign = f"{pct:+.1f}".replace("-", "\u2212")
+    return f"{fmt(before)} → {fmt(after)} ({sign}%)"
 
-    rows = []
-    for name in sorted(c, key=lambda k: b.get(k, {}).get("query_count", 0), reverse=True):
-        if name not in b or b[name]["query_count"] == c[name]["query_count"]:
-            continue
-        bq, cq = b[name]["query_count"], c[name]["query_count"]
-        bd, cd = b[name]["duplicate_queries"], c[name]["duplicate_queries"]
-        rows.append(f"| `{name}` | {bq:,} → {cq:,} ({(cq - bq) / bq * 100:+.0f}%) | {bd:,} → {cd:,} |")
 
-    bt = sum(e["query_count"] for e in b.values())
-    ct = sum(e["query_count"] for e in c.values())
-    bdt = sum(e["duplicate_queries"] for e in b.values())
-    cdt = sum(e["duplicate_queries"] for e in c.values())
-    unchanged = sum(1 for k in c if k in b and b[k]["query_count"] == c[k]["query_count"])
-    rows.append(
-        f"| **All {len(c)} scenarios** | **{bt:,} → {ct:,} ({(ct - bt) / bt * 100:+.1f}%)** | **{bdt:,} → {cdt:,}** |"
+def _distribution(pairs, floor=None):
+    """How the saving is spread, in one sentence.
+
+    A summed total invites "everything is 32% faster", which the first person to
+    load a cheap page falsifies. What survives contact is the shape: how many
+    moved, by how much the typical one moved, and how much of the total comes
+    from the single largest contributor. The read aggregate needs this most --
+    one endpoint is 46% of its saving.
+
+    `pairs` is (before, after, label). `floor` drops anything whose baseline is
+    below it, because finding 43 established that a per-measurement wall figure
+    under roughly 100ms cannot reliably get its own sign right -- 21 of 153
+    improved write measurements read *slower* on wall clock, worst +42.5%, on
+    measurements whose query counts fell. Reporting those as regressions would
+    advertise noise as a result. The count dropped is stated rather than hidden.
+    """
+    kept = [(b, a, label) for b, a, label in pairs if b and (floor is None or b >= floor)]
+    dropped = sum(1 for b, _, _ in pairs if b and floor is not None and b < floor)
+    pairs = kept
+    if not pairs:
+        return ""
+    pcts = sorted((a - b) / b * 100 for b, a, _ in pairs)
+    better = sum(1 for p in pcts if p < -1)
+    worse = sum(1 for p in pcts if p > 1)
+    flat = len(pcts) - better - worse
+    bits = [
+        f"{better} of {len(pcts)} improved, {flat} unchanged, "
+        + ("**none worse**" if not worse else f"{worse} up to {max(pcts):+.1f}%")
+    ]
+    bits.append(f"the median moved {statistics.median(pcts):.1f}%")
+    saved = [((b - a), label) for b, a, label in pairs if b > a]
+    total = sum(v for v, _ in saved)
+    if total > 0:
+        top, name = max(saved)
+        bits.append(f"and **{top / total * 100:.0f}% of the total saving is one item**, `{name}`")
+    if dropped:
+        bits.append(
+            f"{dropped} measurements below {floor:.0f}ms are excluded, where a "
+            "per-measurement wall figure cannot be trusted for sign (finding 43)"
+        )
+    return "; ".join(bits)
+
+
+def _movement(data):
+    """How many measurements moved, and by how much the typical one moved.
+
+    The median rather than the mean, because the distribution is skewed: 109 of
+    the 153 improved write measurements are under 10% and the tail runs to 47%,
+    so a mean sits in a gap and describes neither end.
+
+    A range on queries and not on wall clock, deliberately. Query counts are
+    deterministic, so the spread is the result: every one of those 153 is a
+    genuine saving somewhere between 1.8% and 47.5%. Per-measurement wall clock
+    at this magnitude is not -- 21 of the same 153 read *slower* on wall, worst
+    +42.5%, on measurements whose query counts fell. Finding 22 recorded that
+    effect and identified it as variance rather than regression, so publishing
+    a wall range here would advertise a 42% regression that is noise.
+
+    Read alongside the aggregate, not instead of it. The two say different
+    things: the count says nothing regressed, the median says the typical model
+    improved modestly, and the aggregate is larger than the median because it is
+    weighted by query volume and a few high-volume models carry most of it.
+    """
+    movement = data.get("query_movement") or {}
+    if not movement.get("improved"):
+        return ""
+    improved = [m for m in data.get("measurements", []) if m["queries"]["delta"] < 0]
+    bits = [
+        f"{movement['improved']} of {data['coverage']['comparable']} measurements improved "
+        f"on query count, {movement.get('unchanged', 0)} unchanged, "
+        + ("**none worse**" if movement.get("worse") == 0 else f"{movement['worse']} worse")
+    ]
+    if improved:
+        q = sorted(abs(m["queries"]["pct"]) for m in improved)
+        bits.append(
+            f"query savings run **{q[0]:.1f}% to {q[-1]:.1f}%** per measurement, median {statistics.median(q):.1f}%"
+        )
+    spread = _distribution(
+        [
+            (m["wall_ms"]["baseline"], m["wall_ms"]["current"], f"{m['id']} {m.get('kind', '')}".strip())
+            for m in data.get("measurements", [])
+        ],
+        floor=100,
     )
+    if spread:
+        bits.append(f"on wall clock {spread}")
+    return "; ".join(bits)
 
-    # No heading of its own: the template supplies "### Cumulative effect" and an
-    # extra "##" here nested a section under its own subsection.
-    return (
-        f"Read path, all {accepted} accepted fixes, measured against the 24,091-object dataset "
-        "on a pristine tree and reflecting the tree as it stands. Only the "
-        f"{len(rows) - 1} scenarios whose count changed are listed; the other {unchanged} are "
-        "unchanged, which is itself the point -- the list views were already efficient.\n\n"
-        "| Scenario | Queries | Duplicates |\n|---|---|---|\n" + "\n".join(rows)
-    )
+
+def render_cumulative(findings):
+    """One table over every cumulative aggregate, read and write alike.
+
+    Driven by perf/baselines/cumulative.json rather than by hardcoded paths,
+    because the thing that goes wrong here is staleness rather than arithmetic:
+    the write aggregate was quoted for weeks against a tree three findings
+    behind the branch, and nothing in the report said so. Each entry names the
+    tree it describes and the renderer prints that, so a figure that has fallen
+    behind announces it instead of relying on someone remembering.
+
+    The Coverage column carries the other thing a reader needs. These rows come
+    from instruments with very different reach -- 38 hand-picked scenarios
+    against every endpoint the resolver exposes -- and a percentage means
+    nothing without knowing what it was taken over.
+    """
+    index = PERF / "baselines" / "cumulative.json"
+    if not index.exists():
+        return "_No cumulative index committed yet._"
+    spec = json.loads(index.read_text())
+
+    rows, notes = [], []
+    for agg in spec.get("aggregates", []):
+        label = agg["label"]
+        coverage = agg.get("coverage", "—")
+        cells = None
+        # The protocol note leads, then the distribution, then whatever the
+        # entry wants to add. Appending the note last put "on one host with the
+        # arms alternated" in the middle of a sentence about medians.
+        detail = [agg["note"]] if agg.get("note") else []
+
+        if agg.get("source") == "tier1":
+            base = PERF / "baselines" / agg.get("baseline_file", "large-tier1-baseline.json")
+            cur = PERF / "baselines" / agg.get("current_file", "uwsgi-tier1-current.json")
+            if base.exists() and cur.exists():
+                # Sum the intersection, not each file whole. The workload grows:
+                # 18 HX-Request scenarios were added once it turned out the
+                # existing ui.*.list entries measured a table with no rows in
+                # it. Summing both files entire would compare 57 scenarios
+                # against 38 and render the difference as a regression.
+                def counts(path):
+                    return {e["id"]: e["query_count"] for e in json.loads(path.read_text())["endpoints"]}
+
+                b, c = counts(base), counts(cur)
+                shared = sorted(set(b) & set(c))
+                wall = "—"
+                if agg.get("wall_baseline_file"):
+                    # Summed medians, every endpoint weighted equally -- the same
+                    # method the write screen's aggregate uses, so the two rows are
+                    # comparable. It is not traffic-weighted, and nothing in this
+                    # harness knows the traffic mix.
+                    def medians(name):
+                        return {
+                            e["id"]: e.get("server_ms_median")
+                            for e in json.loads((PERF / "baselines" / name).read_text())["endpoints"]
+                            if e.get("server_ms_median") and not e.get("skipped")
+                        }
+
+                    wb, wc = medians(agg["wall_baseline_file"]), medians(agg["wall_current_file"])
+                    ws = sorted(set(wb) & set(wc))
+                    if ws:
+                        wbt, wct = sum(wb[k] for k in ws), sum(wc[k] for k in ws)
+                        wall = _delta(wbt, wct, _ms_formatter(wbt, wct))
+                        detail.append(
+                            f"wall clock is the sum of per-endpoint medians over the {len(ws)} "
+                            "endpoints answering on both arms, so it is a workload total rather "
+                            "than a per-page figure"
+                        )
+                        spread = _distribution([(wb[k], wc[k], k) for k in ws], floor=100)
+                        if spread:
+                            detail.append(spread)
+                cells = [
+                    _delta(sum(b[k] for k in shared), sum(c[k] for k in shared), _fmt_count),
+                    "—",
+                    wall,
+                ]
+                coverage = f"{len(shared)} scenarios on both arms"
+                if len(b) != len(shared) or len(c) != len(shared):
+                    detail.append(
+                        f"compared over the {len(shared)} scenarios present on both arms, of "
+                        f"{len(b)} in the baseline and {len(c)} now"
+                    )
+        elif agg.get("file"):
+            data = json.loads((PERF / "baselines" / agg["file"]).read_text())
+            t = data["totals"]
+            cov = data["coverage"]
+            coverage = f"{cov['comparable']} of {cov['baseline_records']} measurements"
+            cells = [
+                _delta(t["queries"]["baseline"], t["queries"]["current"], _fmt_count),
+                _delta(t["db_ms"]["baseline"], t["db_ms"]["current"], _ms_formatter(*t["db_ms"].values())),
+                _delta(t["wall_ms"]["baseline"], t["wall_ms"]["current"], _ms_formatter(*t["wall_ms"].values())),
+            ]
+            moved = _movement(data)
+            if moved:
+                detail.append(moved)
+        elif agg.get("figures"):
+            fig = agg["figures"]
+            cells = [
+                _delta(fig["queries"]["baseline"], fig["queries"]["current"], _fmt_count),
+                _delta(fig["db_ms"]["baseline"], fig["db_ms"]["current"], _ms_formatter(*fig["db_ms"].values())),
+                _delta(fig["wall_ms"]["baseline"], fig["wall_ms"]["current"], _ms_formatter(*fig["wall_ms"].values())),
+            ]
+
+        if cells is None:
+            pending = agg.get("pending") or "not measured"
+            rows.append(f"| {label} | {coverage} | _{pending}_ | | |")
+        else:
+            rows.append(f"| {label} | {coverage} | " + " | ".join(cells) + " |")
+
+        # One note per aggregate. Movement and staleness were two bullets that
+        # both opened with the same label, which read as two findings about one
+        # measurement.
+        if agg.get("stale"):
+            detail.append(
+                f"measured against tree `{agg['tree']}`, so it {agg['stale']} \u2014 a re-run "
+                "against the current tree is queued"
+            )
+        if detail:
+            notes.append(f"**{label}**: " + "; ".join(detail) + ".")
+
+    out = [
+        "Stock `next` against this branch, one box, arms alternated, both trees proved different "
+        "by content hash before each run. Every endpoint is weighted equally, so these are "
+        "totals over a workload rather than a prediction of what any one user gets back.",
+        "",
+        "| Measurement | Coverage | Queries | Database time | Wall clock |",
+        "|---|---|---|---|---|",
+        *rows,
+        "",
+    ]
+    if notes:
+        out.append("\n".join(f"- {n}" for n in notes))
+    return "\n".join(out).rstrip()
 
 
 def render_bench():
@@ -345,35 +574,73 @@ def render_bench():
     return "\n".join(lines)
 
 
-def render_entry(f, level, parked=False):
-    """One finding, rendered at the given heading level."""
+def render_entry(f, level, full=False):
+    """One finding: what it changes, what that was worth, what it costs.
+
+    Four fields are deliberately absent unless `full`: wall_clock_detail
+    (which restated the wall-clock cell directly above it), controls, tests,
+    and note. Those made up 55% of a 155KB report and none of them help a
+    reader decide whether to adopt a change -- they are how the number was
+    earned, which is a different question and now a different file. `full` is
+    for perf/methodology.md, where that is the question being asked.
+    """
     out = [f"{'#' * level} {f['title']}", ""]
-    meta = [f"**{f['seq']:02d}**", tiers(f), f"status `{f['status']}`"]
+    meta = [f"**{f['seq']:02d}**", tiers(f)]
     if f.get("commit"):
         meta.append(f"commit `{f['commit']}`")
-    if f.get("id"):
-        meta.append(f"({f['id']})")
-    out += [" \u00b7 ".join(meta), ""]
     if f.get("site"):
-        out += [f"`{f['site']}`", ""]
+        meta.append(f"`{f['site']}`")
+    out += [" \u00b7 ".join(meta), ""]
     out += [f["summary"], ""]
+    results = (f.get("result") or {}).items()
+    if not full:
+        results = [(k, v) for k, v in results if k in CORE_RESULT_KEYS]
     out += ["| Instrument | Result |", "|---|---|", f"| **wall clock** | {f['wall_clock']} |"]
-    for k, v in (f.get("result") or {}).items():
-        out.append(f"| {k.replace('_', ' ')} | {v} |")
+    out += [f"| {k.replace('_', ' ')} | {v} |" for k, v in results]
     out.append("")
-    if f.get("wall_clock_detail"):
+    if full and f.get("wall_clock_detail"):
         out += [f"**Wall clock.** {f['wall_clock_detail']}", ""]
-    if f.get("controls"):
+    if full and f.get("controls"):
         out += [f"**Controls.** {f['controls']}", ""]
     if f.get("caveat"):
         out += [f"> **Caveat.** {f['caveat']}", ""]
     if f.get("reason"):
-        out += [f"**{'Why it is parked' if parked else 'Why not'}.** {f['reason']}", ""]
-    if f.get("tests"):
+        out += [f"**Why not.** {f['reason']}", ""]
+    if full and f.get("tests"):
         out += [f"**Tests.** {f['tests']}", ""]
-    if f.get("note"):
+    if full and f.get("note"):
         out += [f["note"], ""]
     return out
+
+
+def render_evidence(findings):
+    """Per-finding working, for the reader who wants to audit a number.
+
+    Everything render_entry() leaves out of the report: how the wall clock was
+    taken, what was held flat as a control, which tests ran, the ad-hoc result
+    keys, and the note. Only findings that carry any of it appear.
+    """
+    product = [f for f in findings if is_product_change(f)]
+    carried = ("wall_clock_detail", "controls", "tests", "note")
+    out = []
+    for f in product:
+        extra = {k: v for k, v in (f.get("result") or {}).items() if k not in CORE_RESULT_KEYS}
+        if not (extra or any(f.get(k) for k in carried)):
+            continue
+        out += [f"### {f['seq']:02d} \u00b7 {f['title']}", ""]
+        if f.get("wall_clock_detail"):
+            out += [f"**Wall clock.** {f['wall_clock_detail']}", ""]
+        if extra:
+            out += ["| | |", "|---|---|"]
+            out += [f"| {k.replace('_', ' ')} | {v} |" for k, v in extra.items()]
+            out.append("")
+        if f.get("controls"):
+            out += [f"**Controls.** {f['controls']}", ""]
+        if f.get("tests"):
+            out += [f"**Tests.** {f['tests']}", ""]
+        if f.get("note"):
+            out += [f["note"], ""]
+    return "\n".join(out) if out else "_No per-finding evidence recorded._"
 
 
 def render_instruments(findings):
@@ -395,61 +662,88 @@ def render_instruments(findings):
         "",
     ]
     for f in members:
-        out += render_entry(f, 4)
+        out += render_entry(f, 3, full=True)
+    return "\n".join(out)
+
+
+# The branch a reader is being asked to adopt from. The findings' own `commit`
+# field points at `perf/experiments`, which carries the harness and the records
+# as well as the change -- not something to hand upstream. `recommended_commit`
+# names the same change on the upstream-facing branch, and the column falls back
+# to `commit` until that branch is built.
+DEMO_REMOTE = "git@github.com:kevsmith/nautobot"
+DEMO_BRANCH = "perf/recommended"
+
+
+def commit_of(f):
+    return f.get("recommended_commit") or f.get("commit")
+
+
+def render_tiers(findings=None):
+    """The tier legend, and the flags actually in use, as tables.
+
+    Two tables rather than one: tiers are an ordered price scale and flags are
+    orthogonal annotations, and merging them lost that. Only flags that appear
+    on a finding are listed -- an unused definition is one more thing to read.
+    """
+    out = [
+        "| Tier | Adoption cost |",
+        "|---|---|",
+        *[f"| `{k}` | {v} |" for k, v in TIER_HELP.items()],
+    ]
+    used = sorted({fl for f in (findings or []) if is_product_change(f) for fl in (f.get("flags") or [])})
+    if used:
+        out += [
+            "",
+            "| Flag | What it adds to the tier |",
+            "|---|---|",
+            *[f"| `{fl}` | {FLAG_HELP[fl]} |" for fl in used],
+        ]
     return "\n".join(out)
 
 
 def render_findings(findings):
-    """The section the report leads with: what was found in Nautobot, and what was decided.
+    """Two tables: what to adopt, and what was ruled out.
+
+    Tables only. Each change used to carry an entry here -- the defect, its
+    instruments, its caveat -- and 33 of those entries were most of a 155KB
+    report. The entry still exists in perf/methodology.md, which is what the
+    title links to, so nothing is lost and the decision is one screen.
 
     Product changes only. Findings that changed the harness are rendered by
     render_instruments() alongside the methodology they belong to -- listing an
-    instrument as an "accepted change" invited a reader to think it was something
-    to adopt into Nautobot.
+    instrument as an "accepted change" invited a reader to think it was
+    something to adopt into Nautobot.
     """
     product = [f for f in findings if is_product_change(f)]
-    counts = {key: sum(1 for f in product if group_of(f) == key) for key, _, _ in GROUPS}
-    tally = " \u00b7 ".join(f"**{counts[key]}** {title.lower()}" for key, title, _ in GROUPS if counts[key])
-    legend = ", ".join(f"`{k}` {v}" for k, v in TIER_HELP.items())
-
-    out = [
-        "## Optimizations identified",
-        "",
-        f"{len(product)} proposed changes to Nautobot: {tally}. Every one is listed, including "
-        "the ones that did not work -- a rejected optimization is a measurement of what an "
-        "option costs, and deleting it would invite the next person to try it again.",
-        "",
-        f"A further {len(findings) - len(product)} experiments changed the measurement harness "
-        "rather than Nautobot; they are recorded under the methodology below.",
-        "",
-        "Each decision is a self-contained section: a summary table, then one entry per "
-        "experiment. There is deliberately no combined index -- a reviewer looking at what to "
-        "adopt should not have to filter a list of things nobody is proposing.",
-        "",
-        "Tiers are a price tag rather than a filter. Nothing here is disqualified for being "
-        f"expensive; it is labelled so the price is visible: {legend}. `perf/README.md` defines "
-        "the taxonomy.",
-        "",
-    ]
-
+    out = []
     for key, title, blurb in GROUPS:
         members = [f for f in product if group_of(f) == key]
         if not members:
             continue
-        out += [f"### {title} ({len(members)})", "", blurb, ""]
-        out += [
-            "| # | Change | Tier | Wall clock | Queries | Cache reads |",
-            "|---:|---|---|---|---|---|",
-        ]
+        out += [f"## {title} ({len(members)})", "", blurb, ""]
+        # A commit column only where a commit is something to adopt. Rejected
+        # changes are not on the upstream-facing branch at all -- several share
+        # the commit that recorded the decision rather than one that implemented
+        # anything -- so a SHA there would name a branch it is absent from.
+        accepted = key == "accepted"
+        if accepted:
+            out += ["| # | Change | Tier | Reason | Commit |", "|---:|---|---|---|---|"]
+        else:
+            out += ["| # | Change | Tier | Reason |", "|---:|---|---|---|"]
         for f in members:
-            link = f"[{f['title']}](#{anchor(f['title'])})"
-            out.append(
-                f"| {f['seq']:02d} | {link} | {tiers(f)} | {f['wall_clock']} "
-                f"| {instrument(f, QUERY_KEYS)} | {instrument(f, CACHE_KEYS)} |"
-            )
+            # Into methodology.md, not into this file: there is no entry here to
+            # jump to any more, and a link to a heading that does not exist is
+            # worse than no link.
+            link = f"[{f['title']}](methodology.md#{anchor(f['title'])})"
+            row = f"| {f['seq']:02d} | {link} | {tiers(f)} | {basis(f)} |"
+            if accepted:
+                sha = f"`{commit_of(f)[:9]}`" if commit_of(f) else "—"
+                row += f" {sha} |"
+            out.append(row)
         out.append("")
-        for f in members:
-            out += render_entry(f, 4, parked=(key == "parked"))
+        if accepted:
+            out += [f"Every commit above is on `{DEMO_BRANCH}` at `{DEMO_REMOTE}`.", ""]
     return "\n".join(out)
 
 
@@ -458,10 +752,11 @@ def render_endnote():
         "Measured against `nautobot/next` at 3.3.0a0 on an isolated stack with pinned "
         "resources. Harness, workload definition, findings and baseline data are on the "
         "`perf/experiments` branch under `perf/`; every scenario and operation above is "
-        "reproducible with `perf/run_experiment.sh`.\n\n"
-        "This file is generated. Edit `perf/findings/*.yml` for numbers and "
-        "`perf/report.template.md` for narrative, then run `perf/build_report.py`. "
-        "`--check` exits non-zero when the two have drifted apart."
+        "reproducible with `perf/run_experiment.sh`. Instruments, baselines and per-finding "
+        "working are in `perf/methodology.md`.\n\n"
+        "Both files are generated. Edit `perf/findings/*.yml` for numbers and "
+        "`perf/report.template.md` or `perf/methodology.template.md` for narrative, then run "
+        "`perf/build_report.py`. `--check` exits non-zero when they have drifted apart."
     )
 
 
@@ -482,43 +777,53 @@ def main():
             print(f"  {problem}", file=sys.stderr)
         return 2
 
-    out = (PERF / "report.template.md").read_text()
-    for marker, value in (
-        ("<!--GEN:factbar-->", render_factbar(findings)),
-        ("<!--GEN:provenance-->", render_provenance()),
-        ("<!--GEN:findings-->", render_findings(findings)),
-        ("<!--GEN:cumulative-->", render_cumulative(findings)),
-        ("<!--GEN:instruments-->", render_instruments(findings)),
-        ("<!--GEN:tier2-->", render_tier2()),
-        ("<!--GEN:bench-->", render_bench()),
-        ("<!--GEN:endnote-->", render_endnote()),
-    ):
-        if marker not in out:
-            print(f"marker missing from template: {marker}", file=sys.stderr)
+    # Two documents from one set of findings. report.md answers "what should we
+    # adopt and what is it worth"; methodology.md answers "why should I believe
+    # the number". Merging them cost the first question a 155KB answer.
+    values = {
+        "<!--GEN:factbar-->": render_factbar(findings),
+        "<!--GEN:provenance-->": render_provenance(),
+        "<!--GEN:findings-->": render_findings(findings),
+        "<!--GEN:tiers-->": render_tiers(findings),
+        "<!--GEN:cumulative-->": render_cumulative(findings),
+        "<!--GEN:instruments-->": render_instruments(findings),
+        "<!--GEN:evidence-->": render_evidence(findings),
+        "<!--GEN:tier2-->": render_tier2(),
+        "<!--GEN:bench-->": render_bench(),
+        "<!--GEN:endnote-->": render_endnote(),
+    }
+
+    rendered = {}
+    for name in ("report", "methodology"):
+        template = PERF / f"{name}.template.md"
+        if not template.exists():
+            print(f"missing template: {template.relative_to(ROOT)}", file=sys.stderr)
             return 2
-        out = out.replace(marker, value)
+        out = template.read_text()
+        for marker, value in values.items():
+            out = out.replace(marker, value)
+        if "<!--GEN:" in out:
+            print(f"unsubstituted marker remains in {name}.md", file=sys.stderr)
+            return 2
+        rendered[PERF / f"{name}.md"] = out
 
-    if "<!--GEN:" in out:
-        print("unsubstituted marker remains", file=sys.stderr)
-        return 2
-
-    target = PERF / "report.md"
     if args.check:
-        if not target.exists() or target.read_text() != out:
-            print("perf/report.md is stale -- run perf/build_report.py", file=sys.stderr)
+        stale = [t for t, out in rendered.items() if not t.exists() or t.read_text() != out]
+        if stale:
+            names = ", ".join(str(t.relative_to(ROOT)) for t in stale)
+            print(f"{names} stale -- run perf/build_report.py", file=sys.stderr)
             return 1
-        print("perf/report.md is current")
+        print("perf/report.md and perf/methodology.md are current")
         return 0
 
-    target.write_text(out)
     counts = {}
     for f in findings:
         g = group_of(f)
         counts[g] = counts.get(g, 0) + 1
-    print(
-        f"wrote {target.relative_to(ROOT)} from {len(findings)} findings "
-        f"({', '.join(f'{k} {v}' for k, v in counts.items())})"
-    )
+    for target, out in rendered.items():
+        target.write_text(out)
+        print(f"wrote {target.relative_to(ROOT)} ({len(out) / 1024:.0f}KB)")
+    print(f"from {len(findings)} findings ({', '.join(f'{k} {v}' for k, v in counts.items())})")
     return 0
 
 

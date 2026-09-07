@@ -1,6 +1,7 @@
 ---
 seq: 5
 commit: 2f7bf3003
+recommended_commit: be9b3bdb5
 status: accepted
 behaviour: B1
 migration: '-'

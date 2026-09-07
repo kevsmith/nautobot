@@ -2,6 +2,7 @@
 seq: 31
 id: null
 commit: d52169a34
+recommended_commit: 7d2851d6e
 status: accepted
 behaviour: C
 migration: '-'
@@ -26,6 +27,7 @@ result:
   not improved: bulk.delete.x100 stays at 2019. Django clears an instance's pk on delete, so
     at flush time there is nothing to look the tags up by, and the batch warm skips those rows.
 wall_clock: −6.9% bulk.create.x100.loop, −5.6% deferred
+basis: correctness — the tag cache could never fire; −6.9% bulk create
 wall_clock_detail: 'Three alternating rounds (B/A, A/B, B/A), snapshot restore and container
   restart before every arm, each round the median of nine reps. Round medians then A / B / delta:
   bulk.create.x100.loop 3256/3218/3110 -> 3218 against 3047/2926/2994 -> 2994, −6.9%. bulk.create.x100.deferred
@@ -69,38 +71,39 @@ caveat: 'One observable change, and it is a correction. Clearing every tag from 
   a tagged object. All seven are byte-identical; the tag-clearing PATCH is the only line that
   differs.'
 note: 'Three parts, and the first is not optional. `getattr(obj, "_tags", None) is not None`
-  in serialize_object makes the cache fire. But TaggedModelSerializerMixin.update already wrote
-  `instance._tags = tags or []` unconditionally, and `tags` is None whenever the payload does
-  not mention tags -- so fixing the check alone would have made every REST PATCH that leaves
-  tags alone log the object as untagged. The mixin now sets the cache only when the request
-  actually carried tags. This is the trap the falsy check was accidentally covering, and it
-  is why the check and the mixin have to change together.
+  in serialize_object makes the cache fire. But TaggedModelSerializerMixin.update already
+  wrote `instance._tags = tags or []` unconditionally, and `tags` is None whenever the payload
+  does not mention tags -- so fixing the check alone would have made every REST PATCH that
+  leaves tags alone log the object as untagged. The mixin now sets the cache only when the
+  request actually carried tags. This is the trap the falsy check was accidentally covering,
+  and it is why the check and the mixin have to change together.
 
 
   Then the two populate sites. A just-created object provably has no tags: the row must exist
   before a TaggedItem can reference it, assigning tags fires its own m2m_changed and its own
-  ObjectChange, and deleting an object deletes its TaggedItem rows with it -- verified -- so
-  a recycled primary key cannot leave stale ones. The deferred flush cannot make that assumption,
+  ObjectChange, and deleting an object deletes its TaggedItem rows with it -- verified --
+  so a recycled primary key cannot leave stale ones. The deferred flush cannot make that assumption,
   because it serializes later, so it reads the whole batch''s tags in one query instead. Both
   caches are dropped again at the end of the scope that knew they were true.
 
 
-  This is the Tier A route to roughly half of what finding 22 measured, and it arrives at Tier
-  C for a reason finding 22 does not share: 22 changes the API payload by removing data, this
-  one changes a single logged value by correcting it. 22 needs a deprecation cycle and 13 test
-  updates; this needs neither, and no test asserted the old behaviour -- 1,811 tests pass unchanged.
+  This is the Tier A route to roughly half of what finding 22 measured, and it arrives at
+  Tier C for a reason finding 22 does not share: 22 changes the API payload by removing data,
+  this one changes a single logged value by correcting it. 22 needs a deprecation cycle and
+  13 test updates; this needs neither, and no test asserted the old behaviour -- 1,811 tests
+  pass unchanged.
 
 
   The obvious follow-up is bulk.delete, and it is probably not worth taking. Warming `_tags`
   to an empty list for an instance whose row is gone would remove its remaining 50 tag queries,
-  and it would be correct -- the TaggedItem rows are deleted with the object, so both paths return
-  nothing. But the comparable case is already measured: bulk.update.x100.deferred lost 48 queries
-  of exactly this kind and moved 0.8%, inside the noise floor. Priced before it is built rather
-  than after.
+  and it would be correct -- the TaggedItem rows are deleted with the object, so both paths
+  return nothing. But the comparable case is already measured: bulk.update.x100.deferred lost
+  48 queries of exactly this kind and moved 0.8%, inside the noise floor. Priced before it
+  is built rather than after.
 
 
-  Supersedes this record''s own earlier claim of −50% on serialize_object (4.59 -> 2.30ms per
-  object). That figure is still what the isolated probe measures and it reproduced exactly (40
-  / 40 / 20 queries, 4.88 -> 2.49ms per object), but it is the ceiling of the serializer in
-  isolation, not what the change is worth in a write: the operations it sits inside improve
+  Supersedes this record''s own earlier claim of −50% on serialize_object (4.59 -> 2.30ms
+  per object). That figure is still what the isolated probe measures and it reproduced exactly
+  (40 / 40 / 20 queries, 4.88 -> 2.49ms per object), but it is the ceiling of the serializer
+  in isolation, not what the change is worth in a write: the operations it sits inside improve
   by 5-7%, not 50%.'

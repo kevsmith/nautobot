@@ -268,11 +268,15 @@ merging tables, redefining a natural key. Redesign is a different exercise.
   authorisation rather than display. A bounded stale window on a display string
   is tolerable; the same window on `is_superuser` is not. This is why a
   per-user nav cache worth ~0.6ms was rejected.
-- **`third-party-coupled`** -- depends on internals of a dependency that can
-  change without failing loudly. Not a correctness risk today; a maintenance
-  risk that fires on upgrade, so it belongs in upgrade notes. The caching
-  `TemplateColumn` reimplements django_tables2 3.0.1's `render()` and is the
-  case in hand.
+- **`third-party-coupled`** -- reimplements or depends on internals of a
+  dependency, so an upgrade can change behaviour rather than break a signature.
+  The caching `TemplateColumn` reimplements django_tables2 3.0.1's `render()`
+  and is the case in hand. It no longer fails silently:
+  `CachingTemplateColumnCouplingTestCase` renders the same cell through both
+  implementations and asserts they match, so a divergence fails a test. Writing
+  that test found a second coupling nobody had recorded -- the reimplementation
+  needs `kwargs["bound_row"]` to reach `get_context_data()`, not just the hook
+  to exist, and asserting `hasattr` would have passed while the code broke.
 
 **Every finding outside A × — carries a caveat, written as a release note would
 write it.** "Tier C, changes API output" is a label. *"Composite keys change for
@@ -287,16 +291,103 @@ worked example: v1 stores foreign keys as bare primary keys while v2 needs
 nested natural keys, so reconstructing v2 for a row that references a
 since-deleted object is not possible at any cost. Record why, and stop.
 
-## Findings are structured data, and the report is generated
+## The report is verified, not just generated
+
+`build_report.py --check` proves the report was rendered from the current
+sources. It does not prove the sources agree with each other.
+`perf/verify_report.py` does, in 1,385 checks:
+
+- every commit SHA in the accepted table resolves on the branch the report names
+- no finding points at a commit that was later reverted
+- no committed baseline holds a record that cannot be a measurement -- status
+  200, a non-empty body, zero queries
+- every figure in the cumulative table recomputes from the file it came from,
+  and anything marked stale says so in the report
+- every Reason cell is a finding's own words rather than the report's
+
+Each of those exists because something was wrong once. A reverted commit whose
+subject says "BREAKS 13 TESTS" was published as an accepted change. A query
+counter returned zero on status-200 responses with full bodies. An aggregate was
+quoted for weeks against a tree three findings behind the branch. Generation
+protects against drift between a template and its data; none of it protects
+against data that is wrong.
+
+## The workload schema, and three fields that exist for one reason each
+
+`perf/workload.yml` scenarios are `{id, view, query, pick, tags}` by default, and
+a URL always comes from `reverse()` so a renamed view fails loudly rather than
+silently measuring a redirect. Three fields opt out of parts of that, and each
+was added because a measurement was wrong without it.
+
+**`headers`** — a Nautobot list view builds its table over `queryset.none()`
+unless the request carries `HX-Request` (`core/views/renderers.py:96`), and the
+browser fetches the real table on a follow-up fired by `hx-trigger="load"`. Every
+`ui.*.list` scenario was therefore measuring a page that rendered no rows. The
+18 `ui.*.list.rows` twins carry the header; both halves are kept, because a page
+load pays for both and dropping either just moves the blind spot. See finding 44.
+
+**`expected_status`** — a control scenario is allowed to fail on purpose.
+`ui.chrome.404` measures what every page costs before it renders anything of its
+own: `404.html` extends `40x.html` extends `base.html`, so it renders the full
+chrome with a static card for content. Without this field the harness flags it
+and Tier 2 refuses to time it.
+
+**`path`** — a literal URL, used only by that 404 control, because a 404 has no
+view to reverse. Declaring it opts out of the reverse-only rule explicitly
+rather than by accident.
+
+## Two guards on the query counter
+
+**The log is cleared before every capture.** `CaptureQueriesContext` slices
+`len(connection.queries_log)` between entry and exit, and that log is a
+`deque(maxlen=9000)` shared for the life of the process. A long run saturates it,
+the length stops growing, and every subsequent capture reports zero — silently,
+on a status-200 response with a full body and `query_count_stable: True`. Worse,
+it degrades before it fails: one endpoint reported 495 of its 1,067 queries while
+looking entirely ordinary. It bit the *stock* arm of a 57-scenario run and not the
+branch arm, because the slower arm saturates first, so the bias always favours the
+branch. `queries_limit` is also raised to 18,000 for the residual case of a single
+request exceeding the limit — `bulk.delete.x100` is already 2,222 queries. See
+finding 45.
+
+**An implausible record fails the run.** No authenticated Django page serves a
+200 with a body in zero queries; there is a session lookup and a user fetch before
+the view runs. `tier1_queries.py` flags that combination and `compare.py` refuses
+to compare against it. This is the guard that generalises: a stability check
+compares reps against each other, so three reps agreeing on a wrong answer reads
+as confidence. Only a plausibility check catches a systematic failure.
+
+## Findings are structured data, and the reports are generated
 
 `perf/findings/*.yml` is the source of record for every experiment: its tier,
 flags, caveat, instruments, controls, tests and status. `perf/build_report.py`
-renders `perf/report.md` from those files plus the committed baselines, filling
-the `<!--GEN:...-->` markers in `perf/report.template.md`. Narrative prose stays
-in the template, where writing it by hand is the point.
+renders two documents from those files plus the committed baselines, filling the
+`<!--GEN:...-->` markers in each template. Narrative prose stays in the
+templates, where writing it by hand is the point.
 
-    python3 perf/build_report.py            # write perf/report.md
-    python3 perf/build_report.py --check    # exit 1 if it has drifted
+- `perf/report.md` -- what was found and what it is worth. One entry per change:
+  the defect, the instruments, the caveat. Nothing about how the number was
+  taken.
+- `perf/methodology.md` -- why the numbers are believable. Instruments,
+  baselines, wall-clock references, the harness findings, and the per-finding
+  working: wall-clock detail, controls, tests, notes.
+
+Each finding's `basis` is the one-cell answer to "why was this accepted or
+rejected", and it defaults to `wall_clock` because that is the reason for most
+of them. It is written explicitly where it is not: finding 42 was taken for
+consistency at -0.2%, finding 22 for storage, finding 23 refused on
+correctness. A "not measured" cell in that column said nothing about why anyone
+kept the change.
+
+The split is not cosmetic. With both in one file, 55% of a 155KB report was
+per-finding evidence, and the thing the report exists to present -- a ranked list
+of working optimizations with their measured value -- was buried in the working
+that produced it. A finding's `note`, `controls`, `tests` and
+`wall_clock_detail` render only in `methodology.md`; everything else renders in
+both places from the same YAML, so neither can drift from the other.
+
+    python3 perf/build_report.py            # write both documents
+    python3 perf/build_report.py --check    # exit 1 if either has drifted
 
 This exists because the report drifted five commits behind the tree once and
 carried a figure a later commit had already retracted. Under a framing where the

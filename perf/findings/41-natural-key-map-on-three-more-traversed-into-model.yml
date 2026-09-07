@@ -1,7 +1,7 @@
 ---
 seq: 41
 id: null
-commit: null
+commit: d51643b7e
 status: not-taken
 behaviour: A
 migration: '-'
@@ -26,6 +26,7 @@ result:
     create.x10 168 -> 149 (−11.3%); ipam.prefixlocationassignment create.x10 351 -> 342 (−2.6%).
     Real, and confined to models that traverse into namespace or prefix repeatedly.'
 wall_clock: −0.4% across the write surface (−7.4% on the single model that benefits most)
+basis: −0.4% across the write surface
 controls: 'Both arms measured with screen_writes.py against the same campus dataset on the same
   tree, differing only in the three attributes. Coverage identical: 105 models measured either
   side, 257 measurements each.'
@@ -40,28 +41,29 @@ reason: 'Not worth taking for −0.4%, and the interesting part is why the numbe
   The measurement that made this obvious was taken because the first spot-check said −7.8% and
   the full screen said −0.4%. The spot-check was on the one model that benefits; quoting it
   would have been the same error as ranking a fix by its best endpoint.'
-note: 'What this closes, which is worth more than the change would have been.
+note: 'What this closes.
 
 
-  **Natural-key traversal is not the write path''s problem.** Four separate approaches have now
-  been measured against it: hop-by-hop with a whole-table map (finding 14, accepted, and it does
-  earn its place on the read path), the same map in Redis across requests (finding 17, +0-2%,
-  rejected), eager select_related over the whole chain (finding 15, −666 queries and 62% slower,
-  rejected), and this. The ceiling on the whole class is small because the cost is small.
+  **Natural-key traversal is not the write path''s problem.** Four separate approaches have
+  now been measured against it: hop-by-hop with a whole-table map (finding 14, accepted, and
+  it does earn its place on the read path), the same map in Redis across requests (finding
+  17, +0-2%, rejected), eager select_related over the whole chain (finding 15, −666 queries
+  and 62% slower, rejected), and this. The ceiling on the whole class is small because the
+  cost is small.
 
 
-  **A stored natural-key fragment -- materialized path -- was considered and not attempted.** Two
-  things block it independently. Location''s natural key is recursive by name
-  (["name", "parent__name", "parent__parent__name", ...]), so renaming one Location changes the
-  natural key *value* of every descendant and of every object whose key reaches one: the screen
-  counts 24 models traversing into dcim.location across 249,575 rows. And QuerySet.update() and
-  bulk_update() compile to one SQL statement, emit no post_save, and so cannot invalidate a stored
-  column -- the same hole finding 17 rejected a Redis cache for, except a column has no TTL to
-  fall back on. A cache can be invalidated coarsely by dropping the model''s map; a column cannot.
+  **A stored natural-key fragment -- materialized path -- was considered and not attempted.**
+  Two things block it independently. Location''s natural key is recursive by name (["name",
+  "parent__name", "parent__parent__name", ...]), so renaming one Location changes the natural
+  key *value* of every descendant and of every object whose key reaches one: the screen counts
+  24 models traversing into dcim.location across 249,575 rows. And QuerySet.update() and bulk_update()
+  compile to one SQL statement, emit no post_save, and so cannot invalidate a stored column
+  -- the same hole finding 17 rejected a Redis cache for, except a column has no TTL to fall
+  back on. A cache can be invalidated coarsely by dropping the model''s map; a column cannot.
 
 
-  **What the screen is still good for.** dcim.device is the largest un-mitigated traversal target
-  -- 15 models traverse into it across 89,054 source rows -- and it is too large for a whole-table
-  map. Nothing addresses it today. And Nautobot already depends on django-tree-queries, whose
-  recursive CTE returns an ancestor chain in one query; natural_key() walks with getattr instead.
-  Neither is priced.'
+  **What the screen is still good for.** dcim.device is the largest un-mitigated traversal
+  target -- 15 models traverse into it across 89,054 source rows -- and it is too large for
+  a whole-table map. Nothing addresses it today. And Nautobot already depends on django-tree-queries,
+  whose recursive CTE returns an ancestor chain in one query; natural_key() walks with getattr
+  instead. Neither is priced.'

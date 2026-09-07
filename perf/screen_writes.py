@@ -589,6 +589,67 @@ def coverage_summary(routes, coverage_records):
     }
 
 
+def marginal_costs(measurements, bulk):
+    """Marginal cost per created object, per model, from each model's x1/xN pair.
+
+    ``(x_xN - x_x1) / (made - 1)`` for both query count and db time, using the
+    number of objects the bulk response actually reported rather than ``bulk``:
+    a partially-accepted bulk create would otherwise divide by objects that were
+    never made.
+    """
+    pairs = {}
+    for record in measurements:
+        if record["kind"] not in ("create.x1", f"create.x{bulk}"):
+            continue
+        if record.get("status") is None or record["status"] >= 300:
+            continue
+        pairs.setdefault(record["model"], {})[record["kind"]] = record
+
+    rows = []
+    for model, pair in pairs.items():
+        one, many = pair.get("create.x1"), pair.get(f"create.x{bulk}")
+        made = (many or {}).get("objects") or 0
+        if one is None or many is None or made < 2:
+            continue
+        rows.append(
+            {
+                "model": model,
+                "queries_per_object": (many["query_count"] - one["query_count"]) / (made - 1),
+                "db_ms_per_object": (many["db_ms"] - one["db_ms"]) / (made - 1),
+                "queries_x1": one["query_count"],
+            }
+        )
+    return rows
+
+
+def print_rankings(measurements, bulk, limit=15):
+    """Rank the measured models twice: by queries per object, and by db time.
+
+    Queries per object is the screen's headline figure and it is blind to a
+    model whose per-row work is a few expensive statements rather than many
+    cheap ones. Finding 39 is where that mattered: on the write path query count
+    and db time come apart, and an instrument that gates on one of them
+    mis-rates work that moves the other. Both columns are shown in both tables
+    so a model that ranks high on one and low on the other is visible as such.
+    """
+    rows = marginal_costs(measurements, bulk)
+    if not rows:
+        return
+    for label, key in (
+        ("queries per created object", "queries_per_object"),
+        ("db ms per created object", "db_ms_per_object"),
+    ):
+        rows.sort(key=lambda r: (-r[key], r["model"]))
+        print(f"\ntop {min(limit, len(rows))} of {len(rows)} models by {label}", file=sys.stderr)
+        print(f"   {'model':44s} {'q/obj':>8} {'db ms/obj':>10} {'q x1':>6}", file=sys.stderr)
+        for r in rows[:limit]:
+            print(
+                f"   {r['model']:44s} {r['queries_per_object']:>8.1f} "
+                f"{r['db_ms_per_object']:>10.2f} {r['queries_x1']:>6}",
+                file=sys.stderr,
+            )
+
+
 def provenance():
     try:
         with open(os.path.join(PERF_DIR, ".provenance.json")) as fh:
@@ -690,6 +751,7 @@ def main():
     )
     for reason, count in summary["top_failure_reasons"]:
         print(f"   {count:>4}  {reason}", file=sys.stderr)
+    print_rankings(measurements, args.bulk)
     print(
         f"wrote {args.out} -- {len(measurements)} measurements in {time.perf_counter() - started:.0f}s",
         file=sys.stderr,

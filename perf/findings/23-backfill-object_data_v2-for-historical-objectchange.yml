@@ -14,6 +14,7 @@ result:
   cost: 8.75ms per row measured. ~5 minutes at this dataset's 36,552 rows; ~2.4 hours at one
     million; unbounded where CHANGELOG_RETENTION is 0 or its cleanup Job was never scheduled
 wall_clock: not applicable — priced by migration runtime
+basis: correctness — v1 rows cannot reconstruct v2 natural keys
 wall_clock_detail: not applicable -- priced by migration runtime (8.75ms per row), not by
   request latency
 caveat: A migration whose runtime is set by the operator's retention configuration rather
