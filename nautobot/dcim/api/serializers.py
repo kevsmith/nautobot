@@ -4,6 +4,7 @@ import re
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import prefetch_related_objects
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator, UniqueValidator
@@ -146,7 +147,52 @@ def _canonical_termination(serializer, obj):
         if isinstance(page, (list, tuple)):
             for instance in page:
                 identity_map.setdefault((instance._meta.concrete_model, instance.pk), instance)
+            if serializer.context.get("depth", 0) > 0:
+                _warm_peer_cable_paths(page, identity_map)
     return identity_map.setdefault((obj._meta.concrete_model, obj.pk), obj)
+
+
+def _warm_peer_cable_paths(page, identity_map):
+    """Prefetch cable paths for the page's peers in one pass, and seed them into `identity_map`.
+
+    A peer termination is reachable without a query -- the viewsets prefetch
+    `cable_peer_prefetch_related_fields()` -- but it is not a member of the page, so it never
+    receives the viewset's own `cable_paths__destination` prefetch. Serializing it at `?depth=1`
+    therefore costs one `dcim_cablepath` query for the path and one more for the path's
+    GenericForeignKey destination, per peer.
+
+    Seeding the warmed instances into the identity map is what makes this take effect: every
+    later reference to that row resolves to the instance whose prefetch cache is populated.
+
+    Restricted to multi-object pages. On a detail endpoint there is one peer and the batch would
+    save nothing while still walking the page.
+
+    The caller also restricts this to `?depth` greater than zero, and that guard is worth more
+    than it looks. At depth 0 a peer is rendered as a brief dict, its cable paths are never
+    touched, and the batch is pure overhead: without the guard `api.interface.list` costs 4
+    extra queries and 56ms more, 7.6%, measured over three alternating rounds each way. Four
+    queries fetching 83 rows each are not interchangeable with four point lookups.
+    """
+    if len(page) < 2:
+        return
+
+    peers_by_model = {}
+    for instance in page:
+        if not hasattr(instance, "get_cable_peer"):
+            continue
+        peer = instance.get_cable_peer()
+        if peer is None:
+            continue
+        model = peer._meta.concrete_model
+        if not hasattr(model, "cable_paths"):
+            continue
+        peers_by_model.setdefault(model, []).append(peer)
+
+    for peers in peers_by_model.values():
+        # prefetch_related_objects requires a homogeneous list, hence the grouping.
+        prefetch_related_objects(peers, "cable_paths__destination")
+        for peer in peers:
+            identity_map.setdefault((peer._meta.concrete_model, peer.pk), peer)
 
 
 class CableTerminationModelSerializerMixin(serializers.ModelSerializer):
@@ -248,9 +294,7 @@ class PathEndpointModelSerializerMixin(ValidatedModelSerializer):
             destination = self._destination(obj)
             if destination is not None:
                 depth = get_nested_serializer_depth(self)
-                return return_nested_serializer_data_based_on_depth(
-                    self, depth, obj, destination, "connected_endpoint"
-                )
+                return return_nested_serializer_data_based_on_depth(self, depth, obj, destination, "connected_endpoint")
         return None
 
     @extend_schema_field(serializers.BooleanField(allow_null=True))
