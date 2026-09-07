@@ -38,6 +38,13 @@ import workload as workload_mod  # noqa: E402
 
 PERF_USER = "perfbot"
 
+# Django's default is 9000, shared per process. Clearing the log before each
+# capture (see measure()) already makes run length irrelevant, so this only
+# matters if one request exceeds the limit on its own -- 9000 is about 4x the
+# largest single operation measured here, `bulk.delete.x100` at 2222, which is
+# less headroom than a bigger dataset or a new bulk operation deserves.
+QUERIES_LIMIT = 18000
+
 # SQL literal normalisation, so that the same query shape with different bound
 # values collapses to one key and repeats become visible.
 _RE_STRING = re.compile(r"'[^']*'")
@@ -104,12 +111,45 @@ def get_perf_client():
     return client
 
 
-def measure(client, url):
-    """GET ``url`` once, returning its query profile."""
+def implausible(rec):
+    """Whether a record cannot be a real measurement.
+
+    No authenticated Django page serves a 200 with a body in zero queries --
+    there is a session lookup and a user fetch before the view runs. That
+    combination means the instrument failed rather than that the page is fast,
+    and it has to be louder than a data point: the query-log saturation it came
+    from reported `query_count_stable: True`, because all three reps agreed on
+    zero.
+    """
+    return bool(rec.get("status") == 200 and rec.get("query_count") == 0 and (rec.get("response_bytes") or 0) > 0)
+
+
+def measure(client, url, headers=None):
+    """GET ``url`` once, returning its query profile.
+
+    ``headers`` exists for one reason: Nautobot's UI defers row rendering. A
+    list view builds its table over ``queryset.none()`` unless the request
+    carries ``HX-Request`` (core/views/renderers.py), and the browser supplies
+    it on a follow-up request fired by ``hx-trigger="load"``. Measuring the
+    document alone reports a page that rendered no rows, which is why every
+    ui.*.list scenario sat at 9 to 13 queries whatever the page size.
+    """
+    # CaptureQueriesContext measures `len(connection.queries_log)` before and
+    # after, and that log is a deque with maxlen=9000 shared by the whole
+    # process. Once a long run saturates it the length stops growing, so every
+    # subsequent capture computes final - initial = 0 and reports a request
+    # that issued hundreds of queries as issuing none -- silently, with status
+    # 200 and a byte-identical response.
+    #
+    # It bit the stock arm of a 57-scenario run and not the branch arm, because
+    # stock executes far more queries to reach the same point: the last six
+    # scenarios all came back 0. That biases every comparison in the branch's
+    # favour, which is the worst possible direction for this harness.
+    connection.queries_log.clear()
     with CaptureQueriesContext(connection) as ctx:
         start = time.perf_counter()
         try:
-            response = client.get(url, follow=False)
+            response = client.get(url, follow=False, headers=headers or {})
             status = response.status_code
             body = response.content if hasattr(response, "content") else b""
             size = len(body)
@@ -166,18 +206,20 @@ def main():
         with open(args.dump_urls, "w") as fh:
             json.dump(endpoints, fh, indent=2)
     client = get_perf_client()
+    connection.queries_limit = QUERIES_LIMIT
     print(f"profiling {len(endpoints)} endpoints", file=sys.stderr)
 
     records = []
     for i, sc in enumerate(endpoints, 1):
-        sid, url = sc["id"], sc["url"]
-        measure(client, url)  # warmup: prime content-type / permission caches
+        sid, url, headers = sc["id"], sc["url"], sc.get("headers") or {}
+        expected = sc.get("expected_status", 200)
+        measure(client, url, headers)  # warmup: prime content-type / permission caches
 
         # Run the same request several times and check whether its content hash
         # holds still. Rather than guessing which endpoints embed volatile data,
         # we measure it: an endpoint whose hash moves across identical requests
         # cannot be content-gated, and is marked for manual review instead.
-        reps = [measure(client, url) for _ in range(max(2, args.reps))]
+        reps = [measure(client, url, headers) for _ in range(max(2, args.reps))]
         result = reps[-1]
         hashes = {r["content_hash"] for r in reps}
         qcounts = {r["query_count"] for r in reps}
@@ -186,9 +228,19 @@ def main():
         if len(qcounts) > 1:
             result["query_count_range"] = [min(qcounts), max(qcounts)]
         result.update({"id": sid, "url": url, "tags": sc["tags"]})
+        if headers:
+            result["headers"] = headers
+        if expected != 200:
+            result["expected_status"] = expected
         records.append(result)
         flag = ""
-        if result["status"] not in (200, 302):
+        # A scenario declaring expected_status must return exactly that; the
+        # default still accepts a redirect, since several UI views 302.
+        acceptable = (200, 302) if expected == 200 else (expected,)
+        if implausible(result):
+            result["implausible"] = "200 with a body and zero queries -- instrument failure"
+            flag = "  <-- IMPLAUSIBLE: 0 queries on a 200 with a body"
+        elif result["status"] not in acceptable:
             flag = f"  <-- status {result['status']}"
         if result["duplicate_queries"] > 20:
             flag += f"  <-- {result['duplicate_queries']} dup queries"
