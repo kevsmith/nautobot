@@ -1,3 +1,6 @@
+import contextlib
+import contextvars
+import functools
 from itertools import count, groupby
 import json
 import unicodedata
@@ -13,6 +16,46 @@ from slugify import slugify
 
 from nautobot.core import constants
 from nautobot.core.utils.data import is_uuid
+
+
+_natural_key_field_lookups_cache = contextvars.ContextVar("natural_key_field_lookups_cache", default=None)
+
+
+@contextlib.contextmanager
+def cache_natural_key_field_lookups():
+    """
+    Memoize `natural_key_field_lookups` for the duration of this block.
+
+    `natural_key_field_lookups` is a `classproperty`, so it is recomputed on every access, and for some models
+    (Device, Location) each recomputation performs one or more Constance lookups, which read Redis. Serializing a
+    single object at depth=1 accesses it dozens of times.
+
+    The cache is deliberately not held any longer than one serialization: Location's value depends on the live
+    maximum depth of the Location tree and Device's on the DEVICE_UNIQUENESS config, so a permanent class-level
+    cache would go stale. Config cannot change partway through a single serialization pass, so caching for that
+    duration is safe.
+    """
+    token = _natural_key_field_lookups_cache.set({})
+    try:
+        yield
+    finally:
+        _natural_key_field_lookups_cache.reset(token)
+
+
+def cached_natural_key_field_lookups(func):
+    """Decorator for a `natural_key_field_lookups` classproperty getter; memoizes within the context manager above."""
+
+    @functools.wraps(func)
+    def wrapper(cls):
+        cache = _natural_key_field_lookups_cache.get()
+        if cache is None:
+            return func(cls)
+        key = cls._meta.concrete_model
+        if key not in cache:
+            cache[key] = func(cls)
+        return cache[key]
+
+    return wrapper
 
 
 def array_to_string(array):
@@ -198,13 +241,14 @@ def serialize_object_v2(obj):
     from nautobot.core.api.exceptions import SerializerNotFound
     from nautobot.core.api.utils import get_serializer_for_model
 
-    # Try serializing obj(model instance) using its API Serializer
-    try:
-        serializer_class = get_serializer_for_model(obj.__class__)
-        data = serializer_class(obj, context={"request": None, "depth": 1, "exclude_m2m": False}).data
-    except SerializerNotFound:
-        # Fall back to generic JSON representation of obj
-        data = serialize_object(obj)
+    with cache_natural_key_field_lookups():
+        # Try serializing obj(model instance) using its API Serializer
+        try:
+            serializer_class = get_serializer_for_model(obj.__class__)
+            data = serializer_class(obj, context={"request": None, "depth": 1, "exclude_m2m": False}).data
+        except SerializerNotFound:
+            # Fall back to generic JSON representation of obj
+            data = serialize_object(obj)
 
     return data
 

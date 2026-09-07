@@ -697,10 +697,12 @@ class Device(PrimaryModel, ConfigContextModel):
         """
         Check DEVICE_UNIQUENESS from settings or Constance and return proper field.
         """
-        if get_settings_or_config("DEVICE_UNIQUENESS") == DeviceUniquenessChoices.NAME:
+        # One lookup, not one per branch: get_settings_or_config() reads Constance, which reads Redis.
+        uniqueness_mode = get_settings_or_config("DEVICE_UNIQUENESS")
+        if uniqueness_mode == DeviceUniquenessChoices.NAME:
             # Simplified pseudo-natural key (opt-in for name-only uniqueness)
             return ["name"]
-        elif get_settings_or_config("DEVICE_UNIQUENESS") == DeviceUniquenessChoices.LOCATION_TENANT_NAME:
+        elif uniqueness_mode == DeviceUniquenessChoices.LOCATION_TENANT_NAME:
             # Full natural key based on tenant, location, and name
             return ["name", "tenant", "location"]
         else:

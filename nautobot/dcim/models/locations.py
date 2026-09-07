@@ -9,6 +9,7 @@ from nautobot.core.constants import CHARFIELD_MAX_LENGTH
 from nautobot.core.models.fields import NaturalOrderingField
 from nautobot.core.models.generics import OrganizationalModel, PrimaryModel
 from nautobot.core.models.tree_queries import TreeManager, TreeModel, TreeQuerySet
+from nautobot.core.models.utils import cached_natural_key_field_lookups
 from nautobot.core.utils.config import get_settings_or_config
 from nautobot.dcim.fields import ASNField
 from nautobot.extras.models import StatusField
@@ -230,6 +231,7 @@ class Location(TreeModel, PrimaryModel):
         return super().display
 
     @classproperty  # https://github.com/PyCQA/pylint-django/issues/240
+    @cached_natural_key_field_lookups
     def natural_key_field_lookups(cls):  # pylint: disable=no-self-argument
         """
         Due to the recursive nature of Location's natural key, we need a custom implementation of this property.
