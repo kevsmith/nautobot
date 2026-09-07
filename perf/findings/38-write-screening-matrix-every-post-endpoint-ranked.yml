@@ -97,69 +97,69 @@ controls: 'Rollback isolation was measured against the alternative rather than a
   collides with the measured request on every unique name, which reads as a rejected payload.'
 tests: n/a; harness only, no product code
 caveat: null
-note: 'Three things this cost more than expected, each of which is now a property of the
-  instrument rather than a fact about one run.
+note: 'Three things this cost more than expected, each of which is now a property of the instrument
+  rather than a fact about one run.
 
 
-  **A rolled-back transaction restores the database, not the process.** The first full run had
-  47 of 252 measurements with *unstable query counts*, nearly all updates. The cause is
+  **A rolled-back transaction restores the database, not the process.** The first full run
+  had 47 of 252 measurements with *unstable query counts*, nearly all updates. The cause is
   process-level caches -- the natural-key field lookups and the tag cache -- which are cold
   only on the first pass and survive the rollback that resets everything else. One discarded
   warmup run per operation takes the unstable count from 47 to 1. This is the same discipline
-  finding 33 established for a database clone, arriving from the opposite direction: there the
-  cold thing was PostgreSQL''s shared buffers, here it is the Python process, and in both cases
-  the fix is one throwaway request and the cost of skipping it is a number that moves for
-  reasons nobody chose.
+  finding 33 established for a database clone, arriving from the opposite direction: there
+  the cold thing was PostgreSQL''s shared buffers, here it is the Python process, and in both
+  cases the fix is one throwaway request and the cost of skipping it is a number that moves
+  for reasons unrelated to the change.
 
 
-  **DRF''s `required` is not the model''s `blank`.** A model field with `blank=False` and no
-  default is still `required=False` on the serializer whenever the column is nullable, and
-  `full_clean` then rejects the value the payload left out. Five models -- configcontext,
+  **DRF''s `required` is not the model''s `blank`.** A model field with `blank=False` and
+  no default is still `required=False` on the serializer whenever the column is nullable,
+  and `full_clean` then rejects the value the payload left out. Five models -- configcontext,
   configcontextschema, secret, rackreservation, service -- were being reported as rejected
   payloads while the builder was doing exactly what the serializer told it. Reading the model
   field alongside the serializer field is what fixed them.
 
 
-  **A many-related field''s child is not always a plain relation.** `content_types` is a
-  many-related field over `ContentTypeField`, whose value is the string "app_label.model"; the
-  first version handed it a UUID and nine models -- status, role, tag, webhook, customfield,
-  metadatatype, jobbutton, cloudresourcetype, objectpermission -- were unmeasurable as a
-  result. Dispatching on the child field rather than assuming a primary key recovered all nine.
+  **A many-related field''s child is not always a plain relation.** `content_types` is a many-related
+  field over `ContentTypeField`, whose value is the string "app_label.model"; the first version
+  handed it a UUID and nine models -- status, role, tag, webhook, customfield, metadatatype,
+  jobbutton, cloudresourcetype, objectpermission -- were unmeasurable as a result. Dispatching
+  on the child field rather than assuming a primary key recovered all nine.
 
 
-  **The exception list is counted, deliberately.** 23 of the 105 measured models only got there
-  via an entry in `MODEL_SEEDS`, and the coverage summary reports "82 from field metadata
+  **The exception list is counted, deliberately.** 23 of the 105 measured models only got
+  there via an entry in `MODEL_SEEDS`, and the coverage summary reports "82 from field metadata
   alone, 23 needing a seed entry" rather than one number. The list holds two kinds of knowledge
-  and nothing else: `force`, which names optional fields a `clean()` requires ("Either device or
-  module must be set" -- 14 models, including dcim.interface), and `values`, which supplies the
-  three IPAM addresses that have to fall inside a real prefix in the right namespace. A model
-  is not added to make a number look better.
+  and nothing else: `force`, which names optional fields a `clean()` requires ("Either device
+  or module must be set" -- 14 models, including dcim.interface), and `values`, which supplies
+  the three IPAM addresses that have to fall inside a real prefix in the right namespace.
+  A model is not added to make a number look better.
 
 
-  **A product defect, found as a byproduct.** POST to `vpn.vpnprofilephase1policyassignment` or
-  `vpn.vpnprofilephase2policyassignment` returns HTTP 500 -- "got unexpected keyword arguments:
+  **A product defect, found as a byproduct.** POST to `vpn.vpnprofilephase1policyassignment`
+  or `vpn.vpnprofilephase2policyassignment` returns HTTP 500 -- "got unexpected keyword arguments:
   `_custom_field_data`". Both models are plain `BaseModel` and support no custom fields; both
-  serializers are `NautobotModelSerializer`, which puts `custom_fields` in validated_data with
-  a default and passes it to the model constructor. The payload never mentions custom fields,
-  so this is unconditional: those two endpoints cannot be written to at all. Correctness, not
-  performance, and out of scope for this branch -- recorded here because nothing else on the
-  branch would have found it.
+  serializers are `NautobotModelSerializer`, which puts `custom_fields` in validated_data
+  with a default and passes it to the model constructor. The payload never mentions custom
+  fields, so this is unconditional: those two endpoints cannot be written to at all. Correctness,
+  not performance, and out of scope for this branch -- recorded here because nothing else
+  on the branch would have found it.
 
 
   **Correction, from finding 40: dcim.cable at 44.9 is wrong by roughly 5x.** The generated
-  payload leaves termination_a_type and termination_b_type null, because both are optional and
-  this builder populates required fields only -- and a cable connected to nothing skips every
-  termination check and cable-path walk. A cable with real terminations costs ~220 queries.
-  This is the "minimal payloads measure the floor" caveat below landing on a top-four model, and
-  it is the first evidence of how large that gap can be. Any model whose expensive work hangs off
-  optional relations is understated here by an unknown factor, and the ranking should be read as
-  a lower bound per model rather than an estimate.
+  payload leaves termination_a_type and termination_b_type null, because both are optional
+  and this builder populates required fields only -- and a cable connected to nothing skips
+  every termination check and cable-path walk. A cable with real terminations costs ~220 queries.
+  This is the "minimal payloads measure the floor" caveat below landing on a top-four model,
+  and it is the first evidence of how large that gap can be. Any model whose expensive work
+  hangs off optional relations is understated here by an unknown factor, and the ranking should
+  be read as a lower bound per model rather than an estimate.
 
 
-  **What the ranking cannot see, stated in advance this time.** It is queries per object, so it
-  is blind to a small number of expensive queries exactly as the read screen was -- finding 37
-  had to discover that after the fact with dcim.device. `db_ms` is recorded per measurement, so
-  the same second ranking is available here without re-running anything. And the payloads are
-  minimal: only required fields are populated, so every figure is the *floor* cost of a create.
-  Tags, custom field data and relationships are omitted, and they are write work. A populated
-  create costs more than anything reported here, never less.'
+  **What the ranking cannot see, stated in advance this time.** It is queries per object,
+  so it is blind to a small number of expensive queries exactly as the read screen was --
+  finding 37 had to discover that after the fact with dcim.device. `db_ms` is recorded per
+  measurement, so the same second ranking is available here without re-running anything. And
+  the payloads are minimal: only required fields are populated, so every figure is the *floor*
+  cost of a create. Tags, custom field data and relationships are omitted, and they are write
+  work. A populated create costs more than anything reported here.'

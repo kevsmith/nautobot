@@ -46,14 +46,14 @@ note: 'The warmup convention that follows from the measurement: discard exactly 
   template is a database at a fixed schema. restore_snapshot.sh defends against schema drift
   by always running migrate, which is 9.6 of its 49 seconds; a clone that skipped that check
   would silently hand back a schema behind the code. reset_db.sh fingerprints the migration
-  files in the tree -- names and contents, since names alone would miss a file edited in
-  place -- and refuses to clone when the fingerprint does not match the one recorded on the
-  template. The fingerprint is stored as a comment on the template database rather than in
-  a table, because database comments are not copied by CREATE DATABASE ... TEMPLATE, so the
-  clones stay free of anything the harness added. Verified to fire on both a new migration
-  file and one edited in place, exiting non-zero in each case and recovering afterwards.
+  files in the tree -- names and contents, since names alone would miss a file edited in place
+  -- and refuses to clone when the fingerprint does not match the one recorded on the template.
+  The fingerprint is stored as a comment on the template database rather than in a table,
+  because database comments are not copied by CREATE DATABASE ... TEMPLATE, so the clones
+  stay free of anything the harness added. Verified to fire on both a new migration file and
+  one edited in place, exiting non-zero in each case and recovering afterwards.
 
 
   It refuses rather than falling back to the slow path. A reset that takes 1s most of the
-  time and 49s occasionally would put a 48-second spike inside a measurement loop at a moment
-  nobody chose.'
+  time and 49s occasionally would put a 48-second spike inside a measurement loop at an unpredictable
+  point.'

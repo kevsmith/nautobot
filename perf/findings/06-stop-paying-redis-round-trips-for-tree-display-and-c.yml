@@ -1,6 +1,7 @@
 ---
 seq: 6
 commit: 6020f8ebf
+recommended_commit: ddb8bc1bb
 status: accepted
 behaviour: B2
 migration: '-'

@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "_comment": "The report's cumulative section, one entry per aggregate. Each entry names the tree it describes, so a figure that has fallen behind the branch says so in the rendered table instead of relying on someone remembering. `file` is a perf/compare_screen.py output under perf/baselines/; `figures` is for an aggregate that is not screen output.",
+  "current_tree": "90dbd96ffbeae6d1b9ed83b3e1042af10f95cdcc6fcc19e4a734be0d30ff36bf",
+  "aggregates": [
+    {
+      "key": "readloop",
+      "label": "Read loop, 57 scenarios",
+      "source": "tier1",
+      "coverage": "38 scenarios, all 200/302",
+      "note": "on one host with the arms alternated and both trees proved different by content hash. The scenario set includes the 18 row-rendering requests that finding 44 showed were never measured, and **the branch changes not one query on any of them** -- yet their wall clock falls a median 18.6%, because the work removed is Python rather than SQL. The document half of a list view is unchanged at a median -1.3%",
+      "baseline_file": "tier1-57-stock.json",
+      "current_file": "tier1-57-branch.json",
+      "wall_baseline_file": "tier2-57-stock.json",
+      "wall_current_file": "tier2-57-branch.json"
+    },
+    {
+      "key": "writes",
+      "label": "Write screen, every POST endpoint",
+      "file": "screen-writes-ab.json",
+      "tree": "90dbd96ff"
+    },
+    {
+      "key": "apply",
+      "label": "Whole-workflow apply, 9,972 objects",
+      "file": null,
+      "tree": "90dbd96ff",
+      "coverage": "9,972 objects across 68 models, row counts identical on both arms",
+      "figures": {
+        "queries": {
+          "baseline": 846932,
+          "current": 706499
+        },
+        "db_ms": {
+          "baseline": 34641,
+          "current": 30169
+        },
+        "wall_ms": {
+          "baseline": 1978000,
+          "current": 1245000
+        }
+      },
+      "note": "both arms from a database reset to the same empty template, arms alternated, trees proved different by content hash, and each arm ended with identical row counts -- 536 devices, 1,616 interfaces, 1,648 cables -- so the two runs did the same work. **Of the 733 seconds saved, 4.5 are database execution**"
+    }
+  ]
+}

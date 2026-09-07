@@ -12,6 +12,7 @@ summary: Cache the built nav menu per user across requests rather than per reque
 result:
   in_process: ~0.6ms, now that nav_menu runs once per request
 wall_clock: ≈−1% detail pages (~0.6ms)
+basis: authorization decisions in a process-level cache, for ~0.6ms
 wall_clock_detail: ~0.6ms, now that nav_menu runs once per request
 caveat: ObjectPermission edits, group membership changes and is_superuser toggles would take
   effect only after cache expiry.

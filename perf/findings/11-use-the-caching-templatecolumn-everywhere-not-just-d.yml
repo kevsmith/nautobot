@@ -1,6 +1,7 @@
 ---
 seq: 11
 commit: d25990a84
+recommended_commit: 3eda79d26
 status: accepted
 behaviour: A
 migration: '-'
@@ -15,6 +16,7 @@ result:
   note: same mechanism and measured effect as 40c3af5fe; the saving scales with rows x TemplateColumns
     per table
 wall_clock: not measured — same mechanism as 07, −18.5% there
+basis: consistency — 67 call sites left on the uncached column
 wall_clock_detail: not measured for this commit -- the machine was under concurrent profiling
   load. The mechanism is identical to finding 07, measured there at -18.5% on ui.device.interfaces,
   and the saving scales with rows x TemplateColumns per table

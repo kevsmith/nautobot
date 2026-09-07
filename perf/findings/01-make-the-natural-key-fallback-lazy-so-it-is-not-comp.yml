@@ -2,6 +2,7 @@
 seq: 1
 id: F-03
 commit: 1974922f0
+recommended_commit: 559cabf72
 status: accepted
 behaviour: A
 migration: '-'
@@ -22,4 +23,4 @@ controls: api.prefix.list flat, as predicted -- its natural keys touch no config
 tests: core test_api 61 OK
 caveat: null
 note: Removes no queries at all, which is why a query-count gate alone would have missed it.
-  The first evidence on this branch that query count is not the objective.
+  The first change on this branch that a query-count gate would have scored at zero.

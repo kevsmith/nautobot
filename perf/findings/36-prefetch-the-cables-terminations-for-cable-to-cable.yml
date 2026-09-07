@@ -1,7 +1,8 @@
 ---
 seq: 36
 id: null
-commit: null
+commit: fd48eee32
+recommended_commit: 15a15f77f
 status: accepted
 behaviour: B1
 migration: '-'
@@ -53,18 +54,20 @@ note: 'The generalization is Kevin''s and it is better than the one this record 
   it that way.
 
 
-  The actual pattern is an affordance added without its call sites being updated to use it, and
-  this branch has already paid for the same thing once: finding 7 built a caching TemplateColumn
+  The actual pattern is an affordance added without its call sites being updated to use it,
+  and this branch has already paid for the same thing once: finding 7 built a caching TemplateColumn
   and finding 11 existed only because just the device tables had been switched over to it.
-  TERMINATION_PARENT_FK_FIELDS is a third instance waiting to be checked -- its own comment says
-  it exists "to extend select_related so that rendering termination.parent ... stays query-free
-  per row", which is an affordance with a stated purpose and an unaudited adoption list.
+  TERMINATION_PARENT_FK_FIELDS is a third instance waiting to be checked -- its own comment
+  says it exists "to extend select_related so that rendering termination.parent ... stays
+  query-free per row", which is an affordance with a stated purpose and an unaudited adoption
+  list.
 
 
-  That reframing is worth more than this fix, because it is predictive rather than descriptive.
-  Screening endpoints by cost finds symptoms; screening affordances by adoption finds causes,
-  over a far smaller search space than 166 endpoints. Proposed as an instrument, not yet built.
+  That reframing is more useful than the fix, because it predicts where to look rather than
+  describing what was found. Screening affordances by adoption searches a far smaller space
+  than the 166 endpoints a cost screen covers, and it points at causes rather than symptoms.
+  Proposed as an instrument, not yet built.
 
 
-  Risk tier B1, no migration. The new state is prefetch caches on a queryset, which live and die
-  with the request.'
+  Risk tier B1, no migration. The new state is prefetch caches on a queryset, which live and
+  die with the request.'

@@ -9,13 +9,16 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import FieldDoesNotExist
 from django.db import connection
 from django.db.models import IntegerField, Value
+from django.template import Context
 from django.test import SimpleTestCase, tag, TestCase
 from django.test.utils import CaptureQueriesContext
+import django_tables2
 from django_tables2.utils import Accessor
 
 import nautobot
 from nautobot.circuits.models import Circuit
 from nautobot.circuits.tables import CircuitTable
+from nautobot.core import tables as nautobot_tables
 from nautobot.core.models.querysets import count_related
 from nautobot.core.tables import BaseTable, ButtonsColumn, ComputedFieldColumn, LinkedCountColumn
 from nautobot.core.templatetags import helpers
@@ -427,4 +430,100 @@ class TableAccessorAuditTestCase(SimpleTestCase):
             [],
             "These accessors traverse a to-many relation (a manager) and will render as placeholders. "
             "Route them through a property that returns a single object instead.",
+        )
+
+
+class CachingTemplateColumnCouplingTestCase(TestCase):
+    """Guard the one thing `core.tables.TemplateColumn` cannot defend itself against.
+
+    That column reimplements `django_tables2.TemplateColumn.render()` so a
+    column's `template_code` is compiled once rather than once per cell. It
+        already degrades safely if the `get_context_data()` hook disappears --
+    `render()` falls back to `super()`. What it cannot detect is the parent's
+    render *semantics* changing while the hook keeps its name, which would make
+    the two implementations diverge silently and produce wrong cell content
+    rather than a slow page.
+
+    So this compares the two implementations directly on the same cell. If a
+    django_tables2 upgrade changes what `render()` produces, this fails instead
+    of the output quietly drifting.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.rir = RIR.objects.create(name="Coupling Guard RIR")
+
+    def _render_both(self, template_code):
+        """Render one cell through both implementations and return (ours, theirs).
+
+        `bound_row` is not optional. django_tables2's `get_context_data()` reads
+        `kwargs["bound_row"].row_counter`, so the caching implementation depends
+        on that kwarg reaching it -- a second coupling point beyond the hook's
+        existence, and one a test asserting only `hasattr` would never find.
+        """
+        table = RIRTable(RIR.objects.filter(pk=self.rir.pk))
+        table.context = Context()
+        bound_column = table.columns["name"]
+        bound_row = next(iter(table.rows))
+
+        ours = nautobot_tables.TemplateColumn(template_code=template_code)
+        theirs = django_tables2.TemplateColumn(template_code=template_code)
+        kwargs = {
+            "record": self.rir,
+            "table": table,
+            "value": self.rir.name,
+            "bound_column": bound_column,
+            "bound_row": bound_row,
+        }
+        return ours.render(**kwargs), theirs.render(**kwargs)
+
+    def test_output_matches_django_tables2_for_a_record_reference(self):
+        ours, theirs = self._render_both("{{ record.name }}")
+        self.assertEqual(ours, theirs)
+        self.assertIn(self.rir.name, ours)
+
+    def test_output_matches_django_tables2_for_value_and_column(self):
+        ours, theirs = self._render_both("{{ value }}|{{ bound_column.name }}")
+        self.assertEqual(ours, theirs)
+
+    def test_output_matches_django_tables2_when_the_template_reads_request(self):
+        """`request` is the part our implementation assigns into the parent context itself."""
+        ours, theirs = self._render_both("{% if request %}req{% else %}norequest{% endif %}")
+        self.assertEqual(ours, theirs)
+
+    def test_recompiles_when_template_code_is_reassigned(self):
+        """The compiled template is cached on the instance and keyed on its source."""
+        column = nautobot_tables.TemplateColumn(template_code="{{ value }}")
+        table = RIRTable(RIR.objects.filter(pk=self.rir.pk))
+        table.context = Context()
+        kwargs = {
+            "record": self.rir,
+            "table": table,
+            "bound_column": table.columns["name"],
+            "bound_row": next(iter(table.rows)),
+        }
+        self.assertEqual(column.render(value="first", **kwargs), "first")
+        column.template_code = "changed {{ value }}"
+        self.assertEqual(column.render(value="second", **kwargs), "changed second")
+
+    def test_the_kwarg_contract_still_holds(self):
+        """`get_context_data()` reads kwargs["bound_row"]; if that changes, render() breaks loudly."""
+        table = RIRTable(RIR.objects.filter(pk=self.rir.pk))
+        table.context = Context()
+        context = django_tables2.TemplateColumn(template_code="x").get_context_data(
+            record=self.rir,
+            table=table,
+            value=self.rir.name,
+            bound_column=table.columns["name"],
+            bound_row=next(iter(table.rows)),
+        )
+        self.assertIn("row_counter", context)
+
+    def test_the_hook_it_depends_on_still_exists(self):
+        """If this fails the fallback path is now permanent, and the caching is dead code."""
+        self.assertTrue(
+            hasattr(django_tables2.TemplateColumn, "get_context_data"),
+            "django_tables2.TemplateColumn.get_context_data() is gone, so "
+            "core.tables.TemplateColumn now always falls back to the uncached parent. "
+            "Finding 07's -18.5% on ui.device.interfaces is no longer being collected.",
         )

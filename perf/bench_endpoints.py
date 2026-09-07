@@ -83,22 +83,26 @@ def main():
         if not sc:
             continue
         url = sc["url"]
+        # Scenario headers, not just the URL. A list view renders its table over
+        # queryset.none() without HX-Request, so a bare GET here would time the
+        # page shell for a scenario whose whole purpose is the rows.
+        headers = sc.get("headers") or {}
         for _ in range(3):  # warm caches before timing
-            client.get(url)
+            client.get(url, headers=headers)
         # Redis/Constance reads are deterministic and load-independent, unlike wall
         # clock. For fixes that remove config lookups rather than SQL, this is the
         # signal that survives a busy machine.
         counter = ConfigCallCounter()
         redis_counter = RedisReadCounter()
         with counter, redis_counter:
-            client.get(url)
+            client.get(url, headers=headers)
         config_reads = counter.count
         redis_reads = redis_counter.count
 
         samples = []
         for _ in range(args.reps):
             start = time.perf_counter()
-            resp = client.get(url)
+            resp = client.get(url, headers=headers)
             samples.append((time.perf_counter() - start) * 1000.0)
         samples.sort()
         out[tid] = {

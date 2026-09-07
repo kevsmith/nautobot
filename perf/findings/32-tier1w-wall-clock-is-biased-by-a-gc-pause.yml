@@ -34,24 +34,24 @@ controls: null
 tests: n/a; a measurement artifact, no product code involved
 caveat: null
 note: 'Query counts are untouched by this. The collector issues no SQL, so every deterministic
-  counter this branch has published stands, including the ones taken with tier1w. Only its per-operation
-  wall_ms is affected.
+  counter this branch has published stands, including the ones taken with tier1w. Only its
+  per-operation wall_ms is affected.
 
 
   Two earlier findings are worth re-reading in this light, and both survive. Finding 24 measured
   dropping all 17 non-unique ObjectChange indexes at −59ms on a 3358ms operation and called
-  the real cost indistinguishable from zero; a ~200ms artifact makes that conclusion stronger,
-  not weaker. Finding 29 measured commit against rollback at 31ms on a 3.3-second operation
-  and called it inside variance; same. Neither claimed a win that this would erase. What this
-  does retire is the idea that any tier1w wall figure smaller than a few hundred milliseconds
-  meant anything.
+  the real cost indistinguishable from zero; a ~200ms artifact only strengthens that conclusion.
+  Finding 29 measured commit against rollback at 31ms on a 3.3-second operation and called
+  it inside variance; same. Neither claimed a win that this would erase. This retires the
+  idea that any tier1w wall figure smaller than a few hundred milliseconds meant anything.
 
 
   tier1w_writes.py is deliberately left alone. Changing it to report a median would silently
-  redefine every wall figure in the committed baselines, and its job is the deterministic counters,
-  which are correct. The wall-clock instrument is separate and says so.
+  redefine every wall figure in the committed baselines, and its job is the deterministic
+  counters, which are correct. The wall-clock instrument is separate and says so.
 
 
-  Found by refusing to average away a regression. The honest reading of 89ms against 248ms,
-  three rounds, both orderings, is that the change made create.device three times slower -- and
-  the branch''s own rule is to explain a tripwire rather than accept or dismiss it.'
+  Found by investigating a regression rather than averaging it away. The honest reading of
+  89ms against 248ms, three rounds, both orderings, is that the change made create.device
+  three times slower -- and the branch''s own rule is to explain a tripwire rather than accept
+  or dismiss it.'

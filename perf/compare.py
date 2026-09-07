@@ -20,6 +20,21 @@ QUERY_TOLERANCE = 0
 OK_STATUSES = (200, 302)
 
 
+def status_ok(rec):
+    """Whether a record returned the status its scenario expects.
+
+    Control scenarios are allowed to fail on purpose -- the 404 chrome baseline
+    measures what a page costs before it renders anything of its own -- so
+    availability is "what this scenario declared" rather than a fixed 200.
+    """
+    if rec.get("implausible"):
+        return False
+    expected = rec.get("expected_status")
+    if expected is not None:
+        return rec.get("status") == expected
+    return rec.get("status") in OK_STATUSES
+
+
 def load(path):
     with open(path) as fh:
         data = json.load(fh)
@@ -50,12 +65,12 @@ def main():
         view, url = key
         bs, cs = b["status"], c["status"]
 
-        if bs not in OK_STATUSES:
+        if not status_ok(b):
             baseline_broken.append({"id": view, "url": url,
                                     "detail": f"baseline status {bs}"
                                               f"{' / ' + str(b['error']) if b.get('error') else ''}"})
 
-        if bs in OK_STATUSES and cs != bs:
+        if status_ok(b) and cs != bs:
             entry = {"id": view, "url": url, "detail": f"status {bs} -> {cs}"}
             if cs is None or cs >= 500:
                 # An unhandled exception surfaces as status None from the client.
