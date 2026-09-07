@@ -1982,6 +1982,10 @@ class Module(PrimaryModel):
     the creation of a Module.
     """
 
+    # Ten other models traverse into Module when building their natural keys -- every module-hosted
+    # component does. See `BaseModel.natural_key_map`.
+    natural_key_map_enabled = True
+
     module_type = models.ForeignKey(to="dcim.ModuleType", on_delete=models.PROTECT, related_name="modules")
     parent_module_bay = models.OneToOneField(
         to="dcim.ModuleBay",

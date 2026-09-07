@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from django.conf import settings
@@ -51,6 +52,39 @@ NATURAL_KEY_MAP_MAX_ROWS = 5000
 #: natural-key map, or `None` for hops that cannot. Purely derived from model metadata and the static
 #: `natural_key_map_enabled` flag, so it is safe to keep for the life of the process.
 _natural_key_map_plans = {}
+
+
+logger = logging.getLogger(__name__)
+
+
+def _warm_ancestor_chain(instance, lookup):
+    """Pull a tree node's whole ancestor chain in one query before it is walked hop by hop.
+
+    `natural_key()` resolves `parent__parent__parent__name` with plain attribute access,
+    which costs one lazy foreign-key load per level. `TreeQuerySet.ancestors()` already
+    solves that walk -- it pulls ANCESTOR_JOIN_DEPTH levels per query with select_related
+    and deliberately populates each instance's foreign-key cache so that later
+    `node.parent` reads are free (see `nautobot.core.models.tree_queries`, finding 10).
+
+    The two were built to compose and nothing wired them together. This calls the
+    optimized walk once, then lets the existing traversal proceed against a warm cache.
+    Deliberately narrow: only for a `parent` hop, only on a model whose manager offers
+    `ancestors()`, and only when the chain is not already cached.
+    """
+    if lookup != "parent" or instance is None:
+        return
+    if "parent" in instance._state.fields_cache or getattr(instance, "parent_id", None) is None:
+        return
+    manager = type(instance)._default_manager
+    if not hasattr(manager, "ancestors"):
+        return
+    # Consuming the queryset is what performs the walk and warms the caches. Errors are
+    # swallowed and logged rather than raised: this is an optimization, and a tree that
+    # cannot be walked must still produce a natural key by the ordinary route below.
+    try:
+        list(manager.ancestors(instance))
+    except Exception:
+        logger.debug("ancestor pre-walk failed for %s; falling back to attribute traversal", instance, exc_info=True)
 
 
 def _natural_key_map_plan(model, lookup):
@@ -215,10 +249,7 @@ class BaseModel(models.Model):
             # Not a small reference table after all. Cache the fact so we don't re-check on every request;
             # `natural_key()` falls back to per-object attribute traversal.
             return False
-        return {
-            row[0]: tuple(value if is_protected_type(value) else str(value) for value in row[1:])
-            for row in rows
-        }
+        return {row[0]: tuple(value if is_protected_type(value) else str(value) for value in row[1:]) for row in rows}
 
     @classmethod
     def natural_key_map(cls):
@@ -286,6 +317,7 @@ class BaseModel(models.Model):
                                 break
                         # Anything else (stale map, dangling FK, a lookup that isn't part of the related
                         # model's own natural key) falls through to the general traversal below.
+                    _warm_ancestor_chain(val, lookup)
                 val = getattr(val, lookup)
                 if val is None:
                     break
