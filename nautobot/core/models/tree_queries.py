@@ -10,7 +10,7 @@ from tree_queries.query import TreeManager as TreeManager_, TreeQuerySet as Tree
 
 from nautobot.core.models import BaseManager, querysets
 from nautobot.core.signals import invalidate_max_depth_cache
-from nautobot.core.utils.cache import construct_cache_key
+from nautobot.core.utils.cache import cache_get_or_set, construct_cache_key
 
 
 class TreeQuerySet(TreeQuerySet_, querysets.RestrictedQuerySet):
@@ -103,13 +103,12 @@ class TreeManager(TreeManager_, BaseManager.from_queryset(TreeQuerySet)):
         """Cacheable version of `TreeQuerySet.max_tree_depth()`.
 
         Generally TreeManagers are persistent objects while TreeQuerySets are not, hence the difference in behavior.
+
+        Within a `request_cache()` scope the value is also memoized in-process: a single request reads it once per
+        object it serializes, and each of those reads would otherwise be a Redis round-trip.
         """
-        cache_key = self.max_depth_cache_key
-        max_depth = cache.get(cache_key)
-        if max_depth is None:
-            max_depth = self.max_tree_depth()
-            # cache is explicitly invalidated by nautobot.core.signals.invalidate_max_depth_cache as needed
-            cache.set(cache_key, max_depth, timeout=None)
+        # both caches are explicitly invalidated by nautobot.core.signals.invalidate_max_depth_cache as needed
+        max_depth, _ = cache_get_or_set(self.max_depth_cache_key, self.max_tree_depth, timeout=None)
         return max_depth
 
 
@@ -150,9 +149,26 @@ class TreeModel(TreeNode):
         By default, TreeModels display their full ancestry for clarity.
 
         As this is an expensive thing to calculate, we cache it for a few seconds in the case of repeated lookups.
+
+        When the ancestry is already loaded in memory - as `select_related("parent__parent__...")` in a list view
+        or serializer arranges - the string is assembled from those instances instead. That is cheaper than the
+        cache round-trip it replaces, and cannot return a value that is stale relative to what was loaded.
         """
         if not hasattr(self, "name"):
             raise NotImplementedError("default TreeModel.display implementation requires a `name` attribute!")
+        names = [self.name]  # pylint: disable=no-member  # we checked with hasattr() above
+        node = self
+        seen_pks = {self.pk}
+        while node.parent_id is not None and node.parent_id not in seen_pks:
+            parent = node._state.fields_cache.get("parent")
+            if parent is None:
+                break  # ancestry is not fully in memory - fall through to the cached implementation below
+            seen_pks.add(parent.pk)
+            names.append(parent.name)
+            node = parent
+        else:
+            return " → ".join(reversed(names))
+
         cache_key = construct_cache_key(self, method_name="display", branch_aware=True)
         display_str = cache.get(cache_key, "")
         if display_str:
