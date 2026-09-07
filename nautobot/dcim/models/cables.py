@@ -1492,7 +1492,7 @@ class CablePath(BaseModel):
         return int(total_length / 3)
 
     @classmethod
-    def interface_connections(cls):
+    def interface_connections(cls, endpoint_queryset=None):
         """
         Canonical queryset of interface-to-interface connections, one CablePath row per lane.
 
@@ -1508,7 +1508,14 @@ class CablePath(BaseModel):
         per-row subqueries. Rows are ordered so a trunk's lanes are consecutive. Shared by the UI
         Interface Connections list view and the REST API `InterfaceConnectionViewSet` so they stay
         consistent.
+
+        `endpoint_queryset` overrides the Interface queryset both ends are fetched with. The default
+        joins the parent device, which is what the UI list view renders. A caller that renders more
+        of each interface -- the REST serializer renders all of it -- passes a queryset carrying its
+        own prefetches, rather than each caller re-deriving the filter and the ordering.
         """
+        if endpoint_queryset is None:
+            endpoint_queryset = Interface.objects.select_related("device")
         return (
             cls.objects.filter(
                 origin_type__app_label="dcim",
@@ -1522,8 +1529,8 @@ class CablePath(BaseModel):
             )
             .order_by("origin_type", "origin_id", "peer_connector")
             .prefetch_related(
-                GenericPrefetch("origin", [Interface.objects.select_related("device")]),
-                GenericPrefetch("destination", [Interface.objects.select_related("device")]),
+                GenericPrefetch("origin", [endpoint_queryset]),
+                GenericPrefetch("destination", [endpoint_queryset]),
             )
         )
 
