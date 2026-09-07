@@ -27,8 +27,8 @@ result:
     (−0.44%), 242 unchanged, zero unstable query counts. Four measurements are one query *worse*
     -- ipam.ipaddress and ipam.ipaddressrange pay the map''s build query without traversing into
     the mapped tables often enough to recoup it.'
-wall_clock: −0.2% on a datacenter apply — inside variance, and not the reason to take it
-basis: consistency — natural_key() bypassed the optimized ancestor walk
+wall_clock: −0.2% on a datacenter apply, inside variance and not the reason to take it
+basis: "consistency: natural_key() bypassed the optimized ancestor walk"
 controls: 'Four arms measured on the same box against the same dataset from the same empty
   template, each swap proved by a content hash over nautobot/**/*.py: fda67f172 (neither),
   9dba9144c (map only), 90dbd96ff (both), against ce01a0464 stock next from the earlier series.

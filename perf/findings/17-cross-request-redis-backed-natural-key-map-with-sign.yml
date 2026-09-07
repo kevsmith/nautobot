@@ -12,8 +12,8 @@ summary: The whole-table map from seq 14, cached across requests in Redis and in
 result:
   in_process: +0 to 2 percentage points over the request-scoped variant -- inside run-to-run
     variance
-wall_clock: +0–2%, inside variance
-basis: unbounded staleness — bulk_update emits no invalidation signal
+wall_clock: +0-2%, inside variance
+basis: "unbounded staleness: bulk_update emits no invalidation signal"
 wall_clock_detail: +0 to 2 percentage points over the request-scoped variant, inside run-to-run
   variance
 caveat: A stale Location name would propagate into composite_key and natural_slug in every
