@@ -2,6 +2,7 @@
 seq: 30
 id: null
 commit: 89bb05579
+recommended_commit: 60a5f0950
 status: accepted
 behaviour: B1
 migration: '-'
@@ -42,39 +43,40 @@ controls: 'power-connections limit 25 +5.1% and limit 50 −0.5%; console-connec
 tests: dcim test_api + test_views 4158 OK; dcim test_cablepaths + test_tables + test_filters +
   test_models 1150 OK (29 skipped). 5308 in total, no failures.
 caveat: null
-note: 'This record previously carried three claims about this endpoint. One was right and two
-  were wrong, and the wrong ones are the more useful entry.
+note: 'This record previously carried three claims about this endpoint. One was right and
+  two were wrong; the wrong ones are recorded in more detail.
 
 
-  Wrong, and it was called the interesting part: that finding 26''s `depth > 0` guard withholds
-  its own fix from here, and that re-keying the guard on whether peers are serialized would fix
-  both endpoints. Falsified by measurement rather than by reading -- with the guard deleted outright
-  on an otherwise unchanged tree, this endpoint still costs 359 queries and _first_cable_path
-  and _destination still cost 50 each. The page here is CablePath rows; CablePath has no get_cable_peer,
-  so _warm_peer_cable_paths skips every row whatever the guard says. Finding 26''s guard is measured,
-  correct, and simply not involved. Finding 26''s own record carried this as a follow-up and is
-  corrected too.
+  Wrong, and previously described as the interesting part: that finding 26''s `depth > 0`
+  guard withholds its own fix from here, and that re-keying the guard on whether peers are
+  serialized would fix both endpoints. Falsified by measurement rather than by reading --
+  with the guard deleted outright on an otherwise unchanged tree, this endpoint still costs
+  359 queries and _first_cable_path and _destination still cost 50 each. The page here is
+  CablePath rows; CablePath has no get_cable_peer, so _warm_peer_cable_paths skips every row
+  whatever the guard says. Finding 26''s guard is measured, correct, and simply not involved.
+  Finding 26''s own record carried this as a follow-up and is corrected too.
 
 
-  Wrong: that the queryset has "no select_related and no prefetch_related of any kind". It has
-  a GenericPrefetch on both ends joining the parent device, and its two queries are visible in
-  the attribution under paginate_queryset. The endpoint was under-prefetched for what its serializer
-  renders, not unprefetched.
+  Wrong: that the queryset has "no select_related and no prefetch_related of any kind". It
+  has a GenericPrefetch on both ends joining the parent device, and its two queries are visible
+  in the attribution under paginate_queryset. The endpoint was under-prefetched for what its
+  serializer renders, not unprefetched.
 
 
-  Wrong: that powerconnections and consoleconnections are "almost certainly the same viewset shape,
-  so one fix plausibly covers three endpoints". They are separate viewsets over PowerPort and
-  ConsolePort with their own querysets. This change does not touch them and they are measured
-  here still at 5.2-5.4 queries per object. One fix covered one endpoint. The other two are a
-  named follow-up and want the same treatment: their serializers render a full ConsolePortSerializer
-  / PowerPortSerializer per row and their querysets prefetch cable_paths__destination but nothing
-  for .cable, the cable peer rows, or tags.
+  Wrong: that powerconnections and consoleconnections are "almost certainly the same viewset
+  shape, so one fix plausibly covers three endpoints". They are separate viewsets over PowerPort
+  and ConsolePort with their own querysets. This change does not touch them and they are measured
+  here still at 5.2-5.4 queries per object. One fix covered one endpoint. The other two are
+  a named follow-up and want the same treatment: their serializers render a full ConsolePortSerializer
+  / PowerPortSerializer per row and their querysets prefetch cable_paths__destination but
+  nothing for .cable, the cable peer rows, or tags.
 
 
-  Right, and it was the whole basis of the fix: the 9 + 14n fit, which held to the query at three
-  page sizes, and the attribution of 350 of 359 queries to seven call sites at exactly 50 each.
+  Right, and it was the whole basis of the fix: the 9 + 14n fit, which held to the query at
+  three page sizes, and the attribution of 350 of 359 queries to seven call sites at exactly
+  50 each.
 
 
-  The first two are the same mistake in two forms -- reading the code and reporting what it looked
-  like, in a record whose own numbered sites were measured. The measured half was correct and
-  the read half was not, which is the pattern this branch has now hit six times.'
+  The first two are the same mistake in two forms -- reading the code and reporting what it
+  looked like, in a record whose own numbered sites were measured. The measured half was correct
+  and the read half was not. That split has now appeared six times on this branch.'

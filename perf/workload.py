@@ -44,7 +44,20 @@ def resolve(path):
     for sc in doc.get("scenarios", []):
         if sc.get("skip"):
             continue
-        sid, view = sc["id"], sc["view"]
+        sid = sc["id"]
+        # A literal path, used by exactly one kind of scenario: a control that
+        # is supposed to 404. The rule everywhere else is that a URL comes from
+        # reverse() so a renamed view fails loudly instead of silently
+        # measuring a redirect -- but a 404 has no view to reverse, which is the
+        # whole point of it. Declaring `path` opts out of the rule explicitly
+        # rather than by accident.
+        if sc.get("path"):
+            resolved.append({"id": sid, "url": sc["path"], "tags": sc.get("tags", []),
+                             "method": sc.get("method", "GET"),
+                             "headers": sc.get("headers") or {},
+                             "expected_status": sc.get("expected_status", 200)})
+            continue
+        view = sc["view"]
         try:
             if "pick" in sc:
                 obj = _pick_object(sc["pick"])
@@ -63,6 +76,17 @@ def resolve(path):
 
         if sc.get("query"):
             url = f"{url}?{urlencode(sc['query'])}"
+        # `headers` carries the request as the browser actually sends it. A
+        # Nautobot list view renders its table over queryset.none() unless
+        # HX-Request is present (core/views/renderers.py), so a scenario without
+        # that header measures a page with no rows in it.
+        # `expected_status` exists for control scenarios that are supposed to
+        # fail. A 404 renders the full chrome -- 40x.html extends base.html --
+        # with a static card for content, which makes it the cheapest available
+        # measurement of what every page pays before it renders anything of its
+        # own. Without this the harness flags it and Tier 2 refuses to time it.
         resolved.append({"id": sid, "url": url, "tags": sc.get("tags", []),
-                         "method": sc.get("method", "GET")})
+                         "method": sc.get("method", "GET"),
+                         "headers": sc.get("headers") or {},
+                         "expected_status": sc.get("expected_status", 200)})
     return resolved, problems

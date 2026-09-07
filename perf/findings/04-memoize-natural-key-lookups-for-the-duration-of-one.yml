@@ -2,6 +2,7 @@
 seq: 4
 id: F-04
 commit: 33ad09279
+recommended_commit: 5c12cc9de
 status: accepted
 behaviour: B1
 migration: '-'
@@ -15,6 +16,7 @@ result:
   config_reads: 1800 -> 200 per 100-object create loop (-89%)
   queries: unchanged at 1404
 wall_clock: −13% bulk create, within variance
+basis: −89% Constance reads per create loop; −13% bulk create
 wall_clock_detail: ~1010 -> ~877ms on the 100-interface create loop, directionally consistent
   across repeats but within run-to-run variance. Quoted as supporting evidence, not as the
   result -- the deterministic config-read count is the result
