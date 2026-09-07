@@ -20,6 +20,7 @@ from nautobot.core.tables import (
     ContentTypesColumn,
     LinkedCountColumn,
     TagColumn,
+    TemplateColumn,
     ToggleColumn,
 )
 from nautobot.core.templatetags.helpers import HTML_NONE, render_boolean, render_json, render_markdown
@@ -352,12 +353,12 @@ class ApprovalWorkflowTable(BaseTable):
     pk = ToggleColumn()
     approval_workflow_definition = tables.Column(linkify=True)
     object_under_review_content_type = tables.Column(verbose_name="Object Type Under Review")
-    object_under_review = tables.TemplateColumn(
+    object_under_review = TemplateColumn(
         template_code=APPROVAL_WORKFLOW_OBJECT,
         verbose_name="Object Under Review",
         order_by=["object_under_review_content_type", "object_under_review_object_id"],
     )
-    user = tables.TemplateColumn(
+    user = TemplateColumn(
         template_code="{% if record.user %}{{record.user}}{% else %}{{ record.user_name }}{% endif %}",
         verbose_name="User",
     )
@@ -405,7 +406,7 @@ class ApprovalWorkflowStageTable(BaseTable):
     pk = ToggleColumn()
     approval_workflow = tables.Column(linkify=True)
     approval_workflow_stage_definition = tables.Column(linkify=True)
-    actions_needed = tables.TemplateColumn(
+    actions_needed = TemplateColumn(
         template_code="""
         {% if record.remaining_approvals == 1 %}
             {{ record.remaining_approvals }} more approval needed
@@ -452,16 +453,16 @@ class ApproverDashboardTable(ApprovalWorkflowStageTable):
     """
 
     pk = ToggleColumn()
-    approval_workflow = tables.TemplateColumn(
+    approval_workflow = TemplateColumn(
         template_code="<a href={{record.approval_workflow.get_absolute_url}}>{{ record.approval_workflow.approval_workflow_definition.name }}</a>",
         verbose_name="Workflow",
     )
-    approval_workflow_stage = tables.TemplateColumn(
+    approval_workflow_stage = TemplateColumn(
         template_code="<a href={{record.approval_workflow.get_absolute_url}}>{{ record.approval_workflow_stage_definition.name }}</a>",
         verbose_name="Current Stage",
     )
     approval_workflow__object_under_review_content_type = tables.Column(verbose_name="Object Type Under Review")
-    object_under_review = tables.TemplateColumn(
+    object_under_review = TemplateColumn(
         template_code="<a href={{record.approval_workflow.object_under_review.get_absolute_url }}>{{ record.approval_workflow.object_under_review }}</a>",
         verbose_name="Object Under Review",
         order_by=[
@@ -502,7 +503,7 @@ class RelatedApprovalWorkflowStageTable(ApprovalWorkflowStageTable):
     ApprovalWorkflowStageTable used in the detail view of ApprovalWorkflow detail view.
     """
 
-    approval_workflow_stage = tables.TemplateColumn(
+    approval_workflow_stage = TemplateColumn(
         template_code="<a href={{record.get_absolute_url}}>{{ record.approval_workflow_stage_definition.name }}</a>",
         verbose_name="Stage",
     )
@@ -563,7 +564,7 @@ class ApprovalWorkflowStageResponseTable(BaseTable):
 class RelatedApprovalWorkflowStageResponseTable(ApprovalWorkflowStageResponseTable):
     """Table for ApprovalWorkflowStageResponse list view."""
 
-    approval_workflow_stage = tables.TemplateColumn(
+    approval_workflow_stage = TemplateColumn(
         template_code="<a href={{record.approval_workflow_stage.get_absolute_url}}>{{ record.approval_workflow_stage.approval_workflow_stage_definition.name }}</a>",
         verbose_name="Stage",
     )
@@ -694,7 +695,7 @@ class ConfigContextSchemaValidationStateColumn(tables.Column):
 class ContactTable(BaseTable):
     pk = ToggleColumn()
     name = tables.Column(linkify=True)
-    phone = tables.TemplateColumn(PHONE)
+    phone = TemplateColumn(PHONE)
     tags = TagColumn(url_name="extras:contact_list")
     actions = ButtonsColumn(Contact)
 
@@ -876,8 +877,8 @@ class NestedDynamicGroupDescendantsTable(DynamicGroupMembershipTable):
     Subclass of DynamicGroupMembershipTable used in detail views to show parenting hierarchy with dots.
     """
 
-    operator = tables.TemplateColumn(template_code=OPERATOR_LINK)
-    name = tables.TemplateColumn(template_code=DESCENDANTS_LINK)
+    operator = TemplateColumn(template_code=OPERATOR_LINK)
+    name = TemplateColumn(template_code=DESCENDANTS_LINK)
 
     class Meta(DynamicGroupMembershipTable.Meta):
         pass
@@ -903,7 +904,7 @@ class NestedDynamicGroupAncestorsTable(DynamicGroupTable):
     Subclass of DynamicGroupTable used in detail views to show parenting hierarchy with dots.
     """
 
-    name = tables.TemplateColumn(template_code=ANCESTORS_LINK)
+    name = TemplateColumn(template_code=ANCESTORS_LINK)
     actions = ButtonsColumn(DynamicGroup, pk_field="pk", buttons=("edit",))
 
     class Meta(DynamicGroupTable.Meta):
@@ -1037,7 +1038,7 @@ class GitRepositoryTable(BaseTable):
     last_sync_status = JobResultColumn(
         template_name="extras/inc/job_label.html", verbose_name="Sync Status", orderable=False
     )
-    provides = tables.TemplateColumn(GITREPOSITORY_PROVIDES, orderable=False)
+    provides = TemplateColumn(GITREPOSITORY_PROVIDES, orderable=False)
     actions = ButtonsColumn(GitRepository, prepend_template=GITREPOSITORY_BUTTONS)
 
     class Meta(BaseTable.Meta):
@@ -1084,7 +1085,7 @@ class GitRepositoryBulkTable(BaseTable):
     name = tables.LinkColumn()
     remote_url = tables.Column(verbose_name="Remote URL")
     secrets_group = tables.Column(linkify=True)
-    provides = tables.TemplateColumn(GITREPOSITORY_PROVIDES)
+    provides = TemplateColumn(GITREPOSITORY_PROVIDES)
 
     class Meta(BaseTable.Meta):
         model = GitRepository
@@ -1112,8 +1113,8 @@ class GraphQLQueryTable(BaseTable):
 
 class ImageAttachmentTable(BaseTable):
     pk = ToggleColumn()
-    name = tables.TemplateColumn(template_code=IMAGEATTACHMENT_NAME, verbose_name="Name")
-    size = tables.TemplateColumn(template_code=IMAGEATTACHMENT_SIZE)
+    name = TemplateColumn(template_code=IMAGEATTACHMENT_NAME, verbose_name="Name")
+    size = TemplateColumn(template_code=IMAGEATTACHMENT_SIZE)
     created = tables.DateTimeColumn()
     actions = ButtonsColumn(ImageAttachment, buttons=("edit", "delete"))
 
@@ -1158,7 +1159,7 @@ class JobTable(BaseTable):
     job_queues_count = LinkedCountColumn(
         viewname="extras:jobqueue_list", url_params={"jobs": "pk"}, verbose_name="Job Queues"
     )
-    last_run = tables.TemplateColumn(
+    last_run = TemplateColumn(
         accessor="latest_result",
         template_code="""
             {% if value %}
@@ -1169,7 +1170,7 @@ class JobTable(BaseTable):
         """,
         linkify=lambda value: value.get_absolute_url() if value else None,
     )
-    last_status = tables.TemplateColumn(
+    last_status = TemplateColumn(
         template_code="{% include 'extras/inc/job_label.html' with result=record.latest_result %}",
     )
     tags = TagColumn(url_name="extras:job_list")
@@ -1232,7 +1233,7 @@ class JobHookTable(BaseTable):
     pk = ToggleColumn()
     enabled = BooleanColumn()
     name = tables.Column(linkify=True)
-    content_types = tables.TemplateColumn(WEBHOOK_CONTENT_TYPES)
+    content_types = TemplateColumn(WEBHOOK_CONTENT_TYPES)
     job = tables.Column(linkify=True)
 
     class Meta(BaseTable.Meta):
@@ -1327,7 +1328,7 @@ class JobResultTable(BaseTable):
     date_started = tables.DateTimeColumn(linkify=True, short=True)
     date_done = tables.DateTimeColumn(linkify=True, short=True)
     date_canceled = tables.DateTimeColumn(linkify=True, short=True)
-    status = tables.TemplateColumn(
+    status = TemplateColumn(
         template_code="{% include 'extras/inc/job_label.html' with result=record %}",
     )
     summary = tables.Column(
@@ -1344,7 +1345,7 @@ class JobResultTable(BaseTable):
     actions = ButtonsColumn(JobResult, buttons=("none",), prepend_template=JOB_RESULT_BUTTONS)
     console_log = BooleanColumn(order_by=("celery_kwargs__nautobot_job_console_log",))
     queue_name = tables.Column(accessor="queue", verbose_name="Queue Name", order_by=("celery_kwargs__queue",))
-    cancel_type = tables.TemplateColumn(
+    cancel_type = TemplateColumn(
         template_code="{% include 'extras/inc/job_cancel_label.html' with result=record %}",
         verbose_name="Cancel Type",
     )
@@ -1486,7 +1487,7 @@ class ObjectMetadataTable(BaseTable):
     pk = ToggleColumn()
     # NOTE: there is no identity column in this table; this is intentional as we have no detail view for ObjectMetadata
     metadata_type = tables.Column(linkify=True)
-    assigned_object = tables.TemplateColumn(
+    assigned_object = TemplateColumn(
         template_code=ASSIGNED_OBJECT, verbose_name="Assigned object", orderable=False
     )
     # This is needed so that render_value method below does not skip itself
@@ -1554,7 +1555,7 @@ class ScheduledJobTable(BaseTable):
     name = tables.Column(linkify=True)
     job_model = tables.Column(verbose_name="Job", linkify=True)
     enabled = BooleanColumn()
-    state = tables.TemplateColumn(
+    state = TemplateColumn(
         template_code="{% include 'extras/inc/scheduled_job_label.html' with scheduled_job=record %}",
     )
     interval = tables.Column(verbose_name="Execution Type")
@@ -1606,7 +1607,7 @@ class ScheduledJobApprovalQueueTable(BaseTable):
     interval = tables.Column(verbose_name="Execution Type")
     start_time = tables.Column(verbose_name="Requested")
     user = tables.Column(verbose_name="Requestor")
-    actions = tables.TemplateColumn(
+    actions = TemplateColumn(
         SCHEDULED_JOB_APPROVAL_QUEUE_BUTTONS,
         attrs={
             "td": {"class": "d-print-none text-end text-nowrap nb-actions nb-w-0"},
@@ -1624,8 +1625,8 @@ class ObjectChangeTable(BaseTable):
     time = tables.DateTimeColumn(linkify=True, short=True)
     action = ChoiceFieldColumn()
     changed_object_type = tables.Column(verbose_name="Type")
-    object_repr = tables.TemplateColumn(template_code=OBJECTCHANGE_OBJECT, verbose_name="Object")
-    request_id = tables.TemplateColumn(template_code=OBJECTCHANGE_REQUEST_ID, verbose_name="Request ID")
+    object_repr = TemplateColumn(template_code=OBJECTCHANGE_OBJECT, verbose_name="Object")
+    request_id = TemplateColumn(template_code=OBJECTCHANGE_REQUEST_ID, verbose_name="Request ID")
 
     class Meta(BaseTable.Meta):
         model = ObjectChange
@@ -1857,7 +1858,7 @@ class TagTable(BaseTable):
 
 
 class TaggedItemTable(BaseTable):
-    content_object = tables.TemplateColumn(template_code=TAGGED_ITEM, orderable=False, verbose_name="Object")
+    content_object = TemplateColumn(template_code=TAGGED_ITEM, orderable=False, verbose_name="Object")
     content_type = tables.Column(verbose_name="Type")
 
     class Meta(BaseTable.Meta):
@@ -1868,7 +1869,7 @@ class TaggedItemTable(BaseTable):
 class TeamTable(BaseTable):
     pk = ToggleColumn()
     name = tables.Column(linkify=True)
-    phone = tables.TemplateColumn(PHONE)
+    phone = TemplateColumn(PHONE)
     tags = TagColumn(url_name="extras:team_list")
     actions = ButtonsColumn(Team)
 
@@ -1897,7 +1898,7 @@ class TeamTable(BaseTable):
 class WebhookTable(BaseTable):
     pk = ToggleColumn()
     name = tables.Column(linkify=True)
-    content_types = tables.TemplateColumn(WEBHOOK_CONTENT_TYPES)
+    content_types = TemplateColumn(WEBHOOK_CONTENT_TYPES)
     enabled = BooleanColumn()
     type_create = BooleanColumn()
     type_update = BooleanColumn()
@@ -1935,14 +1936,14 @@ class WebhookTable(BaseTable):
 
 class AssociatedContactsTable(StatusTableMixin, RoleTableMixin, BaseTable):
     pk = ToggleColumn()
-    contact_type = tables.TemplateColumn(
+    contact_type = TemplateColumn(
         CONTACT_OR_TEAM_ICON,
         verbose_name="Type",
         attrs={"td": {"style": "width:20px;"}},
     )
-    name = tables.TemplateColumn(CONTACT_OR_TEAM, verbose_name="Name")
-    contact_or_team_phone = tables.TemplateColumn(PHONE, accessor="contact_or_team__phone", verbose_name="Phone")
-    contact_or_team_email = tables.TemplateColumn(EMAIL, accessor="contact_or_team__email", verbose_name="E-Mail")
+    name = TemplateColumn(CONTACT_OR_TEAM, verbose_name="Name")
+    contact_or_team_phone = TemplateColumn(PHONE, accessor="contact_or_team__phone", verbose_name="Phone")
+    contact_or_team_email = TemplateColumn(EMAIL, accessor="contact_or_team__email", verbose_name="E-Mail")
     actions = ButtonsColumn(model=ContactAssociation, buttons=("edit", "delete"))
 
     class Meta(BaseTable.Meta):
