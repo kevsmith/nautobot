@@ -10,6 +10,8 @@ from django.core.cache import cache
 from django.dispatch import receiver, Signal
 import redis.exceptions
 
+from nautobot.core.utils.cache import get_request_cache
+
 nautobot_database_ready = Signal()
 """
 Signal sent to all installed apps and plugins after the database is ready.
@@ -83,5 +85,10 @@ def invalidate_max_depth_cache(sender, **kwargs):
             # TreeNode has siblings, depth can't change
             return
 
+    cache_key = sender.objects.max_depth_cache_key
     with contextlib.suppress(redis.exceptions.ConnectionError):
-        cache.delete(sender.objects.max_depth_cache_key)
+        cache.delete(cache_key)
+    # TreeManager.max_depth also memoizes in the request-local cache, which cache.delete() does not reach.
+    request_local_cache = get_request_cache()
+    if request_local_cache is not None:
+        request_local_cache.pop(cache_key, None)
