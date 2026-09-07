@@ -158,7 +158,7 @@ def validate(findings):
         if f.get("wall_clock") and not WALL_OK.match(str(f["wall_clock"])):
             problems.append(
                 f"finding {f['seq']}: wall_clock {f['wall_clock']!r} should lead with a signed "
-                "percentage, or say 'not measured — <reason>'"
+                "percentage, or say 'not measured: <reason>'"
             )
         for flag in f.get("flags") or []:
             if flag not in FLAG_HELP:
@@ -336,7 +336,7 @@ def _fmt_count(n):
 def _ms_formatter(*values):
     """One unit for the whole pair, chosen from the larger side.
 
-    Formatting each value on its own produced "63 s → 48,059 ms", which is a
+    Formatting each value on its own produced "63 s -> 48,059 ms", which is a
     23% improvement rendered as a 763-fold regression.
     """
     if max(values) >= 60_000:
@@ -349,7 +349,7 @@ def _delta(before, after, fmt):
     # U+2212 for the sign, matching the figures typed into the findings; an
     # ASCII hyphen next to them reads as a different kind of number.
     sign = f"{pct:+.1f}".replace("-", "\u2212")
-    return f"{fmt(before)} → {fmt(after)} ({sign}%)"
+    return f"{fmt(before)} -> {fmt(after)} ({sign}%)"
 
 
 def _distribution(pairs, floor=None):
@@ -464,7 +464,7 @@ def render_cumulative(findings):
     rows, notes = [], []
     for agg in spec.get("aggregates", []):
         label = agg["label"]
-        coverage = agg.get("coverage", "—")
+        coverage = agg.get("coverage", "-")
         cells = None
         # The protocol note leads, then the distribution, then whatever the
         # entry wants to add. Appending the note last put "on one host with the
@@ -485,7 +485,7 @@ def render_cumulative(findings):
 
                 b, c = counts(base), counts(cur)
                 shared = sorted(set(b) & set(c))
-                wall = "—"
+                wall = "-"
                 if agg.get("wall_baseline_file"):
                     # Summed medians, every endpoint weighted equally -- the same
                     # method the write screen's aggregate uses, so the two rows are
@@ -513,7 +513,7 @@ def render_cumulative(findings):
                             detail.append(spread)
                 cells = [
                     _delta(sum(b[k] for k in shared), sum(c[k] for k in shared), _fmt_count),
-                    "—",
+                    "-",
                     wall,
                 ]
                 coverage = f"{len(shared)} scenarios on both arms"
@@ -759,7 +759,7 @@ def render_findings(findings):
             link = f"[{f['title']}](methodology.md#{anchor(f['title'])})"
             row = f"| {f['seq']:02d} | {link} | {tiers(f)} | {basis(f)} |"
             if accepted:
-                sha = f"`{commit_of(f)[:9]}`" if commit_of(f) else "—"
+                sha = f"`{commit_of(f)[:9]}`" if commit_of(f) else "-"
                 row += f" {sha} |"
             out.append(row)
         out.append("")

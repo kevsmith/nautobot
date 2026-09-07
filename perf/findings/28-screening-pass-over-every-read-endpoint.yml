@@ -21,7 +21,7 @@ result:
     14.4 q/obj (359 queries, 345 duplicates, 777ms, 2780 rows, and a clean 9 + 14n fit against
     page size); vpn.vpntunnelendpoint?depth=1 9.8; circuits.circuit?depth=1 7.3; dcim.interfaceredundancygroupassociation?depth=1
     6.6; ipam.ipaddresstointerface?depth=1 5.9'
-wall_clock: not applicable — an instrument, not a change
+wall_clock: "not applicable: an instrument rather than a change"
 controls: null
 tests: n/a; reads only, no mutation, safe to re-run
 caveat: null

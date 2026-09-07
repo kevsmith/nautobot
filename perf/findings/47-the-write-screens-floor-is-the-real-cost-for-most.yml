@@ -28,7 +28,7 @@ result:
   cable_is_still_quantified_elsewhere: 'finding 40 measured a genuinely connected cable at ~220
     queries against the screen''s floor figure of 44.9, which is 4.9x -- by attribution rather
     than by payload, and consistent with the top of the range measured here.'
-wall_clock: not applicable — this measures the instrument, not a change to Nautobot
+wall_clock: "not applicable: this measures the instrument rather than a change to Nautobot"
 basis: the floor understates by a median of 1.00x, a max of 4.96x, and unknowably for 27 models
 controls: 'both runs on the same branch tree and the same dataset, create.x10 only so the
   comparison is like for like, and rollback isolation in both so neither mutates state. Models
