@@ -145,6 +145,11 @@ class Location(TreeModel, PrimaryModel):
     In the future, we plan to collapse RackGroup into the Location model.
     """
 
+    # Location is a small, slow-changing reference table whose (variadic, tree-depth-many-hop) natural key is
+    # embedded in the natural key of Device, and therefore of every device component. Resolving it one attribute
+    # hop at a time costs a query per hop per object; see `BaseModel.natural_key_map`.
+    natural_key_map_enabled = True
+
     # A Location's name is unique within context of its parent, not globally unique.
     name = models.CharField(max_length=CHARFIELD_MAX_LENGTH, db_index=True)
     _name = NaturalOrderingField(target_field="name", max_length=CHARFIELD_MAX_LENGTH, blank=True, db_index=True)
