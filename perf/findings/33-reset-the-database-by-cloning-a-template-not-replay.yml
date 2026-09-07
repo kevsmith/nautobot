@@ -23,7 +23,7 @@ result:
     2 onward is indistinguishable, deltas within ±40ms on a ~710ms operation. Per-round
     position 1 was 719.6 / 981.8 / 1138.9ms -- highly variable, which fits connection
     re-establishment plus buffer warming rather than a fixed cost.'
-wall_clock: not applicable — an instrument, not a change
+wall_clock: "not applicable: an instrument rather than a change"
 controls: 'app survives the swap with no restart: DROP DATABASE ... WITH (FORCE) evicts the
   pooled connections and Django reconnects on the next request despite CONN_MAX_AGE=300, two
   consecutive 200s immediately after a clone. celery_worker and celery_beat both return to

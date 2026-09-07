@@ -24,7 +24,7 @@ result:
   queries_unaffected: all 153 improved measurements fell on query count, between 1.8% and 47.5%,
     median 6.8%. Query counts are deterministic, so the spread there is the result rather than
     the noise.
-wall_clock: not applicable — this measures the instrument, not a change to Nautobot
+wall_clock: "not applicable: this measures the instrument rather than a change to Nautobot"
 basis: per-measurement wall clock is unusable below ~100ms, whatever the rep count
 controls: computed from the two committed arms of finding 39 (`screen-writes-dc-next.json` against
   `screen-writes-dc.json`), both taken at reps=3 with medians, so the bands compare like with
