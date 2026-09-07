@@ -30,7 +30,7 @@ basis: −0.4% across the write surface
 controls: 'Both arms measured with screen_writes.py against the same campus dataset on the same
   tree, differing only in the three attributes. Coverage identical: 105 models measured either
   side, 257 measurements each.'
-tests: not run — the change was declined before it earned a test run
+tests: "not run: the change was declined before it earned a test run"
 caveat: null
 reason: 'Not worth taking for −0.4%, and the interesting part is why the number is so small.
   Attribution on ipam.ipaddresstointerface put natural-key traversal at 8.8 of 64 queries per

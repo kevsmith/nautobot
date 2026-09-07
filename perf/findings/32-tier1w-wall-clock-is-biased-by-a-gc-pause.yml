@@ -24,7 +24,7 @@ result:
     max 329ms.'
   exposure: '~200ms on operations tier1w reports between 25ms and 300ms, where it is up to 8x
     the true cost; ~6-7% on the ~3s bulk operations.'
-wall_clock: not applicable — a measurement artifact, not a change
+wall_clock: "not applicable: a measurement artifact rather than a change"
 wall_clock_detail: 'The fix is an instrument, not an edit to tier1w: perf/scripts/probe_f31_wall.py
   runs nine reps of each write operation and reports the median, min, max and per-rep timings,
   so one pause cannot move the answer. Observed round-to-round spread on that instrument is
