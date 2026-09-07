@@ -154,6 +154,25 @@ def check_reasons(report, problems):
     return len(cells)
 
 
+def check_stock_commit(problems):
+    """The stock ref must still resolve to the commit the figures were measured against."""
+    index = PERF / "baselines" / "cumulative.json"
+    if not index.exists():
+        return 0
+    spec = json.loads(index.read_text())
+    ref, recorded = spec.get("stock_ref"), spec.get("stock_commit")
+    if not ref or not recorded:
+        problems.append("cumulative.json does not record the stock ref and commit")
+        return 0
+    now = git("rev-parse", f"--short={len(recorded)}", ref).strip()
+    if now != recorded:
+        problems.append(
+            f"{ref} now resolves to {now}, but every aggregate was measured against {recorded} -- "
+            "the report describes a tree that has moved, and the figures want re-measuring"
+        )
+    return 1
+
+
 def main():
     report = (PERF / "report.md").read_text()
     problems = []
@@ -163,6 +182,7 @@ def main():
         "baseline records are plausible": check_baselines(problems),
         "cumulative figures recompute": check_cumulative(report, problems),
         "Reason cells trace to a finding": check_reasons(report, problems),
+        "the stock ref still resolves to the measured commit": check_stock_commit(problems),
     }
     for label, n in counts.items():
         print(f"  {n:>5} {label}")

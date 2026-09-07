@@ -28,13 +28,17 @@ import argparse
 import json
 import pathlib
 import re
+import shutil
 import statistics
+import subprocess
 import sys
 
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 PERF = ROOT / "perf"
+STOCK_REF = "next"
+GIT = shutil.which("git") or "/usr/bin/git"
 
 # Grouped by what was decided, because that is the first thing a reader needs:
 # which of these are we doing. Adoption cost has not gone away -- it is on every
@@ -224,6 +228,21 @@ def load_runs(pattern, key):
     return out
 
 
+def stock_commit():
+    """The exact commit the stock arm was taken against.
+
+    A version string is not an identifier -- `next` carried 3.3.0a0 for every
+    commit in a release cycle, so "measured against next at 3.3.0a0" does not
+    say which tree. The SHA does. Derived at build time and cross-checked
+    against the value recorded in baselines/cumulative.json, so the report
+    cannot quietly describe a different tree than the one measured.
+    """
+    proc = subprocess.run(  # noqa: S603
+        [GIT, "rev-parse", "--short=9", STOCK_REF], cwd=ROOT, capture_output=True, text=True, check=False
+    )
+    return proc.stdout.strip() or None
+
+
 def render_factbar(findings):
     """What the numbers were taken over. Not the numbers themselves.
 
@@ -239,8 +258,10 @@ def render_factbar(findings):
     """
     product = [f for f in findings if is_product_change(f)]
     accepted = [f for f in product if f["status"] == "accepted"]
+    stock = stock_commit()
+    against = f"`{STOCK_REF}` at `{stock}`" if stock else f"`{STOCK_REF}`"
     rows = [
-        ("Measured against", "`next` \u00b7 3.3.0a0"),
+        ("Measured against", f"{against} \u00b7 3.3.0a0"),
         ("Dataset", "databot `enterprise-campus / large` for reads, `datacenter / large` for writes"),
         ("Changes proposed", f"{len(product)}"),
         ("Accepted on this branch", f"**{len(accepted)}**"),
@@ -749,7 +770,8 @@ def render_findings(findings):
 
 def render_endnote():
     return (
-        "Measured against `nautobot/next` at 3.3.0a0 on an isolated stack with pinned "
+        f"Measured against `nautobot/next` at `{stock_commit()}` (3.3.0a0) on an isolated "
+        "stack with pinned "
         "resources. Harness, workload definition, findings and baseline data are on the "
         "`perf/experiments` branch under `perf/`; every scenario and operation above is "
         "reproducible with `perf/scripts/run_experiment.sh`. Instruments, baselines and per-finding "
