@@ -1,0 +1,82 @@
+---
+seq: 48
+id: null
+commit: cf279fe18
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: Defer cable path rebuilds in the REST create path, the fourth instance of one shape
+site: nautobot/dcim/api/serializers.py CableSerializer._apply_terminations
+summary: 'Queue item 5. Every CableToCableTermination write fires
+  rebuild_paths_on_join_change, which outside a deferral calls rebuild_paths() per row, so a
+  two-ended cable rebuilt its paths twice. defer_cable_path_rebuilds() was already adopted at
+  dcim/forms.py:4900 and dcim/models/cables.py:1023; _apply_terminations() was the caller left
+  out, making this the fourth instance of the shape after findings 7/11, 34 and 36. The two
+  rebuilds are not equal and that is why the size could not be predicted: the first sees a
+  half-terminated cable and the second the finished one, so coalescing keeps the expensive one
+  and the saving is not half the total.'
+result:
+  attribution: 'measured before the change, not inferred from it. rebuild 1 costs 13 queries and
+    20ms against a cable with one termination attached; rebuild 2 costs 30 queries and 43ms
+    against the finished cable. Together 43 of 214 queries (20%) and 63ms of ~570ms (11%).
+    Re-derived through a second mechanism -- counting post_save/post_delete receiver fires on
+    CableToCableTermination -- as 2 saves and 0 deletes, and corroborated structurally by 6,556
+    termination rows across 3,278 cables, exactly two each.'
+  queries: 'two-ended REST create 213 -> 195, −18, −8.45%. Identical in all six reps of each arm
+    across three alternating rounds -- zero variance on either side.'
+  queries_in_rebuild: 43 -> 22
+  rebuilds: 2 -> 1
+  compounding: 'the coalesced rebuild costs 22 queries, not the 30 rebuild 2 cost alone, because
+    rebuild 2 had been partly clearing rebuild 1''s partial CablePath rows. Skipping the first
+    rebuild avoids that cleanup too, so the saving compounds instead of merely dropping the cheap
+    half. A prediction of −10 to −12 made before the run was too conservative for that reason,
+    and is recorded here because the mechanism was flagged as unknown in advance.'
+  read path: 'Tier 1 pre against post 2,057 -> 2,057 queries, gate PASS, nothing newly erroring,
+    no query_count_stable false. Tier 1W 13 operations, zero query-count differences.'
+controls: 'a one-ended create, which regresses by design: one termination row means one rebuild
+  in both arms, so the only difference is the deferral''s fixed overhead. 125 -> 128 queries, +3.
+  Attributed by diffing the two arms'' SQL rather than left as a residual -- +2 from one extra
+  SAVEPOINT/RELEASE pair, because defer_cable_path_rebuilds() opens its own transaction.atomic()
+  nested inside DRF''s perform_create (6 pairs against 7), and +1 from the flush''s
+  Cable.objects.filter(pk=cable_id).first(). The arithmetic closes exactly: −21 inside the
+  rebuilds, +3 overhead, −18 net. Availability control: 36 of 36 probe measurements HTTP 201.'
+tests: 'nautobot.dcim.tests.test_cablepaths plus test_api.CableTest and
+  test_api.CableToCableTerminationTest, --no-parallel so a worker exception surfaces rather than
+  exiting 0. Ran 145 tests, OK, skipped 4, zero failures and zero errors, system check clean.
+  All three labels resolved: an unresolvable label errors rather than silently shrinking the run,
+  and errors was 0.'
+wall_clock: not measured — inconclusive, see wall_clock_detail
+wall_clock_detail: 'Three alternating rounds with arm order reversed between them, rep 1 discarded
+  per the cold-process-cache rule, on a quiesced host through measure.sh. The reps disagree on
+  sign: rep2 631.5ms -> 605.4ms (−4.1%), rep3 463.5ms -> 465.1ms (+0.3%). The control settles it
+  as noise rather than the README''s spread figures having to: the one-ended case read −11.2% for
+  arm B, which does strictly more work there, and a directionally impossible reading is
+  demonstrably noise. The attributable rebuild_ms is clean at ~66.5ms -> ~35.5ms but is a
+  sub-measurement, not end-to-end. Per the gate rules the query count decides and wall clock only
+  ranks, so this is recorded as inconclusive rather than dressed up.'
+note: 'Scope limit that bounds what this figure means. Measured on enterprise-campus/large, whose
+  cable A-ends are interface (2,780) and power_port (340) with **zero** front_port -- verified a
+  true negative rather than a broken filter by confirming the deprecated termination_a_type
+  filter still works and returns 0. The front-port patch-panel shape is what a databot apply
+  sends and what finding 40 measured at ~220 queries per cable, and its paths walk on through
+  rear ports, so its rebuilds should cost more than the shapes measured here. This is a
+  conservative floor on the change''s value, not a central estimate; a datacenter-dataset run
+  would price it against the apply directly.
+
+
+  Neither gate instrument can see this change. The write screen''s generated cable payload leaves
+  both terminations null (finding 40), so the loop never runs -- which is the same reason the
+  screen reads dcim.cable at 44.9 queries per object against ~220 for a real one. Tier 1W has no
+  cable operations at all. The measurement had to come from a probe that posts real terminations,
+  perf/scripts/probe_defer_cable_paths.py.
+
+
+  Not taken here, and logged in queue.md as *Nested transactions on the write path*: the +3
+  overhead splits 2:1. Removing the re-fetch is the smaller half and the only part that can
+  produce a wrong answer -- CableViewSet prefetches terminations (api/views.py:815), so on an
+  update the instance arrives with a cache the loop invalidates, and rebuild_paths reads
+  obj.terminations.all(), so using the caller''s instance unguarded would build paths from a stale
+  termination set with no error anywhere. The savepoint half is larger, has no correctness
+  surface, and carries exact predictions from this control: one-ended 128 -> 126, two-ended
+  195 -> 193.'

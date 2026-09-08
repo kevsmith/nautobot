@@ -299,8 +299,19 @@ def render_provenance():
             ["git", "status", "--porcelain"], capture_output=True, text=True, cwd=PERF.parent
         )
         if commit.returncode == 0:
-            dirty = len([ln for ln in status.stdout.splitlines() if ln.strip()])
-            tree = f"tree `{commit.stdout.strip()}` with {dirty} dirty path(s), at generation time"
+            # Count the sources, not the outputs. Writing report.md and methodology.md
+            # changes the dirty count, so including them made the report permanently
+            # stale by its own --check: generation wrote one number and the comparison
+            # regenerated a different one.
+            generated = {"perf/report.md", "perf/methodology.md"}
+            dirty = len(
+                [
+                    ln
+                    for ln in status.stdout.splitlines()
+                    if ln.strip() and ln[3:].strip() not in generated
+                ]
+            )
+            tree = f"tree `{commit.stdout.strip()}` with {dirty} dirty source path(s), at generation time"
     except Exception:
         tree = None
     if tree is None:
