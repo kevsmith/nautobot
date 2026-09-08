@@ -7,7 +7,7 @@
       "key": "readloop",
       "label": "Read loop, 57 scenarios",
       "source": "tier1",
-      "coverage": "38 scenarios, all 200/302",
+      "coverage": "57 scenarios on both arms, all 200/302",
       "note": "on one host with the arms alternated and both trees proved different by content hash. The scenario set includes the 18 row-rendering requests that finding 44 showed were never measured, and **the branch changes not one query on any of them** -- yet their wall clock falls a median 18.6%, because the work removed is Python rather than SQL. The document half of a list view is unchanged at a median -1.3%",
       "baseline_file": "tier1-57-stock.json",
       "current_file": "tier1-57-branch.json",
@@ -22,25 +22,25 @@
     },
     {
       "key": "apply",
-      "label": "Whole-workflow apply, 9,972 objects",
+      "label": "Whole-workflow apply, 11,572 objects",
       "file": null,
-      "tree": "90dbd96ff",
-      "coverage": "9,972 objects across 68 models, row counts identical on both arms",
+      "tree": "bb57841bf",
+      "coverage": "11,572 objects across 68 models, row counts identical on both arms",
       "figures": {
         "queries": {
-          "baseline": 846932,
-          "current": 706499
+          "baseline": 841458,
+          "current": 697979
         },
         "db_ms": {
-          "baseline": 34641,
-          "current": 30169
+          "baseline": 33554,
+          "current": 29412
         },
         "wall_ms": {
-          "baseline": 1978000,
-          "current": 1245000
+          "baseline": 1949000,
+          "current": 1229000
         }
       },
-      "note": "both arms from a database reset to the same empty template, arms alternated, trees proved different by content hash, and each arm ended with identical row counts -- 536 devices, 1,616 interfaces, 1,648 cables -- so the two runs did the same work. **Of the 733 seconds saved, 4.5 are database execution**"
+      "note": "both arms from a database reset to the same empty template, trees proved different by content hash, the client driven from a second host so it cannot compete with the stack it is measuring, and every run created exactly 11,572 objects and ended with identical row counts -- 536 devices, 1,616 interfaces, 1,648 cables -- with zero client failures, so the arms provably did the same work. **Of the 720 seconds saved, 4.1 are database execution**. Queries and database time are the median of two branch arms against one stock arm, which settles them: the two branch arms agreed to 0.07% on queries, and `apply_arm.sh` records that one run per arm settles the deterministic half. **The wall-clock figure is provisional.** It rests on one stock arm, run in the order branch, branch, stock rather than three alternating rounds, and this branch's own record is why that matters -- a 2ms and an 11% regression both dissolved on a third round. Two more stock arms with the ordering reversed are needed before it is quotable. The stock arm hashed `0e1d03a4e` rather than next's own `e308df687`, because a path-scoped checkout cannot delete finding 22's migration; it is inert during an apply, and `arm_control.sh` now removes such files"
     }
   ],
   "stock_ref": "next",
