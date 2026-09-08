@@ -1,0 +1,81 @@
+---
+seq: 49
+id: null
+commit: null
+status: rejected
+behaviour: B1
+migration: '-'
+flags: []
+title: savepoint=False in defer_cable_path_rebuilds() — measured, works, rejected on the trade
+site: nautobot/dcim/signals.py defer_cable_path_rebuilds
+summary: 'defer_cable_path_rebuilds() opens its own transaction.atomic(). On a REST cable
+  create it is entered twice -- once from Cable.save() materializing initial terminations and
+  once from CableSerializer._apply_terminations -- and `in_atomic_block` is True at both entry
+  points, so both savepoints are nested inside DRF''s perform_create transaction. A savepoint
+  only earns its two statements if something catches an exception raised inside the block and
+  then continues; transaction.atomic(savepoint=False) keeps the all-or-nothing guarantee,
+  enforced by whichever transaction is outermost, and emits no SQL when nested. The change is
+  one argument. It works, it is exactly as large as predicted, and it was still rejected.'
+result:
+  queries: 'two-ended REST cable create 195 -> 191, one-ended 128 -> 124. −4 on both, identical
+    in all six reps of each arm across three alternating rounds, zero variance either side.
+    Both figures were predicted exactly before the run.'
+  why_four_not_two: 'the step-3 gate measured the helper being entered twice per create rather
+    than once, both already inside a transaction. The −4 on both payload shapes corroborates
+    that independently -- including the one-ended case, where Cable.save()''s entry materializes
+    zero rows and paid a savepoint pair for nothing.'
+  scope: 'the savepoints removed were the helper''s, not rebuild_paths()''s own. Queries inside
+    the rebuild are unchanged at 22 (two-ended) and 13 (one-ended) across both arms, which is
+    the discriminating detail: the inner atomic still creates its savepoint, exactly as intended.'
+  read path: 'Tier 1 2,235 -> 695, gate PASS, availability intact, 36 of 36 probe measurements
+    HTTP 201.'
+controls: 'both cable shapes are targets here rather than one being a control, because both pay
+  the savepoint. The control set is Tier 1W''s 13 non-cable write operations. Availability held
+  on every Tier 1 scenario.'
+tests: 'nautobot.dcim.tests.test_cablepaths: **ran 68 tests, FAILED, errors=1** --
+  test_defer_rolls_back_on_exception in CableToCableTerminationSignalTestCase, with
+  TransactionManagementError at test_cablepaths.py:2425. Note the run **exited 0** while
+  failing, because it was piped to tail; the summary line is what surfaced it, which is why
+  this branch does not read exit status.'
+wall_clock: not measured — inconclusive at a 4-statement effect
+wall_clock_detail: 'Three alternating rounds, rep 1 discarded. Medians moved −8ms on the
+  two-ended case and +5ms on the one-ended, both inside the spread that finding 48 demonstrated
+  is noise at this granularity -- there, a case doing strictly more work read 11.2% faster. A
+  4-statement change was never going to clear that floor and the figure is recorded as
+  inconclusive rather than quoted.'
+reason: '**Rejected on the trade, not on the measurement.** −4 queries of 195 is ~2%, against
+  narrowing a documented guarantee whose failure mode is silent. The precedent is the rejected
+  FK pre-warming: −666 queries and 62% slower. The ratio here is worse than that one.
+
+  What failed is `test_defer_rolls_back_on_exception`, whose docstring names the exact
+  inconsistency it prevents -- "rows committed, paths stale". It raises inside the block,
+  catches with assertRaises, then queries to assert the row was rolled back. Django''s TestCase
+  wraps each test in a transaction, so with a savepoint the rollback is local and the test
+  transaction stays usable; with savepoint=False the test transaction is marked broken and the
+  verifying query raises.
+
+  So the catch-and-continue caller is the test, and the audit of product callers stands: none of
+  the three catch. Two readings, and the branch took the second. Either the test asserts an
+  implementation detail and should assert the guarantee some other way -- TransactionTestCase,
+  or checking the connection is marked needs_rollback -- or independent rollback is part of the
+  contract. Someone wrote a named test with a docstring citing the failure mode, which is a
+  deliberate choice, and 2% does not buy the right to narrow it.
+
+  Reproducible: the change is preserved on `perf/exp-savepoint-false` at 0764662dd, one
+  argument on one line in defer_cable_path_rebuilds().'
+note: 'Two things this experiment found that outlive its rejection.
+
+  **Cable.save() enters the deferral and writes nothing on the REST path.** Measured:
+  cables.py:1023 rows_saved=0, serializers.py:1236 rows_saved=2. The serializer pops the legacy
+  termination_a/b fields into its own entries before the model is constructed, so
+  _materialize_initial_terminations() opens a transaction, materializes zero rows, and exits.
+  The two methods are not redundant -- one takes two generic FKs by attribute assignment, the
+  other a terminations payload with cable_end and connector for breakout lanes -- but one of
+  them runs empty on every REST cable create.
+
+  **Nothing in the codebase distinguishes the two things atomic() does.** 61 transaction.atomic()
+  call sites in nautobot/ outside tests, and zero use savepoint=False, while one cable create
+  sits 6 savepoint pairs deep. ATOMIC_REQUESTS is unset, so those are genuine transaction
+  boundaries rather than decoration -- roughly 32 are view-level and 22 are outside the request
+  path entirely (dcim/signals.py 5, ipam/models.py 3, core/jobs 3, dcim/models/cables.py 2,
+  plus management commands, the git datasource and the CLI). See the queue candidate.'
