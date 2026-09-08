@@ -1,0 +1,95 @@
+---
+seq: 51
+id: null
+commit: ffb785bd1
+status: accepted
+basis: −43.0% on a chrome-only response; 387 URL reversals per page become 18
+behaviour: B2
+migration: '-'
+flags: []
+title: Resolve the navbar-favorites URLs once per process, not once per menu item
+site: nautobot/core/context_processors.py, nautobot/core/templates/inc/nav_menu.html
+summary: '`inc/nav_menu.html` reversed two argument-free URL names inside its per-item loop, so
+  123 menu items cost 369 reversals of two strings that cannot change — on every chrome-bearing
+  page in the application. Found by attributing the ~47ms of fixed chrome cost that finding 50
+  measured but did not explain.'
+result:
+  attribution: '387 reversals in a chrome-only response produced **18 distinct URLs**, every one
+    argument-free, costing 23.4ms of a 69ms page. 246 calls to user:navbar_favorites_add (123
+    items x 2 sites: the hx-post conditional and data-add-url), 123 to
+    user:navbar_favorites_delete (data-delete-url), 18 across 16 other names once or twice each.
+    Both paths are literal — path("user/") plus path("navbar-favorites/") — with no captured
+    parameters, which is why the reversal takes no arguments.'
+  reversals: 'ui.chrome.404 387 -> 18, ui.home 425 -> 56, ui.device.list 399 -> 30. Redundant
+    repeats 369 -> 2, 368 -> 1, 369 -> 2. Bit-identical across all three rounds of each arm.'
+  reverse_time: 'ui.chrome.404 23.8 -> 1.1ms, ui.home 27.6 -> 4.2ms, ui.device.list 25.2 -> 2.0ms'
+  read path: 'Tier 1 2,057 -> 2,057 queries (+0.0%), gate PASS, 57 scenarios, nothing newly
+    erroring, no query_count_stable false, byte counts identical on every scenario. This change
+    removes no queries, so the query counter cannot see it — which is why the reversal count is
+    the gate.'
+  what_a_reversal_costs: '~51us: namespace resolution against a URLconf Nautobot mounts twice
+    (user/ and users/, worth ~15us — the difference between a namespaced 52.6us and a plain
+    31.4us), a reverse_dict lookup, substitution, then a regex re-match to prove the URL routes
+    back. Django caches every structure involved (get_resolver, get_ns_resolver at 2,113 hits and
+    0 misses, reverse_dict) and never caches the answer, because the answer depends on the
+    thread-local script prefix and urlconf. Only the caller can know those are stable.'
+  why_this_scope: 'reverse_lazy does not help — django.utils.functional.lazy re-invokes on every
+    coercion, measured at 52.6us against reverse()''s 51.5us, so a lazy URL in a loop costs the
+    same. An lru_cache keyed on (viewname, prefix, urlconf) is correct and was verified correct
+    under a prefix change, but costs 10.5us per call for two thread-local reads plus hashing. A
+    bare global with a None check is 0.18us, 284x cheaper than reversing.'
+controls: '**ui.device.list.rows renders no chrome**, so it had no redundant menu reversals to
+  remove: 502 reversals, 402 distinct and 100 redundant all unchanged, reverse time within 0.2ms
+  across three rounds. Its wall reads +1.5%, against the change, within the noise this host has
+  demonstrated at this magnitude — recorded rather than rounded away. Its 402 distinct reversals
+  are per-row dcim:device URLs taking a pk, which are legitimately different and not memoisable;
+  that is what the control demonstrates.'
+tests: 'nautobot.core.tests.test_navigations, test_views and test_config, --no-parallel so a
+  worker exception surfaces rather than exiting 0: ran 131 tests, OK, zero failures and zero
+  errors, system check clean. test_views carries ForceScriptNameTestcase, the only test in the
+  tree that mutates the script prefix; it issues no requests, so it cannot interact with the
+  global — checked rather than assumed.'
+wall_clock: −43.0% ui.chrome.404, −16.9% ui.home, −10.3% ui.device.list
+wall_clock_detail: 'Three alternating rounds with arm order reversed between them, on a quiesced
+  host through measure.sh, five reps per scenario with one warm-up discarded. 66.9 -> 38.1ms,
+  197.3 -> 163.9ms, 280.5 -> 251.6ms. **The wall saving exceeds the reversal saving** — 28.8ms
+  against 22.7ms on the 404 — because replacing `{% url %}` with `{{ variable }}` also drops
+  URLNode.render''s argument resolution, context lookups and autoescaping. That is consistent
+  with the earlier split measuring 29.3ms inside the tag against 24.0ms inside reverse().'
+caveat: 'Tier B2: a module-level global that outlives the request. It holds two URL strings and is
+  populated on first use, when the URLconf is loaded and the script prefix is known. It is
+  correct only while both of its inputs are stable for the process, and both were checked:
+  nothing in the tree sets `request.urlconf`, and the script prefix comes from static deployment
+  configuration, with FORCE_SCRIPT_NAME making it constant by construction where a sub-path is
+  served.
+
+
+  **There is no invalidation, deliberately.** A guard comparing the cached prefix against
+  get_script_prefix() costs ~1us instead of 0.18us and was considered and left out, on the
+  grounds that neither production nor the test suite changes the prefix mid-process — the single
+  use of override_script_prefix in the tree issues no requests. If a future test renders a page
+  under FORCE_SCRIPT_NAME, this global will serve the wrong prefix and that test will fail; the
+  fix is the two-line guard, and it is worth knowing that is the failure mode rather than
+  discovering it. Given #3891 was a real bug about hard-coded URLs versus that setting, someone
+  adding such a test is plausible.'
+note: 'Found while attributing finding 50''s ~47ms of chrome. That finding established
+  nav_menu.html costs 46.2-48.4ms on every page and that construction is only 1.1ms; this says
+  where roughly 28ms of the rendering went. The remaining ~20ms is ordinary Django template
+  interpretation across 180 items and is not addressed here.
+
+
+  This is the fifth instance on this branch of work done per item that could be done once, after
+  findings 07, 11, 12 and 34.
+
+
+  **Not done here.** inc/nav_favorites.html:21 has the same `{% url %}` inside a loop over the
+  user''s favourites. The measurement user has none, so including it would have put an unmeasured
+  change in a measured commit. Same pattern, same one-line fix.
+
+
+  Two things worth knowing if this is revisited. The favourites are identified by a body field
+  (`link`) rather than a URL segment, which is why both URLs are argument-free and therefore
+  memoisable at all; a move to `DELETE /user/navbar-favorites/<pk>/` would make them 123
+  genuinely distinct reversals and this optimisation would evaporate. And core/urls.py mounts
+  nautobot.users.urls twice, at user/ and at users/, which is why namespace resolution costs
+  ~15us of every namespaced reversal in the application — logged in queue.md rather than fixed.'
