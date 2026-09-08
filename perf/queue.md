@@ -70,31 +70,62 @@ and a run is minutes.
 Unranked deliberately: the first depends on a contradiction nobody has resolved,
 and the second depends on the first's answer.
 
-### The fixed cost of a page, and what it is made of
+### The fixed cost of a page — answered, and it is template rendering
 
-A list-view document renders its table over `queryset.none()` (finding 44), so
-its measured cost is chrome plus list-view machinery with nothing separating the
-two. `ui.chrome.404` now exists to separate them — a 404 renders the full chrome
-with a static card for content, so subtracting it gives the second term.
+**Resolved by finding 50.** This entry used to carry two readings that disagreed about
+whether a page's cost is chrome or per-model machinery, and asked for a quiet-box re-run
+before ranking. That re-run happened.
 
-**Two readings disagree and both are on the record.** Under contention Kevin
-measured the 404 at 274ms and `/extras/statuses/` at 357ms, putting chrome at
-~274ms and list machinery at ~83ms. The committed quiet-box numbers say the
-reverse: `ui.search` is 81ms rendering identical chrome, so chrome cannot exceed
-that, and `status.list` at 152ms against `device.list` at 300ms — both zero rows,
-both 9 to 10 queries — makes the per-model term dominant. The inflation ratios
-differ (3.4× against 2.35×) because the suite was running inside the nautobot
-container on the same cpuset as uwsgi. **Re-run on a quiet box before ranking
-this.**
+Chrome is **64–66ms**, measured twice independently (`ui.chrome.404` 66.3ms, `ui.search`
+64.7ms). `ui.device.list` is **283ms**. So the per-model term is ~218ms and dominates by
+3.4×. The ~274ms chrome reading was contention inflation — taken with the suite running
+inside the nautobot container on the same cpuset as uwsgi. **The target is list-view
+machinery, not every page in the application.**
 
-Either answer is interesting. If it is chrome, the target is every page in the
-application and there is a ~250ms floor nobody has attributed. If it is
-per-model, the 2× spread between the cheapest and most expensive zero-row list
-document is a natural experiment: profile both ends and the difference attributes
-itself. Candidates in that delta are filter-form construction (finding 08's
-precedent: instantiating a `ModelForm` just to read `to_field_name` cost 6.5ms
-and 10 queries), table column construction over an empty queryset, and
-saved-view or dynamic-group config resolution.
+What the 218ms is made of, with the instrument validated first (+1.6% overhead; stubbing
+a template removes 45.6ms against 48ms attributed):
+
+| | |
+|---|---|
+| view work | **21.4ms** — filtersets, tables, permissions |
+| template rendering | **261.1ms — 91.6% of the request** |
+| database | 4.3ms / 9 queries |
+| Redis | <1ms / 18 reads |
+| off-CPU | 5.0ms total, 29 voluntary context switches |
+
+So the candidates this entry used to name — filter-form construction, table-column
+construction over an empty queryset, saved-view resolution — are all **in the view**, which
+is 7.6% of the page. They are not the cost. Rendering is.
+
+*Ranked by size, with names:*
+
+1. **~0.6ms to render one table cell.** `ui.device.list.rows` emits 1,000 `<td>` at 10 per
+   row: `inc/table.html` 479.9ms exclusive (0.480ms/cell) plus 500 `TemplateColumn` string
+   renders at 119.4ms (0.239ms each) — together ~64% of a 747ms request. **Do not go looking
+   in the template**; it is 105 lines of ordinary markup and the cost is django-tables2
+   properties evaluated per cell (`column.attrs.th.as_html`, `column.header`,
+   `column.order_by_alias`, `querystring_replace`, `Accessor` resolution), which land on
+   whichever template is executing. Inherits `third-party-coupled` like findings 07 and 11.
+   Recurs everywhere: 93.9ms over 6 renders on rack detail, 17.3ms over 7 on device detail.
+   `role_retrieve.html` includes it **eighteen times** and is not in the workload.
+2. **`api.device.list` — 441ms of database across 8 queries**, ~55ms each, no templates at
+   all. A different problem from everything else here.
+3. **`inc/nav_menu.html` — ~47ms on every chrome-bearing page**, 46.2–48.4ms across five
+   unrelated views. A plain `{% include %}` at `base_django.html:24`. Construction is
+   **1.1ms**; rendering the same data is **48.4ms**, 44× more — so finding 12 fixed
+   construction completely and this is a separate cost nothing had timed.
+4. **The filter drawer — ~46.5ms, list views only.** 33 select widgets and 156 renders of
+   `django/forms/widgets/attrs.html`, on a drawer that is closed until clicked. So the fixed
+   cost is ~47ms on every full HTML page and ~95ms on a list view, not ~95ms everywhere.
+5. **~7.6KB/page of discarded JSON.** `inc/javascript.html` re-emits the whole menu via
+   `json_script` (12,841 bytes, 3.2% of a 401KB page); `ui/src/js/search.js:26` reads it but
+   flattens tabs and groups away and uses only `item_link -> name` (5,231 bytes). Costs at
+   most 2.3ms, so this is a payload item rather than a time item.
+
+*Two things worth knowing before picking one.* On the detail pages the queries are **not in
+the view** — `ui.device.detail` fires 49 of 52 inside template rendering, `ui.rack.detail` 60
+of 63 — so prefetching there has nothing to attach to. And `is_active` is per-request state
+inside both the menu HTML and its JSON, which is the obstacle to caching either.
 
 ### Fragment caching with a derived change stamp
 
