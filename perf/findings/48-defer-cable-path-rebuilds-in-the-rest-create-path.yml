@@ -2,7 +2,9 @@
 seq: 48
 id: null
 commit: cf279fe18
+recommended_commit: 547fd4e9d
 status: accepted
+basis: −18 queries on a two-ended REST cable create; wall clock inconclusive
 behaviour: A
 migration: '-'
 flags: []
