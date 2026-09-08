@@ -91,10 +91,33 @@ if awk -v l="$L1" -v m="$MAX_LOAD" 'BEGIN{exit !(l>m)}'; then
   rc=1
 fi
 
-GOV="$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo unknown)"
+# Clock policy is a gate, not a warning. A governor that scales, or turbo left
+# on, makes every wall-clock number from this box drift run to run -- which is
+# the same class of defect as a busy box above, and was treated as a remark.
+# It stayed a remark until a distro upgrade reset the governor to `powersave`
+# and the only symptom was one WARN line above a cheerful "== QUIET ==".
+#
+# The expectations are overridable because they describe this host: an Intel
+# i5-8259U on intel_pstate with turbo disabled in firmware. Set either variable
+# to the empty string to drop that check on a rig where it does not apply.
+EXPECT_GOV="${PERF_EXPECT_GOVERNOR-performance}"
+EXPECT_TURBO="${PERF_EXPECT_NO_TURBO-1}"
+
+# Every policy, not just cpu0. The governor is per-policy, so a boot-time loop
+# that died halfway leaves cpu0 correct and the remaining cores scaling.
+GOV="$(cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor 2>/dev/null | sort -u | tr '\n' ' ')"
+GOV="${GOV% }"
 TURBO="$(cat /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null || echo unknown)"
-echo "  governor $GOV / no_turbo $TURBO"
-[ "$GOV" = "performance" ] || { echo "  WARN governor is not 'performance'; clocks will vary run to run"; }
+echo "  governor ${GOV:-unknown} / no_turbo $TURBO"
+if [ -n "$EXPECT_GOV" ] && [ "$GOV" != "$EXPECT_GOV" ]; then
+  echo "  WRONG GOVERNOR -- expected '$EXPECT_GOV' on every CPU, got '${GOV:-unknown}'"
+  echo "                   clocks will vary run to run; wall clock from this host is void"
+  rc=1
+fi
+if [ -n "$EXPECT_TURBO" ] && [ "$TURBO" != "$EXPECT_TURBO" ]; then
+  echo "  WRONG TURBO STATE -- expected no_turbo=$EXPECT_TURBO, got $TURBO"
+  rc=1
+fi
 
 if [ "$rc" -eq 0 ]; then echo "== QUIET =="; else echo "== NOT QUIET (rc=$rc) =="; fi
 exit $rc
