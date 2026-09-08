@@ -72,8 +72,7 @@ def main():
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
-    resolved, _ = workload_mod.resolve(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "workload.yml"))
+    resolved, _ = workload_mod.resolve(workload_mod.DEFAULT_WORKLOAD)
     by_id = {r["id"]: r for r in resolved}
     client = get_perf_client()
 
