@@ -12,7 +12,9 @@ from django.core.exceptions import ValidationError
 from django.test import override_settings, SimpleTestCase, tag
 from django.test.utils import isolate_apps
 
+from nautobot.core.models import utils as model_utils
 from nautobot.core.models.utils import (
+    cache_natural_key_field_lookups,
     construct_composite_key,
     construct_natural_slug,
     deconstruct_composite_key,
@@ -443,3 +445,63 @@ class RestrictedQuerySetTestCase(TestCase):
         change_qs = Location.objects.restrict(self.user, "change")
         self.assertGreater(view_qs.count(), 0)
         self.assertEqual(change_qs.count(), 0)
+
+
+class NaturalKeyFieldLookupsCacheScopeTestCase(TestCase):
+    """The request-scoped caches must not outlive their scope, and must not change answers.
+
+    `cache_natural_key_field_lookups()` memoizes a `classproperty` whose value
+    depends on live state -- Location's on the depth of the Location tree,
+    Device's on a Constance setting -- so it is correct only for as long as
+    that state cannot change, which is one serialization pass. Nothing tested
+    that the scope actually closes.
+
+    Two failures are worth guarding separately. A cache that leaks past its
+    scope goes stale and serves a wrong natural key, which surfaces as a
+    composite key that no longer resolves. A cache that returns a different
+    answer from the uncached path is wrong immediately. The first is a leak
+    test, the second a differential test.
+    """
+
+    def test_no_cache_outside_the_scope(self):
+        self.assertIsNone(model_utils._natural_key_field_lookups_cache.get())
+        self.assertIsNone(model_utils._serializer_instance_cache.get())
+
+    def test_scope_creates_and_removes_the_cache(self):
+        with cache_natural_key_field_lookups():
+            self.assertIsInstance(model_utils._natural_key_field_lookups_cache.get(), dict)
+            self.assertIsInstance(model_utils._serializer_instance_cache.get(), dict)
+        self.assertIsNone(model_utils._natural_key_field_lookups_cache.get())
+        self.assertIsNone(model_utils._serializer_instance_cache.get())
+
+    def test_scope_is_removed_even_when_the_body_raises(self):
+        """A leak on the exception path is the one nobody notices until it is stale."""
+        with self.assertRaises(ValueError), cache_natural_key_field_lookups():
+            self.assertIsInstance(model_utils._natural_key_field_lookups_cache.get(), dict)
+            raise ValueError("deliberate")
+        self.assertIsNone(model_utils._natural_key_field_lookups_cache.get())
+        self.assertIsNone(model_utils._serializer_instance_cache.get())
+
+    def test_a_nested_scope_reuses_the_outer_cache(self):
+        """Documented behaviour: a caller wrapping a whole batch keeps its cache for every object."""
+        with cache_natural_key_field_lookups():
+            outer = model_utils._natural_key_field_lookups_cache.get()
+            outer["sentinel"] = "kept"
+            with cache_natural_key_field_lookups():
+                self.assertIs(model_utils._natural_key_field_lookups_cache.get(), outer)
+                self.assertEqual(model_utils._natural_key_field_lookups_cache.get()["sentinel"], "kept")
+            # The inner scope must not have reset the outer one on its way out.
+            self.assertIs(model_utils._natural_key_field_lookups_cache.get(), outer)
+        self.assertIsNone(model_utils._natural_key_field_lookups_cache.get())
+
+    def test_cached_lookups_equal_uncached_lookups(self):
+        """The cache must not change the answer, only how often it is computed."""
+        for model in (Device, Location):
+            with self.subTest(model=model.__name__):
+                uncached = list(model.natural_key_field_lookups)
+                with cache_natural_key_field_lookups():
+                    first = list(model.natural_key_field_lookups)
+                    second = list(model.natural_key_field_lookups)
+                self.assertEqual(uncached, first)
+                self.assertEqual(first, second)
+                self.assertEqual(uncached, list(model.natural_key_field_lookups))
