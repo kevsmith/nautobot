@@ -181,11 +181,33 @@ cable write path rather than one endpoint. A caller that catches and continues u
 `savepoint=False` does not get a slow answer, it gets `TransactionManagementError` —
 so this is a correctness audit whose prize happens to be performance.
 
-Scoped narrowly to `defer_cable_path_rebuilds()` alone the prize is 2 statements, with
-exact predictions from the item 5 control: one-ended 128 → 126, two-ended 195 → 193.
-Across all five it is ~12 of ~125 on this endpoint and it would apply to every write
-endpoint, not just cables — which is what makes the audit worth doing properly rather
-than folding into a one-liner.
+**The narrow version was tried and rejected — finding 49.** `savepoint=False` on
+`defer_cable_path_rebuilds()` alone: −4 queries, not the 2 first estimated, because the
+helper is entered twice per REST create and both entries are already nested. Predicted
+exactly, reproduced with zero variance, and rejected anyway on the trade —
+`test_defer_rolls_back_on_exception` depends on the block being independently rollbackable
+in order to verify its own guarantee, and 2% does not buy the right to narrow a documented
+property whose failure mode is silent. Read that record before trying the wider version:
+the same objection scales with it.
+
+What the rejection did not touch is the shape of the problem. **61 `transaction.atomic()`
+call sites in `nautobot/` outside tests, and zero use `savepoint=False`**, while one cable
+create sits 6 savepoint pairs deep. `ATOMIC_REQUESTS` is unset, so these are real
+boundaries rather than decoration: roughly 32 are view-level and would be subsumed by
+`ATOMIC_REQUESTS = True`, and 22 are outside the request path entirely — `dcim/signals.py`
+(5), `ipam/models.py` (3), `core/jobs` (3), `dcim/models/cables.py` (2), plus management
+commands, the git datasource and the CLI. Jobs run in Celery workers, not requests.
+
+*Two next steps, and the first is not a change.* Measure nesting **depth** across the write
+surface rather than reasoning from one endpoint: `screen_writes.py` already covers 105
+models, and reporting max savepoint depth per create would say whether 6-deep is a cable
+peculiarity or the house style. If it is general the prize is ~2 statements × depth × every
+write endpoint. Only then is it worth choosing between per-site `savepoint=False` — which
+finding 49 shows needs each site's rollback dependency established first — and
+`ATOMIC_REQUESTS = True` with the view-level atomics removed, which is correct-by-default
+for HTTP but covers neither jobs nor model `save()`, and which commits partial writes when a
+handler catches an error and returns 4xx unless `set_rollback(True)` is wired into DRF's
+exception handler.
 
 ---
 
