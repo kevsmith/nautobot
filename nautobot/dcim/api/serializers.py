@@ -1222,36 +1222,47 @@ class CableSerializer(TaggedModelSerializerMixin, NautobotModelSerializer):
         Each entry is matched on `(cable_end, connector)`. An entry with no per-type FK set is
         a delete signal: the existing row at that (side, connector) is removed if present. All
         other entries are handed to `CableToCableTerminationSerializer` for create/update.
+
+        Wrapped in `defer_cable_path_rebuilds()` because every row write fires
+        `rebuild_paths_on_join_change`, and a two-ended cable therefore rebuilt its paths
+        twice: once against the half-terminated cable and again against the finished one.
+        Measured on a REST create, the first rebuild costs 13 queries and 20ms and the
+        second 30 queries and 43ms, so the wasted half is the cheap one -- coalescing keeps
+        the rebuild that sees the final state. `dcim/forms.py:4900` and
+        `dcim/models/cables.py:1023` already do this; this was the remaining caller.
         """
-        for entry in raw_payload:
-            cable_end = entry["cable_end"]
-            connector = entry["connector"]
-            error_key = {"terminations": {cable_end.lower(): {str(connector): None}}}
-            existing = CableToCableTermination.objects.filter(
-                cable=cable, cable_end=cable_end, connector=connector
-            ).first()
+        from nautobot.dcim.signals import defer_cable_path_rebuilds
 
-            # If no per-type FK is set with a non-null value, treat the entry as a delete signal.
-            if not any(entry.get(fk) is not None for fk in TERMINATION_FK_FIELDS):
+        with defer_cable_path_rebuilds():
+            for entry in raw_payload:
+                cable_end = entry["cable_end"]
+                connector = entry["connector"]
+                error_key = {"terminations": {cable_end.lower(): {str(connector): None}}}
+                existing = CableToCableTermination.objects.filter(
+                    cable=cable, cable_end=cable_end, connector=connector
+                ).first()
+
+                # If no per-type FK is set with a non-null value, treat the entry as a delete signal.
+                if not any(entry.get(fk) is not None for fk in TERMINATION_FK_FIELDS):
+                    if existing is not None:
+                        existing.delete()
+                    continue
+
+                payload = {"cable": cable.pk, **{k: entry[k] for k in entry if k != "id"}}
+                # When updating, clear any previously-set FK that the new payload doesn't mention,
+                # so the row's "at most one FK" constraint stays satisfied across type changes.
                 if existing is not None:
-                    existing.delete()
-                continue
+                    for fk in TERMINATION_FK_FIELDS:
+                        if fk not in entry and getattr(existing, f"{fk}_id", None) is not None:
+                            payload[fk] = None
 
-            payload = {"cable": cable.pk, **{k: entry[k] for k in entry if k != "id"}}
-            # When updating, clear any previously-set FK that the new payload doesn't mention,
-            # so the row's "at most one FK" constraint stays satisfied across type changes.
-            if existing is not None:
-                for fk in TERMINATION_FK_FIELDS:
-                    if fk not in entry and getattr(existing, f"{fk}_id", None) is not None:
-                        payload[fk] = None
-
-            row_serializer = CableToCableTerminationSerializer(instance=existing, data=payload, context=self.context)
-            try:
-                row_serializer.is_valid(raise_exception=True)
-                row_serializer.save()
-            except serializers.ValidationError as exc:
-                error_key["terminations"][cable_end.lower()][str(connector)] = exc.detail
-                raise serializers.ValidationError(error_key) from exc
+                row_serializer = CableToCableTerminationSerializer(instance=existing, data=payload, context=self.context)
+                try:
+                    row_serializer.is_valid(raise_exception=True)
+                    row_serializer.save()
+                except serializers.ValidationError as exc:
+                    error_key["terminations"][cable_end.lower()][str(connector)] = exc.detail
+                    raise serializers.ValidationError(error_key) from exc
 
     def _legacy_termination_entries(self, validated_data):
         """Pop and translate `termination_a/b_type/_id` into `_apply_terminations` entries (connector 1)."""
