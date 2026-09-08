@@ -29,7 +29,7 @@ if len(sys.argv) > 2 and sys.argv[1] == "--url":
     scenario = target = sys.argv[2]
 else:
     scenario = sys.argv[1] if len(sys.argv) > 1 else "api.interface.depth1"
-    resolved, _ = workload_mod.resolve(os.path.join(os.path.dirname(os.path.abspath(__file__)), "workload.yml"))
+    resolved, _ = workload_mod.resolve(workload_mod.DEFAULT_WORKLOAD)
     urls = {r["id"]: r["url"] for r in resolved}
     if scenario not in urls:
         sys.exit(f"unknown scenario {scenario}; use --url <path> for anything outside workload.yml")

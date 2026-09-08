@@ -185,7 +185,7 @@ def measure(client, url, headers=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--workload", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "workload.yml"))
+    ap.add_argument("--workload", default=workload_mod.DEFAULT_WORKLOAD)
     ap.add_argument("--out", required=True)
     ap.add_argument("--reps", type=int, default=2, help="measured reps after warmup; last one is recorded")
     ap.add_argument("--only", help="substring filter on scenario id")
