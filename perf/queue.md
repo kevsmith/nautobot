@@ -138,10 +138,12 @@ is 7.6% of the page. They are not the cost. Rendering is.
    Django template interpretation across 180 items, which points at not rendering it per
    request rather than at micro-optimisation. Two open threads: `inc/nav_favorites.html:21`
    has the same `{% url %}`-in-a-loop pattern, unmeasured because the test user has no
-   favourites; and **every measurement so far ran as a superuser**, for whom
-   `has_one_or_more_perms` returns True on its first check — so the 1.1ms construction figure
-   may be superuser-only, and the builder's ~176 permission checks could be much dearer for a
-   user with real object permissions. Measure that before designing a cache.
+   favourites; and the superuser question is **answered by finding 52** —
+   construction goes 1.17 → 2.45ms for a non-superuser seeing the same menu while rendering
+   stays at 20.2ms against 20.6ms, so the ratio narrows from 44× to ~8× and rendering still
+   dominates. `ObjectPermission` loads once per user object and caches, so 186 backend checks
+   cost ~1.3ms. Two traps recorded there: Django `auth.Permission` grants are **inert** for
+   Nautobot's checks, and a user's ObjectPermissions carrying *constraints* is still untested.
 4. **The filter drawer — ~46.5ms, list views only.** 33 select widgets and 156 renders of
    `django/forms/widgets/attrs.html`, on a drawer that is closed until clicked. So the fixed
    cost is ~47ms on every full HTML page and ~95ms on a list view, not ~95ms everywhere.
@@ -160,14 +162,48 @@ inside both the menu HTML and its JSON, which is the obstacle to caching either.
 `inc/javascript.html` loads five scripts immediately before `</body>` in
 `base_django.html:63`, all plain `<script src>` with no `defer` or `async`:
 
-    4352 KB  dist/js/libraries.js
-      88 KB  dist/js/nautobot.js
-      32 KB  js/forms.js
-       8 KB  js/table_sorting_indicator.js
-       8 KB  js/dropdown.js
+    1,571,177 bytes  dist/js/libraries.js
+       41,995 bytes  dist/js/nautobot.js
+       14,545 bytes  js/forms.js
+        1,040 bytes  js/dropdown.js
+           92 bytes  js/table_sorting_indicator.js
 
-**libraries.js is 4.25MB.** Because the tags are synchronous and ordered, it blocks the
-three after it. `defer` would let them download in parallel and execute in order after
+    8,376,358 bytes  dist/js/libraries.js.map   (tracked in git, not served)
+
+**libraries.js is 1.5MB, and 78.8% of it is a charting library.** Attributed from its own
+source map — 668 source files, 5,640,288 bytes of pre-minification input:
+
+| bytes | share | package |
+|---:|---:|---|
+| 3,818,276 | 67.7% | `echarts` |
+| 624,990 | 11.1% | `zrender` (echarts' renderer) |
+| 285,314 | 5.1% | `jquery` |
+| 168,655 | 3.0% | `htmx.org` |
+| 153,585 | 2.7% | `select2` |
+| 135,902 | 2.4% | `bootstrap` |
+| 108,219 | 1.9% | `flatpickr` |
+| 91,001 | 1.6% | `highlight.js` |
+
+A full charting library — canvas and SVG renderers, coordinate systems, dozens of chart
+types — ships on every page including a 404 and a zero-row list. The mechanism is one
+webpack line: `splitChunks: {chunks: 'all', name: 'libraries'}`. Naming the chunk forces
+all shared code into a single file, so nothing can load conditionally. GraphiQL and React
+escaped only because they are built by a separate config with their own entry; ECharts did
+not. That makes the loading strategy secondary — `defer` rearranges *when* 1.5MB arrives,
+where the real question is whether ~1.2MB of charting needs to arrive on pages with no
+chart. That is code splitting (a dynamic `import()` at the chart call site, or a second
+entry as GraphiQL already has), not an attribute on a script tag.
+
+Because the tags are synchronous and ordered, libraries.js also blocks the three after it —
+including `table_sorting_indicator.js`, which is **92 bytes** and gets its own blocking
+request.
+
+*Correction:* an earlier revision of this entry said 4.25MB, and the commit that added it
+(`d5da3b411`) repeats that figure. It came from reading `ls -s` block counts as bytes, which
+also inflated the 92-byte file to "8 KB". The byte figures above are from `stat`. The
+proportions are pre-minification source shares, so the shipped proportion may differ —
+tree-shaking and minification do not compress every library equally, and confirming it needs
+the bundle inspected rather than its map. `defer` would let them download in parallel and execute in order after
 parsing. `rel="preload"` buys little at that position — the document has already streamed
 by the time the parser arrives — and `rel="prefetch"` is the wrong relation entirely: it is
 for resources a *future* navigation will need, at lowest priority, and on a page's own
