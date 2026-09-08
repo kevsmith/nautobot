@@ -161,9 +161,10 @@ def main():
     ap.add_argument(
         "--drop-b",
         action="store_true",
-        help="post a one-ended cable: the control. One termination row means one rebuild in "
-        "both arms, so the deferral can only add its flush re-fetch -- if it shows a small "
-        "regression here that is the mechanism working, not a surprise.",
+        help="post a one-ended cable. One termination row means one rebuild, so this isolates "
+        "the deferral's fixed overhead from the rebuild it coalesces. It was the control for "
+        "finding 48 and a second target for finding 49 -- whether it is a control depends on "
+        "the experiment, so the output no longer claims it is one.",
     )
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
@@ -180,7 +181,7 @@ def main():
         payloads, pks = payloads_for(Cable, cables_by_a_end_fk(Cable, fk, args.n))
         if args.drop_b:
             payloads = [{k: v for k, v in pl.items() if not k.startswith("termination_b")} for pl in payloads]
-            label += " one-ended (CONTROL)"
+            label += " one-ended"
         if not payloads:
             # Say so. A shape that matched nothing must not read as a shape that cost
             # nothing -- that is the write screen's null-termination failure again.
