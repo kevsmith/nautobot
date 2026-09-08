@@ -1,0 +1,68 @@
+---
+seq: 52
+id: null
+commit: null
+status: accepted
+basis: 'attribution: construction doubles for a normal user, rendering does not move'
+behaviour: A
+migration: '-'
+flags: []
+title: The nav menu's cost is not a superuser artifact, and Django permissions are inert here
+site: perf/scripts/probe_nav_menu_perms.py — nautobot/core/context_processors.py _build_nav_menu
+summary: 'Findings 50 and 51 were all measured as `perfbot`, a superuser. That mattered because
+  `_build_nav_menu` runs ~176 permission checks and Django''s PermissionsMixin.has_perm returns
+  True from `is_active and is_superuser` *before consulting any backend* — so every check
+  short-circuited, and "construction is 1.1ms, rendering is 44x more" could have held only for a
+  user who pays nothing for permissions. Measured against a non-superuser seeing the same menu,
+  it holds: construction doubles, rendering does not move.'
+result:
+  three_users: 'superuser: 200, wall 275.2ms, build 1.17ms, nav_render 20.6ms, 176 wrapper calls,
+    **0** backend has_perm calls, menu 15/42/123. Broad non-superuser (ObjectPermission granting
+    view on all 191 content types): 200, wall 256.8ms, build **2.45ms**, nav_render **20.2ms**,
+    176 wrapper calls, **186** backend calls, menu 15/42/122. Limited non-superuser (6
+    permissions): 403, wall 20.9ms, build 1.39ms, nav_render 1.2ms, 14 wrapper calls, 118 backend
+    calls, menu 1/1/2.'
+  verdict: 'construction 1.17 -> 2.45ms, roughly doubling; rendering 20.6 -> 20.2ms, unmoved. The
+    ratio narrows from 44x to about 8x and rendering still dominates. Nothing built on "rendering
+    is the cost, not construction" needs revising, and the −43% of finding 51 is unaffected
+    because URL reversals do not depend on who is asking.'
+  why_it_stays_cheap: '`objperm_loads=1` in both non-superuser arms. ObjectPermissionBackend
+    loads the ObjectPermission set once per user object and caches it on `_object_perm_cache`, so
+    186 backend checks are dict lookups against already-materialised data. `build_q=0`: the
+    builder issues no queries during the request, because the permission load happens outside the
+    timed section.'
+  superuser_shortcut: 'the superuser makes **zero** backend calls for 176 checks. The 186-vs-0 gap
+    is the entire cost of being a normal user, and it is 1.3ms.'
+  pruning: 'the limited user''s menu prunes to 1 tab / 1 group / 2 items, and the permission tree
+    short-circuits after 14 wrapper calls rather than 176 — a tab whose permissions fail never has
+    its groups or items checked. So a *less* privileged user is cheaper, not dearer, and the
+    expensive case is the broad non-superuser rather than the restricted one.'
+controls: 'the broad non-superuser sees 15/42/122 against the superuser''s 15/42/123, so the two
+  render essentially the same menu and the render comparison is like-for-like. The limited arm is
+  deliberately kept despite its 403: it shows that a smaller menu is a smaller cost, which is what
+  rules out "non-superusers are cheaper" being mistaken for a saving.'
+tests: 'not applicable — no product code changed.'
+wall_clock: "not measured: an attribution, no change to measure"
+wall_clock_detail: 'Five reps per arm with one warm-up discarded, on a quiesced host through
+  measure.sh. Single round, which is adequate here because the claim rests on the build and render
+  splits (1.17 vs 2.45ms, 20.6 vs 20.2ms) rather than on total wall clock, and those are measured
+  directly rather than by subtraction.'
+note: '**Two probe defects worth recording, because both produced confident wrong answers.**
+
+
+  First, granting `django.contrib.auth.Permission` rows does nothing for Nautobot''s permission
+  checks. `ObjectPermissionBackend.get_object_permissions()` reads the ObjectPermission model and
+  nothing else, so a user granted 192 Django view permissions still saw a 1-tab menu and got a
+  403 — identical to a user with six. The broad arm only became broad once granted through
+  ObjectPermission. Anyone measuring permission cost in this codebase will hit this.
+
+
+  Second, patching `type(user).has_perm` fails inside a request: the user is a SimpleLazyObject
+  proxy with no `has_perm` on the class. `ObjectPermissionBackend.has_perm` is the only reliable
+  funnel, and it has the advantage of counting checks however the user object is wrapped.
+
+
+  The measurement was prompted by finding 51''s write-up flagging its own exposure, and it closes
+  that gap rather than opening a new one. What it does not cover: a user whose ObjectPermissions
+  carry *constraints*, which is the case where a check has to evaluate a queryset filter rather
+  than a set membership. That is untested and is the remaining unknown in this area.'
