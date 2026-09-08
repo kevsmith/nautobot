@@ -77,9 +77,13 @@ services:
       # with 400 before any view runs -- every page, including the login form. Verified against
       # the running instance: Host localhost 200, Host hannah 400, Host 10.0.0.5 400.
       #
+      # The FQDN is listed too, because the short name alone is not enough once a client on
+      # another host addresses this one by its full name: Host hannah.smith-manor.us was a 400
+      # while Host hannah was a 200, which is a 400 on every request of a remote-client run.
+      #
       # `environment:` wins over `env_file:`, so this replaces rather than appends to the value
       # dev.env sets -- hence repeating the three entries from there.
-      NAUTOBOT_ALLOWED_HOSTS: ".localhost 127.0.0.1 [::1] hannah 10.0.0.5"
+      NAUTOBOT_ALLOWED_HOSTS: ".localhost 127.0.0.1 [::1] hannah hannah.smith-manor.us 10.0.0.5"
     cpuset: "0,1,4,5"
     deploy:
       resources:
