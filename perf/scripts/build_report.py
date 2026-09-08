@@ -878,7 +878,20 @@ def main():
         rendered[PERF / f"{name}.md"] = out
 
     if args.check:
-        stale = [t for t, out in rendered.items() if not t.exists() or t.read_text() != out]
+        # Compare everything except the generation-time provenance line. That line names
+        # the commit the render ran against, which can never be the commit that contains
+        # the render -- so including it made --check fail on every commit that carries the
+        # report, which is every one of them. --check exists to prove the report was
+        # generated from the current findings and baselines; a timestamp of when is not
+        # something the sources determine.
+        def without_provenance(text):
+            return "\n".join(ln for ln in text.splitlines() if not ln.startswith("> Sources: tree "))
+
+        stale = [
+            t
+            for t, out in rendered.items()
+            if not t.exists() or without_provenance(t.read_text()) != without_provenance(out)
+        ]
         if stale:
             names = ", ".join(str(t.relative_to(ROOT)) for t in stale)
             print(f"{names} stale -- run perf/scripts/build_report.py", file=sys.stderr)
