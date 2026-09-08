@@ -21,6 +21,8 @@ the risk the tier cannot express.
 
 <!--GEN:tiers-->
 
+All commits referenced below can be found on the [`perf/recommended`](https://github.com/kevsmith/nautobot/tree/perf/recommended) branch of this repo.
+
 <!--GEN:findings-->
 
 ## Methodology
