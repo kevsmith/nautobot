@@ -99,15 +99,32 @@ is 7.6% of the page. They are not the cost. Rendering is.
 
 *Ranked by size, with names:*
 
-1. **~0.6ms to render one table cell.** `ui.device.list.rows` emits 1,000 `<td>` at 10 per
-   row: `inc/table.html` 479.9ms exclusive (0.480ms/cell) plus 500 `TemplateColumn` string
-   renders at 119.4ms (0.239ms each) — together ~64% of a 747ms request. **Do not go looking
-   in the template**; it is 105 lines of ordinary markup and the cost is django-tables2
-   properties evaluated per cell (`column.attrs.th.as_html`, `column.header`,
-   `column.order_by_alias`, `querystring_replace`, `Accessor` resolution), which land on
-   whichever template is executing. Inherits `third-party-coupled` like findings 07 and 11.
-   Recurs everywhere: 93.9ms over 6 renders on rack detail, 17.3ms over 7 on device detail.
-   `role_retrieve.html` includes it **eighteen times** and is not in the workload.
+1. **~0.6ms to render one table cell, and one column is 37% of it.**
+   `ui.device.list.rows` emits 1,000 `<td>` at 10 per row for 487.3ms of cell rendering,
+   ~64% of a 747ms request. Attributed per column class by
+   `perf/scripts/probe_table_columns.py`:
+
+   | column | class | linkify | ms/cell | total |
+   |---|---|---|---:|---:|
+   | `primary_ip` | `Column` | True | **1.789** | 178.9ms |
+   | `actions` | `ButtonsColumn` | | 0.765 | 76.5ms |
+   | `tenant` | `TenantColumn` | | 0.706 | 70.6ms |
+   | `location` | `Column` | True | 0.361 | 36.1ms |
+   | `name` | `TemplateColumn` | | 0.280 | 28.0ms |
+   | `device_type` | `LinkColumn` | True | 0.267 | 26.7ms |
+   | `pk` | `ToggleColumn` | | 0.238 | 23.8ms |
+   | `role`, `status` | `ColoredLabelColumn` | | 0.216 | 43.1ms |
+   | `rack` | `Column` | True | 0.036 | 3.6ms |
+
+   **`linkify` is not the cost** — True totals 245.3ms against False at 242.0ms, and the
+   True side is almost all one column; `rack` is the same class with the same linkify over
+   a real FK at 50× less. **Findings 07 and 11 hold** — `TemplateColumn` is 0.280ms/cell,
+   the caching subclass working. **Do not go looking in `inc/table.html`**; it is 105 lines
+   of ordinary markup and django-tables2 work lands on whichever template executes.
+   Recurs elsewhere: 93.9ms over 6 renders on rack detail, 17.3ms over 7 on device detail.
+   `role_retrieve.html` includes it **eighteen times** and is not in the workload. Only 10
+   of `DeviceTable`'s ~22 declared columns are visible by default, and `capabilities` and
+   `manufacturer` are the same accessor-on-a-property shape as `primary_ip`.
 2. **`api.device.list` — 441ms of database across 8 queries**, ~55ms each, no templates at
    all. A different problem from everything else here.
 3. **`inc/nav_menu.html` — ~47ms on every chrome-bearing page**, 46.2–48.4ms across five
@@ -126,6 +143,45 @@ is 7.6% of the page. They are not the cost. Rendering is.
 the view** — `ui.device.detail` fires 49 of 52 inside template rendering, `ui.rack.detail` 60
 of 63 — so prefetching there has nothing to attach to. And `is_active` is per-request state
 inside both the menu HTML and its JSON, which is the obstacle to caching either.
+
+### A Constance read costs 224us, and properties call it per object
+
+Measured while attributing the device list's cell cost, and it is not a table problem.
+
+    get_settings_or_config('PREFER_IPV4')       224.5 us/call
+    100x device.primary_ip, select_related       24.11 ms   241.1 us/access
+    100x device.primary_ip, no select_related   153.84 ms  1538.4 us/access
+    100x the config call alone                   23.71 ms   237.1 us/access
+    => config is 98% of the select_related case
+
+`Device.primary_ip` is a property whose first line is
+`if get_settings_or_config("PREFER_IPV4") and self.primary_ip4:`, so every access pays a
+config read. The `if/elif` over already-loaded FKs is ~4us; the config call is ~237us. On
+`ui.device.list.rows` that one column is **178.9ms of a 779ms request**, and 137.1ms of it
+is accessor resolution rather than rendering — django-tables2 faithfully resolving a
+property 100 times.
+
+**The interesting number is 224us for a memoized call.** `get_settings_or_config` memoizes
+internally — that is why `api.location.list` shows 101 calls against only 7 Redis reads —
+so this is not a network round trip. A cache hit costing a fifth of a millisecond is worth
+understanding on its own, because the reach is far wider than one column:
+`ui.device.list.rows` makes **204** of these calls, and finding 06 recorded 101 on
+`api.location.list`.
+
+Same family as findings 04, 05 and 06 (memoized natural-key lookups; "stop paying Redis
+round-trips for tree display and config lookups"), which suggests the pattern was fixed
+where it was looked for and not where it was not.
+
+*Two next steps, cheapest first.* Find out what 224us is actually doing — if a memoized
+config read is that expensive, every caller in the app is affected and the fix is one
+place. Only then consider caching `PREFER_IPV4` per request, which is worth ~22ms on this
+page but leaves the general cost in place. Note `primary_ip` is defined **twice** in
+`nautobot/dcim/models/devices.py` (lines 1006 and 2330, the second on another model), so a
+property-level fix has at least two sites.
+
+*Not established:* whether the device list view `select_related`s `primary_ip4`/`primary_ip6`.
+The 137.1ms accessor figure sits close to the no-select_related measurement of 153.8ms,
+which suggests it does not — but the check errored and was not repeated.
 
 ### Fragment caching with a derived change stamp
 
