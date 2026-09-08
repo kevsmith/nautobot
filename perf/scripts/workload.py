@@ -5,6 +5,17 @@ Kept separate from the harnesses so Tier 1 (in-container, Django) and Tier 2
 Tier 1 resolves it live; Tier 2 consumes the JSON that Tier 1 dumps.
 """
 
+import os as _os
+
+# perf/workload.yml -- one directory up from perf/scripts/. Three callers each built
+# this path from their own __file__, so `ae517a228` moving the harness into
+# perf/scripts/ broke Tier 1, attribute.py and bench_endpoints.py in one commit. The
+# committed baselines still verified, so nothing complained until Tier 1 was next run
+# through run_experiment.sh, which does not pass --workload. Defined once here so a
+# fourth caller cannot diverge again.
+DEFAULT_WORKLOAD = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "workload.yml")
+
+
 from urllib.parse import urlencode
 
 from django.apps import apps
