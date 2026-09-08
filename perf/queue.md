@@ -131,6 +131,17 @@ is 7.6% of the page. They are not the cost. Rendering is.
    unrelated views. A plain `{% include %}` at `base_django.html:24`. Construction is
    **1.1ms**; rendering the same data is **48.4ms**, 44× more — so finding 12 fixed
    construction completely and this is a separate cost nothing had timed.
+
+   **~28ms of it is now gone — finding 51.** 369 of a page's 387 URL reversals were two
+   argument-free names reversed once per menu item; resolving them once per process took a
+   chrome-only response from 66.9ms to 38.1ms, **−43.0%**. The remaining ~20ms is ordinary
+   Django template interpretation across 180 items, which points at not rendering it per
+   request rather than at micro-optimisation. Two open threads: `inc/nav_favorites.html:21`
+   has the same `{% url %}`-in-a-loop pattern, unmeasured because the test user has no
+   favourites; and **every measurement so far ran as a superuser**, for whom
+   `has_one_or_more_perms` returns True on its first check — so the 1.1ms construction figure
+   may be superuser-only, and the builder's ~176 permission checks could be much dearer for a
+   user with real object permissions. Measure that before designing a cache.
 4. **The filter drawer — ~46.5ms, list views only.** 33 select widgets and 156 renders of
    `django/forms/widgets/attrs.html`, on a drawer that is closed until clicked. So the fixed
    cost is ~47ms on every full HTML page and ~95ms on a list view, not ~95ms everywhere.
@@ -143,6 +154,36 @@ is 7.6% of the page. They are not the cost. Rendering is.
 the view** — `ui.device.detail` fires 49 of 52 inside template rendering, `ui.rack.detail` 60
 of 63 — so prefetching there has nothing to attach to. And `is_active` is per-request state
 inside both the menu HTML and its JSON, which is the obstacle to caching either.
+
+### Client-side asset loading, which no instrument here can measure
+
+`inc/javascript.html` loads five scripts immediately before `</body>` in
+`base_django.html:63`, all plain `<script src>` with no `defer` or `async`:
+
+    4352 KB  dist/js/libraries.js
+      88 KB  dist/js/nautobot.js
+      32 KB  js/forms.js
+       8 KB  js/table_sorting_indicator.js
+       8 KB  js/dropdown.js
+
+**libraries.js is 4.25MB.** Because the tags are synchronous and ordered, it blocks the
+three after it. `defer` would let them download in parallel and execute in order after
+parsing. `rel="preload"` buys little at that position — the document has already streamed
+by the time the parser arrives — and `rel="prefetch"` is the wrong relation entirely: it is
+for resources a *future* navigation will need, at lowest priority, and on a page's own
+scripts it is ignored or actively pessimising.
+
+*Why this is unranked and cannot be ranked.* **Every instrument in this harness measures
+server-side response generation.** Tier 1 drives Django's test client, Tier 1W runs
+in-process, Tier 2 is cassowary measuring HTTP response time. None of them parse HTML or
+execute JavaScript, so `defer`, `preload`, and a 4.25MB bundle move **zero** of the numbers
+in this report — including finding 51's −43%. There is no basis on which to compare this to
+anything else in the queue.
+
+*Next step is an instrument, not a change.* The demo-video workload recorded as future work
+in `perf/README.md` is the seed of it: a browser-timing instrument would be the first thing
+here able to measure what a user experiences rather than what uwsgi emits, and it is the
+prerequisite for pricing this at all.
 
 ### A Constance read costs 224us, and properties call it per object
 
