@@ -145,6 +145,48 @@ invalidation, and finding 19 measured what cross-request caching adds on top at
 **~0.6ms** — which fails the stopping rule in this queue. The idea then has no
 prize to collect, whatever its risk profile.
 
+### Nested transactions on the write path, and whether any of them earn their SQL
+
+A single REST cable create with one termination issues **6 SAVEPOINT/RELEASE pairs**
+— 12 statements of ~125, measured by diffing the SQL of the two arms of queue item 5's
+A/B on the one-ended control. They come from functions that each open
+`transaction.atomic()` without knowing whether a caller already did: DRF's
+`perform_create`, `Cable.save()`, `defer_cable_path_rebuilds()`, `rebuild_paths()`,
+and the row serializer's save. Defensive composition, locally correct everywhere,
+redundant at runtime.
+
+Each one is guarding something real, and the comments read as incident reports rather
+than caution. `Cable.save()`: "otherwise we'd be left with an orphaned Cable row that
+has no join rows and can't be cleaned up through the cable form." `rebuild_paths()`
+deletes affected `CablePath` rows before rebuilding them, so a failure in between
+removes connections with no error anywhere — the worst failure mode in the set.
+`forms.py:4900`: "a creation failure mid-loop rolls back the delete." Cables are where
+this concentrates because a cable create spans three tables and one of them,
+`CablePath`, holds derived graph state that is expensive to recompute and invisible
+when wrong. Creating an Interface is one row and wraps nothing.
+
+**The distinction the code does not draw.** Wanting atomic *semantics* is right in all
+five places. Wanting an *independently rollbackable* savepoint is only right if
+something catches an exception from inside the block and continues issuing queries —
+and `transaction.atomic(savepoint=False)` separates those: it keeps all-or-nothing,
+enforced by whichever transaction is outermost, and emits no SQL when nested.
+
+*Next step, and it is an audit rather than a change:* for each of the five, find
+whether any caller catches and continues. The three `defer_cable_path_rebuilds()`
+callers have been checked — none do, and `cables.py:1023` is nested inside
+`Cable.save()`'s own atomic 100% of the time, so its savepoint is always redundant.
+`Cable.save()` and `rebuild_paths()` are the unaudited ones, and they are reached from
+bulk import, CSV, `loaddata` and the ORM as well as REST, so the blast radius is every
+cable write path rather than one endpoint. A caller that catches and continues under
+`savepoint=False` does not get a slow answer, it gets `TransactionManagementError` —
+so this is a correctness audit whose prize happens to be performance.
+
+Scoped narrowly to `defer_cable_path_rebuilds()` alone the prize is 2 statements, with
+exact predictions from the item 5 control: one-ended 128 → 126, two-ended 195 → 193.
+Across all five it is ~12 of ~125 on this endpoint and it would apply to every write
+endpoint, not just cables — which is what makes the audit worth doing properly rather
+than folding into a one-liner.
+
 ---
 
 ## Ranked below those, unchanged in substance
