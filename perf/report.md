@@ -53,6 +53,8 @@ the risk the tier cannot express.
 | `security-visible` | Touches an authorisation decision rather than a displayed value, so a stale or shared result is a permissions bug. |
 | `third-party-coupled` | Reimplements or depends on internals of a dependency, so an upgrade can change behaviour rather than break a signature. Correct against the pinned version, and a differential test now renders the same cell both ways so a divergence fails a test instead of producing wrong output. |
 
+All commits referenced below can be found on the [`perf/recommended`](https://github.com/kevsmith/nautobot/tree/perf/recommended) branch of this repo.
+
 ## Accepted (22)
 
 Measured, kept, and applied to the tree. Each Reason is that change measured on its own, and several reduce the same cost by different routes -- they do not sum, and the cumulative table above is the measured total.
