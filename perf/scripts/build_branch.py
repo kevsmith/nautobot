@@ -90,6 +90,10 @@ SUBJECT_REWRITES = {
         "Prefetch the cable's terminations for cable-to-cable-terminations",
         "title is 76 columns; drops 'at depth 1', which the summary states",
     ),
+    48: (
+        "Defer cable path rebuilds when applying cable terminations",
+        "title is 82 columns and cites 'findings 7/11, 34 and 36', unresolvable upstream",
+    ),
     42: (
         "Route natural_key() through the optimized ancestor walk",
         "title is 76 columns; 'Nautobot had already optimized' reads as lab note",
