@@ -126,13 +126,21 @@ def check_cumulative(report, problems):
             b, c = totals(agg["baseline_file"]), totals(agg["current_file"])
             shared = set(b) & set(c)
             n += 1
-            if f"{sum(b[k] for k in shared):,} → {sum(c[k] for k in shared):,}" not in report:
+            if f"{sum(b[k] for k in shared):,} -> {sum(c[k] for k in shared):,}" not in report:
                 problems.append(f"{agg['key']}: query total is not the one in the report")
         if agg.get("file"):
             t = json.loads((PERF / "baselines" / agg["file"]).read_text())["totals"]["queries"]
             n += 1
-            if f"{t['baseline']:,.0f} → {t['current']:,.0f}" not in report:
+            if f"{t['baseline']:,.0f} -> {t['current']:,.0f}" not in report:
                 problems.append(f"{agg['key']}: query total is not the one in the report")
+        if not agg.get("baseline_file") and not agg.get("file"):
+            # Hand-entered figures. Nothing recomputes them, so the most this can do
+            # is refuse to let that pass unremarked.
+            n += 1
+            problems.append(
+                f"{agg['key']}: figures are hand-entered in cumulative.json with no source "
+                "file, so no check here can recompute them"
+            )
         if agg.get("stale") and agg.get("stale") not in report:
             problems.append(f"{agg['key']} is marked stale and the report does not say so")
     return n
