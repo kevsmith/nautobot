@@ -4,9 +4,16 @@
 # Only nautobot/ is swapped, which is what makes it safe for this script to live
 # in perf/: perf/ and development/docker-compose.perf.yml do not exist on `next`,
 # so a whole-tree checkout would delete the harness and the compose overlay the
-# running container was created with. Every one of the 37 files that differ
-# between the two arms is a modification -- no adds, no deletes -- so a
-# path-scoped checkout is an exact swap in both directions.
+# running container was created with.
+#
+# `git checkout <ref> -- nautobot/` overwrites but never deletes, so a file the
+# branch adds survives into the stock arm. This once claimed that could not happen
+# -- "every one of the 37 files that differ is a modification, no adds, no deletes"
+# -- and finding 22 then added a migration. Arming to `next` left it in place and
+# the stock arm hashed 0e1d03a4e (against next's own e308df687), so the protocol's
+# content-hash proof no longer matched the tree it named. The migration happens to
+# be inert during an apply, which is exactly why it went unnoticed; the next added
+# file need not be.
 #
 #   armctl.sh hash            content hash of nautobot/, the proof the arms differ
 #   armctl.sh arm <ref>       swap nautobot/ to <ref>, restart, wait until measurable
@@ -28,6 +35,14 @@ hash)
 arm)
   ref="${2:?usage: armctl.sh arm <ref>}"
   git checkout "$ref" -- nautobot/ || { echo "checkout failed" >&2; exit 1; }
+  # Remove what the target ref does not have. --diff-filter=A against HEAD lists
+  # files added on the way from <ref> to HEAD, which is precisely the set a
+  # path-scoped checkout cannot clear. Arming back to the branch restores them.
+  extra="$(git diff --name-only --diff-filter=A "$ref" HEAD -- nautobot/)"
+  if [ -n "$extra" ]; then
+    echo "$extra" | while IFS= read -r f; do [ -n "$f" ] && rm -f "$f"; done
+    echo "  removed $(echo "$extra" | grep -c .) file(s) absent from $ref: $(echo $extra | tr '\n' ' ')"
+  fi
   # Unstage immediately. A staged reversion left lying around is how five fixes
   # got undone once on this branch; nothing commits on this host, and this makes
   # sure nothing can.

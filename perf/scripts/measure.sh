@@ -42,8 +42,12 @@ else
 fi
 
 # Provenance in the same breath as the number, so a figure is never orphaned
-# from the tree that produced it.
-echo "== tree under test =="
+# from the tree that produced it. This block runs BEFORE the command, and some
+# commands change the tree they are about to measure: apply_arm.sh re-arms
+# nautobot/ as its first act, so this described the branch for a run that
+# measured stock -- "nautobot/: clean (== 1173dd1f9)" above a stock arm. Hence
+# the label, and the hash printed afterwards.
+echo "== tree before the command ran =="
 if [ -f perf/.provenance.json ]; then sed 's/^/  /' perf/.provenance.json; fi
 if git rev-parse --git-dir >/dev/null 2>&1; then
   if git diff --quiet HEAD -- nautobot/; then
@@ -57,5 +61,18 @@ echo "== measuring: $* =="
 START=$(date -u +%FT%TZ)
 "$@"
 rc=$?
+
+# The content hash of what was actually measured, computed after the fact so it
+# adds no I/O in front of a timed run. When a command re-armed the tree, this is
+# the only line in the log that names the arm the number belongs to.
+if [ -x perf/scripts/arm_control.sh ]; then
+  AFTER="$(perf/scripts/arm_control.sh hash 2>/dev/null)"
+  if [ -n "$AFTER" ]; then
+    echo "== tree as measured: nautobot-hash ${AFTER:0:16} =="
+    if git rev-parse --git-dir >/dev/null 2>&1 && ! git diff --quiet HEAD -- nautobot/; then
+      echo "   nautobot/ differs from $(git rev-parse --short HEAD) -- the command re-armed it"
+    fi
+  fi
+fi
 echo "== done (started $START, rc=$rc) =="
 exit $rc
