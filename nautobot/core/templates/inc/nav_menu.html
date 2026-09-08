@@ -178,15 +178,15 @@
                                                 <button
                                                     class="nb-sidenav-favorite{% if item_link in navbar_favorites_link_list %} active{% endif %}"
                                                     type="button"
-                                                    hx-post="{% if item_link in navbar_favorites_link_list %}{% url "user:navbar_favorites_delete" %}{% else %}{% url "user:navbar_favorites_add" %}{% endif %}"
+                                                    hx-post="{% if item_link in navbar_favorites_link_list %}{{ navbar_favorites_delete_url }}{% else %}{{ navbar_favorites_add_url }}{% endif %}"
                                                     hx-vals='{"name": "{{ item_details.name }}", "link": "{{ item_link }}"}'
                                                     hx-target="#sidenav-flyout-favorites"
                                                     hx-select="#sidenav-flyout-favorites"
                                                     hx-swap="outerHTML"
                                                     hx-on::after-request="toggleFavorite(this, event)"
                                                     hx-on::config-request="setRequestUrl(this, event)"
-                                                    data-add-url="{% url "user:navbar_favorites_add" %}"
-                                                    data-delete-url="{% url "user:navbar_favorites_delete" %}"
+                                                    data-add-url="{{ navbar_favorites_add_url }}"
+                                                    data-delete-url="{{ navbar_favorites_delete_url }}"
                                                 >
                                                     <span class="visually-hidden">
                                                         Add to favorites
