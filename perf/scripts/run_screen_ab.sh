@@ -69,7 +69,7 @@ run_arm() {
   hash="$(printf '%s\n' "$armout" | sed -n 's/.*nautobot-hash \([0-9a-f]*\).*/\1/p')"
   [ -n "$hash" ] || { echo "no tree hash from arm swap" >&2; return 1; }
   echo "$hash" > "${out%.json}.treehash"
-  perf/scripts/dc.sh exec -T nautobot python "/source/perf/$SCRIPT" --out "/source/perf/results/$(basename "$out")" \
+  perf/scripts/dc.sh exec -T nautobot python "/source/perf/scripts/$SCRIPT" --out "/source/perf/results/$(basename "$out")" \
     || return 1
 }
 
