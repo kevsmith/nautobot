@@ -1,0 +1,101 @@
+---
+seq: 54
+id: null
+commit: 8b4e351b2
+status: accepted
+basis: 'attribution: 100 template compilations per 100-row page, one per cell, from one column'
+behaviour: A
+migration: '-'
+flags: [third-party-coupled]
+title: Route TenantColumn through the caching TemplateColumn
+site: nautobot/tenancy/tables.py:28 — nautobot/core/tables.py:422
+summary: '`django_tables2.TemplateColumn.render()` ends in
+  `return Template(self.template_code).render(parent_context)`, and `Template(...)` is the compile
+  step — `Template.__init__` runs the lexer and parser over the source. Upstream calls it inside
+  `render()`, so a column re-parses its fixed template once per cell.
+  `nautobot.core.tables.TemplateColumn` exists to fix exactly that (findings 07 and 11), compiling
+  once and caching on the instance. `TenantColumn` was declared against `django_tables2`''s class
+  instead, so the caching never applied to it and every list view showing a tenant paid ~100
+  compilations per page. One-line fix; the caching class was already imported in that file.'
+result:
+  ui.device.list.rows: '104 -> 5 compilations, wall 643.9 -> 604.6ms'
+  ui.prefix.list.rows: '104 -> 5 compilations, wall 1189.6 -> 1130.5ms'
+  ui.ipaddress.list.rows: '105 -> 6 compilations, wall 596.9 -> 567.9ms'
+  ui.rack.list.rows: '43 -> 4 compilations, wall 242.6 -> 227.6ms'
+  compile_cost_vs_saving: 'the measured compilation cost accounts for the wall-clock saving on
+    three of four surfaces once the −1% control drift is subtracted: device 28.7ms measured against
+    ~33ms net, IP 29.3ms against ~29ms, rack 11.0ms against ~12.6ms. prefix is the exception —
+    32.6ms against ~47ms — and is also the noisiest arm at 4.4% spread, so the agreement there is
+    weaker than the other three and is not claimed as confirmation.'
+  scope: 'one per row on every list view that shows a tenant, not a device-list problem. The
+    compile site differs by view class — core/views/renderers.py:386 for UI viewsets,
+    core/views/generic.py:442 for the legacy path — while the column is the same.'
+  equivalence: 'response bodies byte-identical between arms on all six scenarios, targets and
+    controls alike. The two implementations differ only in whether the parse is repeated.'
+  not_a_cross_request_cache: 'the compiled template is cached on the column instance and
+    django_tables2 deep-copies columns per table instance, so this is ~1 compile per column per
+    request rather than a process-wide cache. That is why arm B reads 5 compilations per page and
+    not 4, and it is why the change carries no cache-scope question.'
+controls: 'two, both chosen because they cannot benefit: `ui.interface.list.rows` and
+  `ui.cable.list.rows` have no tenant column and stay at 4 compilations in both arms. Both drift
+  −0.9% and −1.0%, which is what establishes that the headline −6% is really −4% to −5%. A control
+  that merely "was not touched" would not have caught that; these are the same shape as the targets
+  (100-row HTMX row renders through the same table machinery) and differ only in whether the
+  column under test is present.'
+tests: '`nautobot.tenancy` + `nautobot.dcim.tests.test_views.DeviceTestCase` +
+  `nautobot.ipam.tests.test_views`: 881 tests OK (skipped=34).
+  `nautobot.core.tests.test_tables.CachingTemplateColumnCouplingTestCase`: 7 tests OK. A new test
+  in that class renders ten cells and asserts the template compiled once; with the fix reverted it
+  fails. It counts compilations rather than comparing output because the sibling tests already
+  cover this implementation''s output equivalence with django_tables2''s, which is the coupling
+  that could break silently on an upgrade.'
+wall_clock: "−4.5% ui.device.list.rows, conservative figure"
+wall_clock_detail: 'Three alternating rounds (A/B, B/A, A/B) through measure.sh on a quiesced host,
+  nine reps per arm with one warm-up discarded. Arms proven distinct by nautobot/ content hash,
+  0d4d5a498c01d7f9 against f5254d8b00ac0eee.
+
+
+  **The controls are what set the figure.** Raw means give −4.9% to −6.2% across the four
+  tenant-bearing scenarios, but both controls read −0.9% and −1.0% for a change that cannot have
+  touched them, so roughly a point of that is systematic. Net of it the effect is −4% to −5%, and
+  −4.5% (the minimum-based figure on the headline scenario) is quoted rather than the −6.1% mean.
+
+
+  Ordering bias is ruled out rather than assumed: arm B ran second, first and second across the
+  three rounds and was faster in all of them.'
+caveat: 'Flagged `third-party-coupled` for the same reason `nautobot.core.tables.TemplateColumn`
+  itself is: it reimplements `django_tables2.TemplateColumn.render()` rather than extending it, so
+  it depends on the parent''s `get_context_data()` hook keeping both its name and its render
+  semantics. This change widens the surface that depends on that from the columns already using the
+  caching class to `TenantColumn` as well, which is most list views in the product. The existing
+  `CachingTemplateColumnCouplingTestCase` is the guard — it compares the two implementations''
+  output directly, so a django_tables2 upgrade that changes `render()` semantics fails a test
+  rather than silently producing wrong cell content. Anyone taking a django_tables2 major version
+  should read that test''s docstring first. No API, UI, or export behaviour changes here: the
+  rendered bytes are identical.'
+note: '**The hypothesis that led here was half wrong, and the instrument is what separated the
+  halves.** `probe_page_phases.py` reports a template named `<string>` — Django''s origin for a
+  Template built from a source string — at 61.2ms over 6 renders on `ui.home` and 118.3ms over 500
+  on `ui.device.list.rows`. 10.2ms for one small template render is ~40x what the file-backed
+  templates in the same run cost, which looked like compilation happening per render. So
+  `probe_string_templates.py` was written to time construction and rendering separately.
+
+
+  For `ui.home` the hypothesis is **wrong**: 6 renders cost 61.2ms while all 6 compilations cost
+  3.3ms. That cost is in resolving `{{ connections... }}` inside
+  `nautobot/core/views/__init__.py:113 render_additional_content`, which runs in the view rather
+  than the render phase — which is also why page_phases showed `render=39.0ms` against a larger
+  `<string>` exclusive figure. Unexplained and logged; it is a different problem from this one.
+
+
+  For the list views it is **right**, and broader than the page that prompted it: four surfaces,
+  not one.
+
+
+  **Two more columns have the same defect and are deliberately left alone.**
+  `DeviceComponentNameColumn` (dcim/tables/template_code.py:6) and `JobResultColumn`
+  (extras/tables.py:1029) also subclass `django_tables2.TemplateColumn` directly. Same one-line
+  fix, but no workload scenario renders either, so their cost is unmeasured and claiming a saving
+  for them would be guessing. Once all three are converted a structural test — no shipped column
+  subclasses django_tables2''s version directly — becomes possible, and that is the durable guard
+  against the next one. Logged as a queue candidate.'
