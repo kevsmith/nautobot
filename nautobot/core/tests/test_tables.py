@@ -10,6 +10,7 @@ from django.core.exceptions import FieldDoesNotExist
 from django.db import connection
 from django.db.models import IntegerField, Value
 from django.template import Context
+from django.template.base import Template
 from django.test import SimpleTestCase, tag, TestCase
 from django.test.utils import CaptureQueriesContext
 import django_tables2
@@ -29,7 +30,7 @@ from nautobot.extras.models import ComputedField, JobLogEntry
 from nautobot.extras.tables import JobLogEntryTable
 from nautobot.ipam.models import RIR
 from nautobot.ipam.tables import RIRTable
-from nautobot.tenancy.tables import TenantGroupTable
+from nautobot.tenancy.tables import TenantColumn, TenantGroupTable
 from nautobot.wireless.models import WirelessNetwork
 from nautobot.wireless.tables import WirelessNetworkTable
 
@@ -490,6 +491,50 @@ class CachingTemplateColumnCouplingTestCase(TestCase):
         """`request` is the part our implementation assigns into the parent context itself."""
         ours, theirs = self._render_both("{% if request %}req{% else %}norequest{% endif %}")
         self.assertEqual(ours, theirs)
+
+    def test_tenant_column_compiles_once_across_many_cells(self):
+        """`TenantColumn` renders on most list views and used to compile per cell.
+
+        It subclassed `django_tables2.TemplateColumn` rather than the caching
+        `nautobot.core.tables.TemplateColumn`, so the caching that findings 07 and 11
+        introduced never applied to it. Measured before the fix: 100 compilations for a
+        100-row page on the device, prefix and IP-address lists, and 40 for a 40-row rack
+        list. The two implementations differ only in caching, so this counts compilations
+        rather than comparing output -- the sibling tests in this class already cover
+        equivalence with django_tables2.
+        """
+        column = TenantColumn()
+        table = RIRTable(RIR.objects.filter(pk=self.rir.pk))
+        table.context = Context()
+        bound_column = table.columns["name"]
+        bound_row = next(iter(table.rows))
+
+        compiled = []
+        original_init = Template.__init__
+
+        def counting_init(template_self, template_string, origin=None, name=None, engine=None):
+            compiled.append(template_string)
+            original_init(template_self, template_string, origin, name, engine)
+
+        Template.__init__ = counting_init
+        try:
+            for _ in range(10):
+                column.render(
+                    record=self.rir,
+                    table=table,
+                    value=None,
+                    bound_column=bound_column,
+                    bound_row=bound_row,
+                )
+        finally:
+            Template.__init__ = original_init
+
+        self.assertEqual(
+            len(compiled),
+            1,
+            f"TenantColumn compiled its template {len(compiled)} times to render 10 cells; "
+            "it should compile once and reuse the result",
+        )
 
     def test_recompiles_when_template_code_is_reassigned(self):
         """The compiled template is cached on the instance and keyed on its source."""
