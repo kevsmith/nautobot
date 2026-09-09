@@ -221,46 +221,60 @@ in `perf/README.md` is the seed of it: a browser-timing instrument would be the 
 here able to measure what a user experiences rather than what uwsgi emits, and it is the
 prerequisite for pricing this at all.
 
-### A Constance read costs 224us, and properties call it per object
+### CLOSED, and it was measured wrong: a Constance read costs 2.4us in a request
 
-Measured while attributing the device list's cell cost, and it is not a table problem.
+This entry claimed a memoized Constance read costs 224us and that `ui.device.list.rows`
+paid it 204 times, so ~45ms per request with app-wide reach. **That conclusion was an
+artifact of measuring outside a request**, and finding 53 corrected it. Kept rather than
+deleted, because the mistake is more instructive than the entry ever was.
+
+The original table, all of it measured standalone:
 
     get_settings_or_config('PREFER_IPV4')       224.5 us/call
     100x device.primary_ip, select_related       24.11 ms   241.1 us/access
     100x device.primary_ip, no select_related   153.84 ms  1538.4 us/access
     100x the config call alone                   23.71 ms   237.1 us/access
-    => config is 98% of the select_related case
+    => config is 98% of the select_related case   <-- wrong, see below
 
-`Device.primary_ip` is a property whose first line is
-`if get_settings_or_config("PREFER_IPV4") and self.primary_ip4:`, so every access pays a
-config read. The `if/elif` over already-loaded FKs is ~4us; the config call is ~237us. On
-`ui.device.list.rows` that one column is **178.9ms of a 779ms request**, and 137.1ms of it
-is accessor resolution rather than rendering — django-tables2 faithfully resolving a
-property 100 times.
+The 224us reproduces: 211-219us per call, stable to n=10,000. But measured *inside* the
+request that actually renders the page:
 
-**The interesting number is 224us for a memoized call.** `get_settings_or_config` memoizes
-internally — that is why `api.location.list` shows 101 calls against only 7 Redis reads —
-so this is not a network round trip. A cache hit costing a fifth of a millisecond is worth
-understanding on its own, because the reach is far wider than one column:
-`ui.device.list.rows` makes **204** of these calls, and finding 06 recorded 101 on
-`api.location.list`.
+    in-request calls                              200
+    total                                        0.94 ms
+    first call (cache fill)                    489.46 us
+    calls 2..200, median                         2.38 us
 
-Same family as findings 04, 05 and 06 (memoized natural-key lookups; "stop paying Redis
-round-trips for tree display and config lookups"), which suggests the pattern was fixed
-where it was looked for and not where it was not.
+`nautobot/core/utils/config.py` carries `get_request_cache` and
+`_invalidate_request_cached_config`. The cache is per-request, not per-process — the
+warm-up request did not make the measured request's first call cheap — so every caller
+after the first in a given request pays 2.4us. The whole per-request cost of `PREFER_IPV4`
+on the heaviest page here is about **1ms**.
 
-**The query half of this is now closed — finding 53.** The `no select_related` row above was
-the live state of the device list, not a hypothetical: the list action select_relates both
-FKs as of 5f8c5f643, so `ui.device.list.rows` goes 107 -> 7 queries and −14.3% wall. What
-survives is the config half, unchanged at 200 calls per request, and it is now the larger
-part of the column: ~45ms against the ~99ms of point lookups that went away.
+Three consequences:
 
-*Two next steps, cheapest first.* Find out what 224us is actually doing — if a memoized
-config read is that expensive, every caller in the app is affected and the fix is one
-place. Only then consider caching `PREFER_IPV4` per request, which is worth ~45ms on this
-page but leaves the general cost in place. Note `primary_ip` is defined **twice** in
-`nautobot/dcim/models/devices.py` (lines 1006 and 2330, the second on `VirtualDeviceContext`)
-and once more on `VirtualMachine`, so a property-level fix has at least three sites.
+- **"Cache `PREFER_IPV4` per request" was the proposed fix. It already exists**, and it is
+  why the cost is 1ms. The proposal was chasing a number measured in a context that does
+  not occur when serving.
+- **"Config is 98% of the select_related case" is false in a request.** Re-attributing
+  `primary_ip` on the fixed tree puts the whole column at 39.8ms with 4.3ms of accessor
+  time — so the 137.1ms of accessor cost finding 50 recorded was the N+1 queries, which
+  finding 53 removed, and never the config read.
+- **The lesson generalises past this entry.** A micro-benchmark of a function that consults
+  request-scoped state measures the uncached path by construction. Anything on this branch
+  priced by calling a function in a bare loop deserves re-checking inside a request before
+  it justifies a change.
+
+What survives: `api.location.list` making 101 of these calls (finding 06) is not obviously
+a problem either, and nobody has measured it in-request. Cheap to check, and the same
+correction probably applies.
+
+**The query half is closed by finding 53.** The `no select_related` row above was the live
+state of the device list, not a hypothetical: the list action select_relates both FKs as of
+5f8c5f643, so `ui.device.list.rows` goes 107 -> 7 queries and −14.3% wall. Nothing is left
+to do here — the config half is the ~1ms measured above, and there is no property-level fix
+worth writing for a 2.4us call. `primary_ip` being defined three times (Device at
+dcim/models/devices.py:1006, VirtualDeviceContext at 2330, and VirtualMachine) matters only
+for the select_related blind spot below, not for the config read.
 
 ### A property-backed table column is invisible to the select_related the table derives
 
