@@ -30,16 +30,26 @@ def get_job_results(request):
 
 def get_changelog(request):
     """Callback function to collect changelog for panel."""
-    return ObjectChange.objects.restrict(request.user, "view").only(
-        "id",
-        "action",
-        "changed_object",
-        "changed_object_id",
-        "changed_object_type",
-        "object_repr",
-        "user_name",
-        "time",
-    )[:15]
+    return (
+        ObjectChange.objects.restrict(request.user, "view")
+        # The panel renders each row's `changed_object`, which is a GenericForeignKey over the
+        # `changed_object_type` FK. Without these two, every rendered row costs a content-type
+        # lookup plus an object lookup: measured at 15 + 10 queries for a 15-row panel, ~25 of the
+        # home page's 79. `prefetch_related` batches a GFK by content type, so the object lookups
+        # collapse to one query per distinct type. Both must precede the slice below.
+        .select_related("changed_object_type")
+        .prefetch_related("changed_object")
+        .only(
+            "id",
+            "action",
+            "changed_object",
+            "changed_object_id",
+            "changed_object_type",
+            "object_repr",
+            "user_name",
+            "time",
+        )[:15]
+    )
 
 
 layout = (
