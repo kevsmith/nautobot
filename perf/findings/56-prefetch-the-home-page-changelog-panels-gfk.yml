@@ -1,0 +1,90 @@
+---
+seq: 56
+id: null
+commit: f1b5f335f
+status: accepted
+basis: 'attribution: 25 of the home page''s 79 queries are one panel rendering 15 rows'
+behaviour: A
+migration: '-'
+flags: []
+title: Prefetch the home page changelog panel's generic foreign key
+site: nautobot/extras/homepage.py get_changelog — extras/templates/extras/inc/panel_changelog.html
+summary: '`get_changelog()` returns an unevaluated sliced queryset which the panel template then
+  renders, and `ObjectChange.changed_object` is a GenericForeignKey over the `changed_object_type`
+  FK — so every rendered row cost a content-type lookup *and* an object lookup. Full stacks put it
+  at 15 content-type queries and 10 object queries for a 15-row panel, ~25 of the home page''s 79.
+  `select_related` on the FK folds the first set into the main query; `prefetch_related` on the GFK
+  batches the second by content type, so object lookups collapse to one query per distinct type
+  however many rows render.'
+result:
+  ui.home_queries: '79 -> 51 executed queries'
+  ui.home_in_process: '161.7 -> 136.1ms, −15.8% mean and −12.3% min over three alternating rounds'
+  ui.home_http: '202.0 -> 170.5ms median, −15.6%; −13.9% on the mean; zero failed requests across
+    six arms'
+  what_is_left: 'the other 29 queries are one `count()` per HomePageItem carrying a `model=`. That
+    is linear in dashboard items and is the right shape for a page whose content is counts — worth
+    knowing rather than fixing. Batching them into one statement was considered and rejected: at a
+    local Postgres a round trip is ~0.05-0.1ms, so 29 of them is ~3ms of the ~30ms those counts
+    cost, and the rest is the counting itself. See the queue.'
+  stock_context: 'measured separately, stock `next` ce01a0464 against this branch before this
+    change: 232.5 -> 195.0ms, so the home page was already −16.1% — almost certainly finding 51''s
+    navbar URL memoisation, which lands on every chrome-bearing page. With this change the page is
+    roughly −27% against stock.'
+controls: 'four, all flat. In-process: ui.device.list, ui.device.list.rows, ui.device.detail,
+  api.device.list at −0.9% to +3.8%. Over HTTP: ui.device.list −0.5%, ui.device.list.rows +0.2%,
+  api.device.list −0.7%, which is a ±1.5% band and the tightest control set measured on this
+  branch. None of them renders a changelog panel, so none of them can benefit.'
+tests: '`nautobot.extras.tests.test_homepage` + `nautobot.core.tests.test_views`: 97 tests OK.
+  **No full suite, deliberately**: `get_changelog` has exactly one consumer — its own registration
+  at `homepage.py:101` — so the blast radius is one dashboard panel, unlike finding 55 which sits
+  under every query in the product. The consumer set was grepped rather than assumed.'
+wall_clock: "−15.6% ui.home over HTTP, −12.3% in-process"
+wall_clock_detail: 'Both figures come from three alternating rounds (A/B, B/A, A/B) on a quiesced
+  host through measure.sh. The HTTP measurement is cassowary at n=30 c=1 with the client on
+  hannah''s localhost, which keeps both the LAN and client CPU contention out of the numbers; the
+  containers'' cpuset pinning keeps the client off the app''s cores.
+
+
+  **The HTTP figure is larger than the in-process one and that is not explained.** The prediction
+  was the reverse — the page is ~161ms in-process and ~202ms over HTTP, so uwsgi''s fixed overhead
+  should have diluted the percentage to about −9%. Instead the absolute saving grew from ~25ms to
+  ~31.5ms. The plausible candidate is that 28 fewer round trips release the worker sooner in a way
+  the in-process test client does not model, but that is a hypothesis and three hypotheses about
+  this page were already wrong today, so it is recorded as unexplained rather than rationalised.
+
+
+  −15.6% (HTTP median) is the figure to quote, because the report''s cumulative table is measured
+  over HTTP and mixing the two tiers would overstate or understate depending on which was picked.'
+note: '**The shipped test was vacuous in its first form, and the mechanism is worth recording
+  because nothing about it looked wrong.** `panel_changelog.html` gates on
+  `perms.extras.view_objectchange`, and `nautobot/core/testing/mixins.py:61` creates the test user
+  with no permissions at all. So the panel rendered "No permission", none of the twelve
+  `ObjectChange` rows the test had created was ever touched, and both query assertions passed
+  against incidental content-type queries from elsewhere on the page. The test reported a confident
+  result while exercising nothing — and it was caught only because the *strong* assertion (the GFK
+  one) passed with the fix reverted, which should have been impossible.
+
+
+  Fixed by granting the permission and asserting two preconditions — that the panel rendered at
+  all, and that it rendered these specific rows — so the test now fails loudly rather than silently
+  when its own setup stops holding. With the fix reverted it reads 10 `dcim_location` queries for
+  twelve rows against a threshold of 2.
+
+
+  The content-type assertion was dropped rather than kept. Django''s `ContentType` manager caches
+  by id, so it read 3-for-12-rows in the test environment against 15-for-15-rows in production;
+  guarding on a 3-versus-2 margin that the test environment produces incidentally is not a guard.
+
+
+  **A process failure worth naming alongside it:** the test was written, committed, and the A/B
+  launched without the test ever having been run. The measurement discipline held all day and the
+  test gate did not.
+
+
+  **Two hypotheses about this page were wrong before the right one.** That `<string>` template cost
+  was compilation — it is 3.3ms of 61.2ms. And that the panel callbacks were eagerly evaluated
+  integers — true of the three dcim connection counts, false of `get_changelog`,
+  `get_job_results` and `get_approval_workflow_stages`, which all return sliced querysets. The
+  latter two have the same shape as this finding and are unfixed: `get_job_results` selects a
+  `user` FK without `select_related`, and the dataset holds only 2 JobResults so its cost cannot be
+  measured here.'
