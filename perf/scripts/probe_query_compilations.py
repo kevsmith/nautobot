@@ -20,6 +20,18 @@ Reports per scenario: total wall (median and min of PERF_REPS reps), SQL execute
 compiled, the difference between them, and a body digest. Compilations and executions are
 deterministic; the ms figures are not.
 
+Two limits on the `discarded` column, both of which matter when reading it as an absolute
+number rather than as an A/B delta:
+
+  * Only `SQLCompiler.as_sql` is counted. Subclasses (`SQLAggregateCompiler`,
+    `SQLInsertCompiler`) define their own, so a query can execute without incrementing the
+    compile counter and the column can read **negative** -- `ui.ipaddress.list` shows -1.
+  * A nested subquery compiles without being separately executed, so `compiled - executed`
+    is not by itself proof of waste. `probe_discarded_compilations.py` separates the two by
+    compiler nesting depth and by catching `EmptyResultSet`; use it to interpret an absolute
+    figure. (Measured: nested compilations are ~0 on these pages, so the difference here does
+    turn out to be genuine waste -- but that had to be checked rather than assumed.)
+
     perf/scripts/dc.sh exec -T -e PERF_REPS=9 nautobot \
         python /source/perf/scripts/probe_query_compilations.py [scenario-id ...]
 """
