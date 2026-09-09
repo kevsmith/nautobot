@@ -98,6 +98,10 @@ SUBJECT_REWRITES = {
         "Route natural_key() through the optimized ancestor walk",
         "title is 76 columns; 'Nautobot had already optimized' reads as lab note",
     ),
+    53: (
+        "Select_related the device list's primary IPs",
+        "title is 76 columns; drops 'which its own table cannot see', which the summary explains",
+    ),
 }
 
 
