@@ -249,12 +249,47 @@ Same family as findings 04, 05 and 06 (memoized natural-key lookups; "stop payin
 round-trips for tree display and config lookups"), which suggests the pattern was fixed
 where it was looked for and not where it was not.
 
+**The query half of this is now closed — finding 53.** The `no select_related` row above was
+the live state of the device list, not a hypothetical: the list action select_relates both
+FKs as of 5f8c5f643, so `ui.device.list.rows` goes 107 -> 7 queries and −14.3% wall. What
+survives is the config half, unchanged at 200 calls per request, and it is now the larger
+part of the column: ~45ms against the ~99ms of point lookups that went away.
+
 *Two next steps, cheapest first.* Find out what 224us is actually doing — if a memoized
 config read is that expensive, every caller in the app is affected and the fix is one
-place. Only then consider caching `PREFER_IPV4` per request, which is worth ~22ms on this
+place. Only then consider caching `PREFER_IPV4` per request, which is worth ~45ms on this
 page but leaves the general cost in place. Note `primary_ip` is defined **twice** in
-`nautobot/dcim/models/devices.py` (lines 1006 and 2330, the second on another model), so a
-property-level fix has at least two sites.
+`nautobot/dcim/models/devices.py` (lines 1006 and 2330, the second on `VirtualDeviceContext`)
+and once more on `VirtualMachine`, so a property-level fix has at least three sites.
+
+### A property-backed table column is invisible to the select_related the table derives
+
+Found by finding 53 and left deliberately unfixed there, because it is the general form of
+what that finding patched in one place.
+
+`BaseTable` builds a queryset's `select_related` from its visible columns by walking each
+accessor through `model._meta.get_field()` (`nautobot/core/tables.py:277`). A property is
+not a field, so `get_field()` raises `FieldDoesNotExist`, the walk breaks, and the column
+contributes nothing — silently. Every FK the property reads is then a point lookup per row.
+
+Four known sites, one measured:
+
+| site | column | state |
+|---|---|---|
+| `DeviceUIViewSet` | `primary_ip` | fixed by hand, finding 53 |
+| `VirtualMachineUIViewSet` | `primary_ip` | same shape, `select_related("tenant__tenant_group")` only |
+| `VirtualDeviceContextTable` | `primary_ip` | same shape |
+| any future property column | — | fails the same way, with no warning |
+
+Neither VM nor VirtualDeviceContext is in the workload, so their cost is inferred from
+shape rather than measured — **adding those scenarios is the cheap first step**, and it
+prices the general fix before anyone writes it.
+
+The fix worth pricing is an explicit hint the derivation honours when the accessor is not a
+field — the column declaring which real FKs it reads. That fixes all four at once and stops
+the next property column reintroducing the N+1. It also touches machinery every list view
+in Nautobot uses, so it needs the full suite and a control set well outside dcim, which is
+why it is a separate experiment rather than part of finding 53.
 
 *Not established:* whether the device list view `select_related`s `primary_ip4`/`primary_ip6`.
 The 137.1ms accessor figure sits close to the no-select_related measurement of 153.8ms,
