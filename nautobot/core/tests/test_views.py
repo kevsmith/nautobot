@@ -11,6 +11,8 @@ from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings, RequestFactory, tag
@@ -33,8 +35,12 @@ from nautobot.core.views import MessagesView, NautobotMetricsView
 from nautobot.core.views.mixins import GetReturnURLMixin
 from nautobot.core.views.utils import METRICS_CACHE_KEY
 from nautobot.dcim.models.locations import Location, LocationType
-from nautobot.extras.choices import CustomFieldTypeChoices
-from nautobot.extras.models import FileProxy, SavedView, Status
+from nautobot.extras.choices import (
+    CustomFieldTypeChoices,
+    ObjectChangeActionChoices,
+    ObjectChangeEventContextChoices,
+)
+from nautobot.extras.models import FileProxy, ObjectChange, SavedView, Status
 from nautobot.extras.models.customfields import CustomField, CustomFieldChoice
 from nautobot.extras.registry import registry
 from nautobot.users.models import ObjectPermission
@@ -139,6 +145,64 @@ class ObjectListViewActionButtonsWithoutAddPermissionTestCase(TestCase):
 
 
 class HomeViewTestCase(TestCase):
+    def test_changelog_panel_does_not_query_once_per_row(self):
+        """The home page's changelog panel must not cost a query per rendered row.
+
+        `ObjectChange.changed_object` is a GenericForeignKey over the `changed_object_type` FK, and
+        `nautobot.extras.homepage.get_changelog()` returns an unevaluated sliced queryset that the
+        panel template then renders. Without `select_related` on the FK and `prefetch_related` on
+        the GFK, each rendered row issued a content-type lookup *and* an object lookup — measured
+        at 15 + 10 queries on a 15-row panel, ~25 of the home page's 79.
+
+        `prefetch_related` batches a GFK by content type, so object lookups collapse to one query
+        per distinct type however many rows there are. That is the property asserted here: the
+        counts must not scale with the row count.
+        """
+        # Without this the template renders "No permission", the panel touches none of the rows
+        # below, and every query assertion passes vacuously. The first version of this test did
+        # exactly that and looked like it was guarding something.
+        self.add_permissions("extras.view_objectchange")
+
+        location_type = LocationType.objects.get(name="Campus")
+        status = Status.objects.get_for_model(Location).first()
+        locations = [
+            Location.objects.create(name=f"changelog-panel-{i}", location_type=location_type, status=status)
+            for i in range(12)
+        ]
+        location_ct = ContentType.objects.get_for_model(Location)
+
+        # All twelve rows point at *distinct* Location objects, so an unprefetched GFK costs
+        # twelve object queries and a batched one costs a single query. A shared target would let
+        # a per-row implementation look correct.
+        for location in locations:
+            ObjectChange.objects.create(
+                user_name="changelog-panel-test",
+                request_id=uuid.uuid4(),
+                action=ObjectChangeActionChoices.ACTION_UPDATE,
+                change_context=ObjectChangeEventContextChoices.CONTEXT_ORM,
+                changed_object_type=location_ct,
+                changed_object_id=location.pk,
+                object_repr=str(location),
+            )
+
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(reverse("home"))
+        self.assertHttpStatus(response, 200)
+        content = response.content.decode()
+
+        # Preconditions. If either fails the query counts below describe some other part of the
+        # page rather than the changelog panel, and the test is worthless.
+        self.assertNotIn("No permission", content, "the changelog panel did not render")
+        self.assertIn("changelog-panel-test", content, "the changelog panel rendered none of these rows")
+
+        location_queries = len([q for q in ctx.captured_queries if 'FROM "dcim_location"' in q["sql"]])
+        self.assertLessEqual(
+            location_queries,
+            2,
+            f"the changelog panel issued {location_queries} dcim_location queries for twelve rows; "
+            "changed_object has lost its prefetch_related",
+        )
+
     def test_home(self):
         url = reverse("home")
 
