@@ -1,0 +1,91 @@
+---
+seq: 53
+id: null
+commit: 5f8c5f643
+status: accepted
+basis: 'attribution: 100 ipam_ipaddress queries on a 100-row page, all from one property'
+behaviour: A
+migration: '-'
+flags: []
+title: Select_related the device list's primary IPs, which its own table cannot see
+site: nautobot/dcim/views.py DeviceUIViewSet.get_queryset — nautobot/core/tables.py:277
+summary: '`DeviceTable`''s `primary_ip` column renders a *property*, and the select_related that
+  `BaseTable` derives from a table''s columns walks each accessor through
+  `model._meta.get_field()`, which raises FieldDoesNotExist for a property and abandons the walk.
+  The table''s own machinery therefore never sees `primary_ip4`/`primary_ip6`, and every rendered
+  row paid a point lookup: exactly 100 `ipam_ipaddress` queries on a 100-row page, all issued from
+  `dcim/models/devices.py:1011`. The list action now select_relates both FKs, as `retrieve` always
+  has.'
+result:
+  ui.device.list.rows: '107 -> 7 queries, ipam_ipaddress 100 -> 0, wall 760.9 -> 633.5ms'
+  ui.device.list.page100.rows: '108 -> 8 queries, ipam_ipaddress 100 -> 0, wall 758.8 -> 651.6ms'
+  ui.device.list.deep.rows: '58 -> 8 queries, ipam_ipaddress 50 -> 0, wall 484.6 -> 436.9ms'
+  ui.device.list.filtered.rows: '59 -> 9 queries, ipam_ipaddress 50 -> 0, wall 452.5 -> 402.8ms'
+  scaling: 'the removed query count tracks page size exactly -- 100/100/50/50 across the four
+    scenarios -- which is what makes it an N+1 rather than a fixed cost. The saving works out at
+    roughly 1ms per eliminated query, the point-lookup cost on this host.'
+  equivalence: 'response bodies are byte-identical between arms on all four targets. select_related
+    changes how rows are fetched and not what they contain, and the digests prove it rather than
+    asserting it.'
+  what_it_does_not_fix: '`get_settings_or_config` calls hold at 200 in both arms. `Device.primary_ip`
+    reads `PREFER_IPV4` from Constance on every access at ~224us, and at ~45ms that is now the
+    larger half of finding 50''s 178.9ms column. The remaining 633ms is still mostly template
+    rendering.'
+controls: 'four, all flat: ui.device.list -0.3%, ui.devicetype.list.rows +1.4%, ui.rack.list.rows
+  -0.3%, ui.interface.list.rows +0.0%. `ui.device.list` is the sharpest one available -- the same
+  view and the same queryset construction, but it renders `queryset.none()`
+  (core/views/renderers.py:96), so it isolates the cost of the two added LEFT OUTER JOINs from the
+  saving on the rows and shows it is not observable. `ui.interface.list.rows` is kept because it
+  displays IP addresses through a different mechanism (INTERFACE_IPADDRESSES via TemplateColumn);
+  it does not move, so nothing here generalised further than intended.'
+tests: '`nautobot.dcim.tests.test_views.DeviceTestCase` 83 tests OK (skipped=1);
+  `nautobot.core.tests.test_ui` + `nautobot.core.tests.test_utils` 132 tests OK. A regression test
+  ships with the change and is proven in both directions: reverting the fix makes it fail with
+  "rendering the device list issued 3 per-row ipam_ipaddress queries", three being the device count
+  in the test data. It discriminates on the FROM clause, since a point lookup reads
+  `FROM "ipam_ipaddress"` while the fixed version reaches the same rows through
+  `FROM "dcim_device" LEFT OUTER JOIN "ipam_ipaddress"`.'
+wall_clock: "−14.3% ui.device.list.rows, conservative figure"
+wall_clock_detail: 'Three alternating rounds (A/B, B/A, A/B) through measure.sh on a quiesced host,
+  nine reps per arm with one warm-up discarded. Arms proven distinct by nautobot/ content hash,
+  e4f5405d23a05d09 against 422d3c225be16121.
+
+
+  **The conservative figure is the one quoted, and deliberately.** By mean of round medians the
+  headline scenario reads −16.7%; by minimum it reads −14.3%. Arm A''s round-to-round spread is
+  5.2% against arm B''s 0.9%, so the mean is partly an artifact of where one of A''s three noisy
+  rounds lands, and the minimum is the defensible end. The noise asymmetry is itself coherent: arm
+  A issues 100 extra point lookups and that is where the variance comes from. Range across the
+  four target scenarios: −9.4% to −14.3% on the minimum, −9.9% to −16.7% on the mean.
+
+
+  Ordering bias is ruled out rather than assumed. Arm B ran second, first, and second across the
+  three rounds and was faster in all of them; the effect (~127ms) dwarfs the ordering variation
+  (~5%, ~38ms). Per finding 26 that is the direction of evidence worth trusting.'
+note: '**The instrument had to be fixed before the experiment could start, and the defect was
+  silent.** `attribute.py` read only `url` from the workload row and dropped `headers`. Nautobot
+  defers row rendering to an HTMX follow-up, so `ui.device.list` and `ui.device.list.rows` share
+  the path `/dcim/devices/` and differ only by `HX-Request` — which meant every `.rows` attribution
+  ever run through that instrument described the chrome page instead. Both scenarios reported the
+  same 9 queries and no `dcim_device` query at all, against a table that renders 100 rows: a
+  plausible-looking attribution of a page the instrument was not measuring. Fixed in afaf66fdf.
+  `perf/findings/` was grepped and no finding cites attribute.py, so nothing already published is
+  affected. This is the fourth instrument defect on this branch to produce a confident zero rather
+  than an error, after the three hook-placement mistakes.
+
+
+  **The same blind spot has three more instances and none is measured.**
+  `VirtualMachineUIViewSet` select_relates `tenant__tenant_group` only and has `primary_ip` among
+  its default columns; `VirtualDeviceContextTable` declares the same property column; and the
+  `primary_ip` property exists twice in dcim/models/devices.py, on Device at 1006 and on
+  VirtualDeviceContext at 2330, plus once more on VirtualMachine. Neither VM nor
+  VirtualDeviceContext appears in the workload, so the cost there is inferred from shape rather
+  than measured.
+
+
+  **The general fix is better and is deliberately not taken here.** Teaching core/tables.py to
+  honour an explicit select_related hint on a property-backed column would fix all four sites at
+  once, in one place, and would stop the next property column from silently reintroducing the same
+  N+1. It also touches the table machinery every list view in Nautobot uses, which makes it a
+  separate experiment with a far wider blast radius rather than something to fold into a
+  two-line viewset change. Logged as a queue candidate.'
