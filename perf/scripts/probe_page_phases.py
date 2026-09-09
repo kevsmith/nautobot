@@ -45,6 +45,7 @@ from django.template.response import SimpleTemplateResponse  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tier1_queries import get_perf_client  # noqa: E402
+import workload as workload_mod  # noqa: E402
 
 SCENARIOS = [
     ("ui.chrome.404", "/dcim/no-such-page-chrome-control/", {}),
@@ -158,11 +159,36 @@ def main():
     ap.add_argument("--reps", type=int, default=5)
     ap.add_argument("--top", type=int, default=10)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument(
+        "scenarios",
+        nargs="*",
+        help="workload scenario ids to measure instead of the built-in SCENARIOS list. "
+        "The built-in list is a fixed set chosen to contrast page shapes; a question about "
+        "one template across many pages needs a different set, and hardcoding meant editing "
+        "the probe to ask it.",
+    )
     args = ap.parse_args()
+
+    if args.scenarios:
+        resolved, _ = workload_mod.resolve(workload_mod.DEFAULT_WORKLOAD)
+        rows = {r["id"]: r for r in resolved}
+        missing = [i for i in args.scenarios if i not in rows]
+        if missing:
+            sys.exit(f"unknown scenario(s): {', '.join(missing)}")
+        scenarios = [
+            (
+                sid,
+                rows[sid]["url"],
+                {f"HTTP_{k.upper().replace('-', '_')}": v for k, v in (rows[sid].get("headers") or {}).items()},
+            )
+            for sid in args.scenarios
+        ]
+    else:
+        scenarios = SCENARIOS
 
     client = get_perf_client()
     out = []
-    for name, url, extra in SCENARIOS:
+    for name, url, extra in scenarios:
         runs = [one(client, url, extra) for _ in range(args.reps + 1)][1:]
         med = {k: statistics.median([r[k] for r in runs]) for k in runs[0] if k != "templates"}
         agg = collections.defaultdict(lambda: {"incl": [], "excl": [], "n": []})
