@@ -2827,6 +2827,14 @@ class DeviceUIViewSet(NautobotUIViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        if self.action == "list":
+            # `DeviceTable.primary_ip` renders the `primary_ip` *property*, and the
+            # select_related that core.tables derives from a table's columns walks each
+            # accessor through `model._meta.get_field()` (nautobot/core/tables.py:277).
+            # That raises FieldDoesNotExist for a property and breaks out of the walk, so
+            # the table's own machinery cannot see these two FKs and every rendered row
+            # pays a point lookup: measured at exactly one `ipam_ipaddress` query per row.
+            queryset = queryset.select_related("primary_ip4", "primary_ip6")
         if self.action == "retrieve":
             queryset = queryset.select_related(
                 "controller_managed_device_group__controller",
