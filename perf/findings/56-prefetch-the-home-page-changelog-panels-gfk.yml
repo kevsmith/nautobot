@@ -2,6 +2,7 @@
 seq: 56
 id: null
 commit: f1b5f335f
+recommended_commit: d5bd860ef
 status: accepted
 basis: 'attribution: 25 of the home page''s 79 queries are one panel rendering 15 rows'
 behaviour: A
