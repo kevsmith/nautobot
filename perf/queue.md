@@ -276,6 +276,56 @@ worth writing for a 2.4us call. `primary_ip` being defined three times (Device a
 dcim/models/devices.py:1006, VirtualDeviceContext at 2330, and VirtualMachine) matters only
 for the select_related blind spot below, not for the config read.
 
+### Two more columns still compile their template once per cell
+
+Finding 54 fixed `TenantColumn`; two columns still subclass
+`django_tables2.TemplateColumn` directly and so still re-parse their source on every
+cell, because `django_tables2`'s `render()` ends in
+`Template(self.template_code).render(parent_context)`:
+
+| site | column | measured? |
+|---|---|---|
+| `nautobot/dcim/tables/template_code.py:6` | `DeviceComponentNameColumn` | no scenario renders it |
+| `nautobot/extras/tables.py:1029` | `JobResultColumn` | no scenario renders it |
+
+The fix is the same one line as finding 54 and its equivalence is already covered by
+`CachingTemplateColumnCouplingTestCase`. What is missing is the cost: neither column
+appears in a workload scenario, and finding 54's own numbers came out at ~0.27ms per
+avoided compile, so a table rendering either at 100 rows would be worth ~27ms and one
+rendering neither is worth nothing. **Add a scenario that renders each, then fix.**
+
+The payoff beyond the two sites is a structural test: once no shipped column subclasses
+`django_tables2.TemplateColumn` directly, that becomes assertable by walking the module
+tree, and the next column declared the wrong way fails a test instead of quietly costing a
+compile per cell. That guard is worth more than either individual fix.
+
+### ui.home spends ~58ms rendering six one-line templates, and it is not compilation
+
+Opened by finding 54, which ruled compilation out. `probe_string_templates.py` on
+`ui.home`: 6 string-template renders costing **61.2ms**, against **3.3ms** for all six
+compilations. So ~9.7ms per render of a template whose source is
+
+    <span class="badge bg-primary float-end mt-4">{{ connections...
+
+constructed at `nautobot/core/views/__init__.py:113 render_additional_content`. The cost is
+in resolving the context variable, not in the template machinery, and it runs in the view
+rather than the render phase — `probe_page_phases.py` shows `ui.home` at `view=118.1ms`
+against `render=39.0ms`, and the 61.2ms sits inside the view half. `ui.home` also makes 79
+queries for 47.5ms outside the render phase, which is the obvious suspect.
+
+*Next step is attribution, not a change.* `attribute.py` on `/` will say whether those 79
+queries are the badge counts, and whether they are one per badge or many.
+
+### The device list's two remaining queries cost 54.5ms
+
+Finding 53 replaced 100 point lookups (~99ms) with two queries, and those two cost
+**54.5ms** of `db_in_render` on `ui.device.list.rows` — about 27ms each. The trade was
+plainly worth it, but 27ms for a single query over a 100-row page is worth understanding
+before anyone assumes the database side of that page is now finished. Related: `api.device.list`
+spends **436.3ms across 8 queries** (~55ms each) and has been queued separately for longer.
+Same order of magnitude per query, two different endpoints — which suggests the cost belongs
+to the device queryset itself rather than to either view.
+
 ### A property-backed table column is invisible to the select_related the table derives
 
 Found by finding 53 and left deliberately unfixed there, because it is the general form of
