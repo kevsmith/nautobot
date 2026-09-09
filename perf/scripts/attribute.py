@@ -43,6 +43,13 @@ else:
     # renders 100 rows. tier1_queries.py has always passed them; this did not.
     headers = rows[scenario].get("headers") or {}
 
+# Frames that are always plumbing rather than a call site. Kept deliberately short: a
+# module belongs here only if it appears between an arbitrary caller and the ORM.
+PLUMBING = (
+    "nautobot/core/models/querysets.py",
+    "nautobot/core/models/managers.py",
+)
+
 client = get_perf_client()
 client.get(target, headers=headers)  # warm caches so cold-start work is not attributed
 
@@ -57,8 +64,17 @@ def wrapper(execute, sql, params, many, context):
     by_table[table] += 1
     # The nearest Nautobot frame, skipping Django and site-packages: the ORM
     # frame that ran the query is never the interesting one.
+    #
+    # PLUMBING is skipped for the same reason. `RestrictedQuerySet` overrides
+    # `_fetch_all`, `exists`, `iterator` and `count` (finding 55), so those frames sit
+    # between every caller and Django and would otherwise absorb the attribution: a home
+    # page whose 79 queries come from ~34 distinct call sites reported 34 of them as
+    # `querysets.py:170 count`, which names the plumbing rather than the cause. The point
+    # of this instrument is the caller.
     for frame in reversed(traceback.extract_stack()):
         path = frame.filename
+        if any(p in path for p in PLUMBING):
+            continue
         if "/nautobot/" in path and "/django/" not in path and "site-packages" not in path:
             site = f"{path.split('/nautobot/')[-1]}:{frame.lineno} {frame.name}"
             by_site[site] += 1
