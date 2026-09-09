@@ -1,0 +1,134 @@
+---
+seq: 55
+id: null
+commit: 6208a0bc0
+status: accepted
+basis: 'attribution: 99 SQL compilations discarded per device-list request, 0 executed from them'
+behaviour: A
+migration: '-'
+flags: [third-party-coupled]
+title: Stop compiling SQL for querysets that are empty by construction
+site: nautobot/core/models/querysets.py RestrictedQuerySet — nautobot/core/filters.py:760
+summary: 'Django''s `ModelMultipleChoiceField.clean()` returns `self.queryset.none()` for every
+  filter left blank. Both django-filter (`if not value`) and Nautobot''s
+  `TreeNodeMultipleChoiceFilter.filter` (`value.exists()`) then truth-test it, and evaluating a
+  queryset that is empty *by construction* compiles SQL in order to discover it is empty — 1033us
+  for Device against 12us for the `query.is_empty()` check that can answer instead. Four guards on
+  `RestrictedQuerySet` (`_fetch_all`, `exists`, `iterator`, `count`) answer without the database.
+  A device list document request compiled 108 queries to execute 9.'
+result:
+  ui.device.list: '99 -> 0 discarded compilations, wall 256.8 -> 206.9ms'
+  ui.device.list.rows: '78 -> 0 discarded compilations, wall 599.3 -> 560.4ms'
+  api.device.list: '79 -> 1 discarded compilations, wall 682.2 -> 645.6ms'
+  other_list_views: 'prefix 56 -> 0 (−16.2%), location 61 -> 0 (−15.6%), vlan 40 -> 0 (−15.5%),
+    ipaddress 48 -> 0 (−15.1%), circuit 47 -> 0 (−13.2%)'
+  full_page_view: 'a device list is two serial requests, document plus the HTMX rows follow-up:
+    856.1 -> 767.3ms, −10.4%. That is the figure a user experiences.'
+  why_nobody_saw_it: 'every deterministic gate on this branch counts queries *executed*, and these
+    compile and are discarded at `EmptyResultSet` without executing. The instrument had to be built
+    before the finding was possible — `probe_query_compilations.py` counts `SQLCompiler.as_sql`
+    calls, executed or not.'
+  reconciliation: 'the savings track the mechanism at ~400us per discarded compilation: device list
+    predicts 99 x 0.4 = 40ms and measures 49.9; circuits predict 18.8 and measure 18.9; rows predict
+    31.2 and measure 38.8. Consistently at or slightly above prediction, which is expected since a
+    discarded compile also churns objects the collector reclaims. **`ui.device.detail` does not
+    reconcile** — 10 compilations removed, 17.2ms saved, 1.7ms each — and is recorded as unexplained
+    rather than smoothed over.'
+  equivalence: 'executed query counts unchanged on every scenario (9->9, 8->8, 52->52, 79->79):
+    the same queries run, only the discarded compilations disappear. `api.device.list` returns a
+    byte-identical body between arms (781189bd95ed7bff), and it is the only scenario whose digest is
+    stable — a full HTML page carries a per-request CSRF token, so digest equality is not available
+    on the others and the equivalence claim rests on the tests instead.'
+  coverage_is_deliberately_partial: '`query.is_empty()` is **not** equivalent to what the old code
+    effectively tested; it is a strictly narrower, sound subset. `set_empty()` installs a
+    `NothingNode` ANDed at the root of the WHERE and `is_empty()` inspects only the root''s direct
+    children, so true implies no rows. The converse fails: `filter(pk__in=[])` raises
+    `EmptyResultSet` from the `In` lookup with no `NothingNode`, so the guards decline and it
+    compiles as before. That is why `api.device.list` keeps 1 of its 79 and `ui.home` keeps its 2 —
+    ~1.2ms across the whole workload, left alone on purpose.'
+controls: '`ui.home` is the only true control available and it is a good one: 2 discarded
+  compilations in both arms, and it moves −0.5%. Every other scenario measured had something to
+  gain, including `api.device.list`, which was chosen as a candidate control and turned out to be a
+  target — the same filterset machinery runs for API list endpoints, so this is not a UI or
+  filter-drawer phenomenon. Per-arm spreads were mostly under 2%, against the ±6% that forced the
+  headline figure down in finding 54.'
+tests: 'Full suite on a **fresh** database, because this sits under every query in the product:
+  **Ran 17524 tests, OK (skipped=663, expected failures=1)** in 7774.6s, zero ERROR/FAIL blocks,
+  exit 0 agreeing with the summary line. Against the 17,516-test baseline the +8 is this change''s
+  six tests plus findings 53 and 54''s one each; skips and expected failures unchanged, so nothing
+  stopped collecting.
+
+
+  Six tests ship with it, comparing against Django''s own implementation rather than expected
+  counts — asserting "no rows when is_empty()" would be circular, since the override under test
+  produces that answer. 15 queryset shapes, including `filter(pk__in=[])` and `exclude(pk__in=[])`
+  where the guards must decline, and three `union()` shapes because `as_sql()` does not apply the
+  outer WHERE for combinator queries, making that the one place an outer `NothingNode` and a
+  non-empty branch could in principle disagree.
+
+
+  **The perf guard counts compiler invocations, not queries.** Its first version counted executed
+  queries and was worthless: Django catches `EmptyResultSet` inside `execute_sql`, so the unguarded
+  path executes nothing either, and the test passed with the guards removed. It now fails with them
+  removed, reporting all four entry points reaching the compiler, and a negative control asserts a
+  real queryset still does.'
+wall_clock: "−19.4% ui.device.list, −10.4% a full page view"
+wall_clock_detail: 'Three alternating rounds (A/B, B/A, A/B) through measure.sh on a quiesced host,
+  nine reps per arm with one warm-up discarded. Arms proven distinct by nautobot/ content hash,
+  48ab134af85e050c against f7b722fd3ca89047.
+
+
+  Range across the seven affected UI pages: −6.5% to −19.4%, or 17 to 50ms absolute. The API list
+  endpoint reads −5.4%. Unusually for this branch the control is tight enough that no discount was
+  needed: `ui.home` moves −0.5% against targets at −13% to −19%.
+
+
+  Ordering bias is ruled out rather than assumed: arm B ran second, first and second across the
+  three rounds and was faster in all of them.
+
+
+  The −10.4% full-page figure is quoted alongside the per-request figure because Nautobot serves a
+  list view as two serial requests and a user waits for both; quoting only the document request
+  would overstate what they feel, and quoting only the rows request would understate it.'
+caveat: 'Flagged `third-party-coupled` on three distinct Django internals, and a Django major
+  upgrade needs someone to re-check all of them: `sql.Query.is_empty()`; `NothingNode`''s
+  AND-at-the-root semantics, which is what makes the predicate sound; and `_fetch_all`''s contract
+  that assigning `_result_cache` and then deferring to `super()` still runs the prefetch step. The
+  shipped tests compare against Django''s own implementation, so a semantics change fails a test
+  rather than silently returning wrong rows — which is the failure mode that matters here, since
+  this code sits under every query in the product.
+
+
+  No API, UI, or export behaviour changes: executed queries are identical and the one
+  digest-stable endpoint is byte-identical. But the blast radius is the widest of anything on this
+  branch, and a reviewer should weigh the coupling above against a saving that is real but not
+  enormous. If the coupling is judged unacceptable, the parked `MinimalModelChoiceIterator` change
+  at 6594107e3 recovers roughly a fifth of the win (19 of a device list''s 99) in 29 lines of form
+  code with no Django-internals dependency.'
+note: '**Two claims made while investigating this were wrong and are corrected here.**
+
+
+  First, that the general fix subsumed the parked `MinimalModelChoiceIterator` change. It does not.
+  `ModelChoiceIterator.__iter__` calls `queryset.iterator()`, which bypasses `_result_cache` and so
+  never reaches `_fetch_all` — that was 19 of the 20 compilations left after the first two guards
+  landed, which is why the `iterator` guard exists. The parked change also covers something no
+  guard here can: `ContentType` and `Group` use plain django `QuerySet`, so a
+  `DynamicModelChoiceField` over either still compiles and discards per widget. Nautobot''s
+  content-type-driven forms are not in the workload, so that cost is unmeasured rather than shown.
+
+
+  Second, that the `compiled - executed` difference was probably innocent nested-subquery
+  compilation. It is not: classifying by compiler nesting depth puts nested compilations at ~0 on
+  every page measured. The first framing was right and the correction was wrong.
+
+
+  **Each guard was added only after the previous residual was attributed**, not speculatively.
+  `_fetch_all` and `exists` left 20 on the device list; attribution named `widgets.py:245` for 19 of
+  them, which produced the `iterator` guard; the last one was the paginator''s `count()`. Four
+  guards, four measured paths, and `as_sql total == executed` on every UI page afterwards.
+
+
+  **The counter that made this visible has two limits**, now in its docstring: it counts only the
+  base `SQLCompiler.as_sql`, so a query executed through a compiler subclass can make the
+  `discarded` column read negative (`ui.ipaddress.list` shows −1); and a nested subquery compiles
+  without executing, so the raw difference is not by itself proof of waste.'
