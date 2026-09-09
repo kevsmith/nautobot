@@ -25,18 +25,26 @@ from django.db import connection  # noqa: E402
 from tier1_queries import get_perf_client  # noqa: E402
 import workload as workload_mod  # noqa: E402
 
+headers = {}
 if len(sys.argv) > 2 and sys.argv[1] == "--url":
     scenario = target = sys.argv[2]
 else:
     scenario = sys.argv[1] if len(sys.argv) > 1 else "api.interface.depth1"
     resolved, _ = workload_mod.resolve(workload_mod.DEFAULT_WORKLOAD)
-    urls = {r["id"]: r["url"] for r in resolved}
-    if scenario not in urls:
+    rows = {r["id"]: r for r in resolved}
+    if scenario not in rows:
         sys.exit(f"unknown scenario {scenario}; use --url <path> for anything outside workload.yml")
-    target = urls[scenario]
+    target = rows[scenario]["url"]
+    # `headers` is not decoration. Nautobot's UI defers row rendering to a second
+    # HTMX request, so `ui.device.list` and `ui.device.list.rows` share a URL and
+    # differ only by `HX-Request`. Dropping the header made every `.rows`
+    # attribution silently describe the chrome page: both scenarios reported the
+    # same 9 queries and no dcim_device query at all, against a table that
+    # renders 100 rows. tier1_queries.py has always passed them; this did not.
+    headers = rows[scenario].get("headers") or {}
 
 client = get_perf_client()
-client.get(target)  # warm caches so cold-start work is not attributed
+client.get(target, headers=headers)  # warm caches so cold-start work is not attributed
 
 by_table = collections.Counter()
 by_site = collections.Counter()
@@ -60,9 +68,10 @@ def wrapper(execute, sql, params, many, context):
 
 
 with connection.execute_wrapper(wrapper):
-    resp = client.get(target)
+    resp = client.get(target, headers=headers)
 
-print(f"{scenario}: status {resp.status_code}, {sum(by_table.values())} queries\n")
+hdr = f", headers {headers}" if headers else ""
+print(f"{scenario}: status {resp.status_code}, {sum(by_table.values())} queries{hdr}\n")
 print("--- by table ---")
 for table, n in by_table.most_common(12):
     print(f"  {n:5d}  {table}")
