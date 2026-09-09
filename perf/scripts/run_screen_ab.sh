@@ -73,9 +73,24 @@ run_arm() {
     || return 1
 }
 
+# The order reverses between rounds. Running stock first in every round is what this
+# script's own header forbids, and it is the failure finding 26 recorded: two endpoints a
+# change could not touch read +7.1% and +4.9% for the arm that always went first, and those
+# readings had to be thrown away. Reversing does not remove drift, it stops drift from
+# landing on the same arm every time -- so a result that moves against the ordering is the
+# one worth trusting. With an odd round count the lead is still 2-1 rather than even; the
+# controls are what say whether that matters on a given run.
 for round in $(seq 1 "$ROUNDS"); do
-  run_arm "$STOCK"  "stock r$round"  "$OUTDIR/screen-$KIND-stock-$STAMP-r$round.json"  || exit 1
-  run_arm "$BRANCH" "branch r$round" "$OUTDIR/screen-$KIND-branch-$STAMP-r$round.json" || exit 1
+  if [ $((round % 2)) -eq 1 ]; then
+    order="$STOCK $BRANCH"
+  else
+    order="$BRANCH $STOCK"
+  fi
+  for ref in $order; do
+    label=stock
+    [ "$ref" = "$BRANCH" ] && label=branch
+    run_arm "$ref" "$label r$round" "$OUTDIR/screen-$KIND-$label-$STAMP-r$round.json" || exit 1
+  done
 done
 
 # Two arms that report the same tree hash are the same code, whatever the refs
