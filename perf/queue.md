@@ -381,22 +381,67 @@ The payoff beyond the two sites is a structural test: once no shipped column sub
 tree, and the next column declared the wrong way fails a test instead of quietly costing a
 compile per cell. That guard is worth more than either individual fix.
 
-### ui.home spends ~58ms rendering six one-line templates, and it is not compilation
+### The home page's 79 queries: ~25 are one changelog panel, 29 are one count per item
 
-Opened by finding 54, which ruled compilation out. `probe_string_templates.py` on
-`ui.home`: 6 string-template renders costing **61.2ms**, against **3.3ms** for all six
-compilations. So ~9.7ms per render of a template whose source is
+**This entry replaces an earlier version that was wrong.** It said the cost was "resolving
+`{{ connections... }}`" in `render_additional_content`. Attribution says otherwise. Line 116 of
+`nautobot/core/views/__init__.py` is `return template.render(additional_context)`, and the
+queries fire *inside* that render because two of the panel callbacks return **unevaluated
+sliced querysets** rather than values:
 
-    <span class="badge bg-primary float-end mt-4">{{ connections...
+    41  core/views/__init__.py:116 render_additional_content
+          django_content_type x15, dcim_virtualchassis x10, extras_jobresult x5
+    29  core/views/__init__.py:154 get
+          one count per HomePageItem carrying a model=
+     3  dcim/homepage.py  _connected_{interfaces,console_ports,power_ports}_count
+     6  misc (session, user, objectchange, tree count)
 
-constructed at `nautobot/core/views/__init__.py:113 render_additional_content`. The cost is
-in resolving the context variable, not in the template machinery, and it runs in the view
-rather than the render phase — `probe_page_phases.py` shows `ui.home` at `view=118.1ms`
-against `render=39.0ms`, and the 61.2ms sits inside the view half. `ui.home` also makes 79
-queries for 47.5ms outside the render phase, which is the obvious suspect.
+Full stacks name the mechanism exactly, and it is two separate N+1s in the changelog panel:
 
-*Next step is attribution, not a change.* `attribute.py` on `/` will say whether those 79
-queries are the badge counts, and whether they are one per badge or many.
+    15x django_content_type   related_descriptors.py:261 __get__
+                              -> the `changed_object_type` FK, one query per row
+    10x dcim_virtualchassis   fields.py:262 __get__ -> get_object_for_this_type
+                              -> GenericForeignKey resolution, one query per row
+
+`extras/homepage.py get_changelog()` returns `ObjectChange.objects.restrict(...).only(...)[:15]`,
+so rendering 15 rows costs ~25 queries. `get_job_results()` and
+`get_approval_workflow_stages()` are the same shape.
+
+*The fix is textbook and the shape already exists on this branch:*
+`select_related("changed_object_type")` folds the 15 content-type lookups into the main query,
+and `prefetch_related("changed_object")` batches the GFK by content type — Django issues one
+query per distinct type instead of one per row. Expect ~25 queries to become ~4. At the home
+page's ~0.58ms/query that is **~12ms of a 157ms page**, plus whatever the per-row Python costs.
+Two cautions: the queryset uses `.only()`, which does not compose with a GFK and needs checking
+against `select_related`; and it is sliced, so the prefetch must run after slicing.
+
+**The 29 counts are not a defect.** One count per dashboard item is linear in items, which is
+the right shape for a page whose content is counts. Worth knowing rather than fixing.
+
+*What is still unexplained:* the six `<string>` panel renders cost 61.2ms, of which the ~41
+queries at line 116 account for only ~24ms. The other ~37ms is template interpretation plus a
+`RequestContext` built per panel, which re-runs every context processor — including
+`_build_nav_menu`. That last part is measurable and untested.
+
+### Blocked: the dataset has no VirtualMachines, Clusters or VirtualDeviceContexts
+
+Two candidates below cannot be priced at all against the current dataset, and adding workload
+scenarios for them would measure empty tables:
+
+    VirtualMachine          0
+    Cluster                 0
+    VirtualDeviceContext    0
+    JobResult               2
+    ObjectChange       36,552
+
+So finding 53's property-column blind spot (`VirtualMachineUIViewSet` and
+`VirtualDeviceContextTable` both declare the `primary_ip` property column) and finding 54's two
+remaining per-cell-compiling columns (`JobResultColumn` needs more than 2 rows to show anything)
+are all **unmeasurable until the dataset generator creates these objects**. That is dataset work,
+not experiment work, and it is the prerequisite for three separate queue entries — which makes
+it better value than any of them individually.
+
+`ObjectChange` at 36,552 rows is why the changelog entry above *is* measurable.
 
 ### The device list's two remaining queries cost 54.5ms
 
