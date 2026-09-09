@@ -25,7 +25,7 @@ TREE_LINK = """
 #
 
 
-class TenantColumn(tables.TemplateColumn):
+class TenantColumn(TemplateColumn):
     """
     Column for linking to a record's associated Tenant, or failing that, it's associated VRF's tenant.
     """
