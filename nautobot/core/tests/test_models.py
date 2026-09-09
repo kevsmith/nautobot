@@ -9,6 +9,8 @@ from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.db.models import Q, QuerySet as DjangoQuerySet
+from django.db.models.sql.compiler import SQLCompiler
 from django.test import override_settings, SimpleTestCase, tag
 from django.test.utils import isolate_apps
 
@@ -280,6 +282,149 @@ class TreeModelTestCase(TestCase):
         loc.delete()
         self.assertEqual(max_tree_depth, Location.objects.all().max_tree_depth())
         self.assertEqual(max_tree_depth, Location.objects.max_depth)
+
+
+class EmptyQuerySetShortCircuitTestCase(TestCase):
+    """`RestrictedQuerySet` must answer for an empty-by-construction queryset *identically* to Django.
+
+    `_fetch_all()` and `exists()` skip the database when `query.is_empty()`, because evaluating a
+    `.none()` queryset otherwise builds and compiles SQL only to discard it at `EmptyResultSet`
+    (measured 1033us against 12us for the `is_empty()` check). Django's
+    `ModelMultipleChoiceField.clean()` returns `queryset.none()` for every filter left blank, so
+    this path is taken constantly.
+
+    `is_empty()` is a *sufficient* condition for "no rows", not a necessary one -- `filter(pk__in=[])`
+    raises `EmptyResultSet` from the `In` lookup with no `NothingNode`, so the short-circuit
+    correctly declines to fire there. What must never happen is the reverse: `is_empty()` true for a
+    queryset that has rows, which would silently return nothing.
+
+    So these tests compare against Django's own implementation rather than against an expected
+    count. Asserting "no rows when is_empty()" would be circular -- the override under test is what
+    produces that answer.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.location_type = LocationType.objects.get(name="Campus")
+        cls.status = Status.objects.get_for_model(Location).first()
+        cls.locations = [
+            Location.objects.create(
+                name=f"empty-shortcircuit-{i}",
+                location_type=cls.location_type,
+                status=cls.status,
+            )
+            for i in range(3)
+        ]
+
+    def _shapes(self):
+        """Queryset shapes spanning what `is_empty()` has to judge, empty and non-empty alike."""
+        first, second = self.locations[0].pk, self.locations[1].pk
+        return [
+            ("all", Location.objects.all()),
+            ("filter with matches", Location.objects.filter(pk=first)),
+            ("filter without matches", Location.objects.filter(name="empty-shortcircuit-absent")),
+            ("none", Location.objects.none()),
+            ("none then filter", Location.objects.none().filter(name="empty-shortcircuit-0")),
+            ("filter then none", Location.objects.filter(pk=first).none()),
+            # No NothingNode: EmptyResultSet comes from the `In` lookup, so is_empty() is False.
+            ("pk__in empty list", Location.objects.filter(pk__in=[])),
+            ("exclude pk__in empty list", Location.objects.exclude(pk__in=[])),
+            ("negated Q over empty in", Location.objects.filter(~Q(pk__in=[]))),
+            # Combinator queries compile through get_combinator_sql, which does not apply the outer
+            # WHERE at all -- the one shape where an outer NothingNode and a non-empty branch could
+            # in principle disagree.
+            ("union of two non-empty", Location.objects.filter(pk=first).union(Location.objects.filter(pk=second))),
+            ("union with an empty branch", Location.objects.none().union(Location.objects.filter(pk=first))),
+            ("union of two empty", Location.objects.none().union(Location.objects.none())),
+            ("values on none", Location.objects.none().values("pk")),
+            ("values_list on none", Location.objects.none().values_list("pk", flat=True)),
+            ("values on all", Location.objects.filter(pk=first).values("pk")),
+        ]
+
+    def test_rows_match_djangos_own_fetch_all(self):
+        """Every shape yields exactly what Django's unpatched `_fetch_all` yields."""
+        for label, queryset in self._shapes():
+            with self.subTest(shape=label):
+                reference = queryset.all()
+                DjangoQuerySet._fetch_all(reference)
+                self.assertEqual(
+                    list(queryset),
+                    list(reference._result_cache),
+                    f"the short-circuit changed the rows returned for the {label!r} shape",
+                )
+
+    def test_exists_matches_djangos_own_exists(self):
+        """Every shape's `exists()` agrees with Django's unpatched implementation."""
+        for label, queryset in self._shapes():
+            with self.subTest(shape=label):
+                self.assertEqual(
+                    queryset.exists(),
+                    DjangoQuerySet.exists(queryset.all()),
+                    f"the short-circuit changed exists() for the {label!r} shape",
+                )
+
+    def test_is_empty_is_never_true_for_a_queryset_with_rows(self):
+        """The soundness property the short-circuit rests on, checked against Django directly."""
+        for label, queryset in self._shapes():
+            with self.subTest(shape=label):
+                if queryset.query.is_empty():
+                    reference = queryset.all()
+                    DjangoQuerySet._fetch_all(reference)
+                    self.assertEqual(
+                        list(reference._result_cache),
+                        [],
+                        f"is_empty() claimed the {label!r} shape was empty, but Django returned rows",
+                    )
+
+    def test_short_circuit_reaches_no_compiler(self):
+        """The point of the change: no *compilation*, which a query counter cannot see.
+
+        Counting executed queries proves nothing here. Django catches `EmptyResultSet` inside
+        `execute_sql`, so the unguarded path also executed zero queries -- it just built and
+        compiled one first, at ~400us a time. Only a compiler counter distinguishes the two, and
+        without one this test would pass with the guards removed.
+
+        All four entry points are covered, because each reaches the compiler by its own route:
+        `_fetch_all` (via `list()`), `exists()`, `iterator()` and `count()`.
+        """
+        calls = []
+
+        original_as_sql = SQLCompiler.as_sql
+
+        def counting_as_sql(compiler_self, *args, **kwargs):
+            calls.append(compiler_self.query.model.__name__)
+            return original_as_sql(compiler_self, *args, **kwargs)
+
+        with patch.object(SQLCompiler, "as_sql", counting_as_sql):
+            self.assertEqual(list(Location.objects.none()), [])
+            self.assertFalse(Location.objects.none().exists())
+            self.assertEqual(Location.objects.none().count(), 0)
+            self.assertEqual(list(Location.objects.none().iterator()), [])
+
+        self.assertEqual(calls, [], "an empty-by-construction queryset reached the SQL compiler")
+
+    def test_a_real_queryset_still_reaches_the_compiler(self):
+        """The negative control: the guards must not swallow a queryset that has work to do."""
+        calls = []
+
+        original_as_sql = SQLCompiler.as_sql
+
+        def counting_as_sql(compiler_self, *args, **kwargs):
+            calls.append(compiler_self.query.model.__name__)
+            return original_as_sql(compiler_self, *args, **kwargs)
+
+        with patch.object(SQLCompiler, "as_sql", counting_as_sql):
+            self.assertEqual(len(list(Location.objects.filter(pk=self.locations[0].pk))), 1)
+            self.assertTrue(Location.objects.filter(pk=self.locations[0].pk).exists())
+            self.assertEqual(Location.objects.filter(pk=self.locations[0].pk).count(), 1)
+
+        self.assertEqual(calls, ["Location", "Location", "Location"])
+
+    def test_prefetch_lookups_are_still_honoured(self):
+        """`_fetch_all` defers to the parent, which must still run the prefetch step."""
+        queryset = Location.objects.none().prefetch_related("children")
+        self.assertEqual(list(queryset), [])
+        self.assertTrue(queryset._prefetch_done)
 
 
 class RestrictedQuerySetTestCase(TestCase):
