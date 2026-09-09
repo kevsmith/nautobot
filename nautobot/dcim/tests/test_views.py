@@ -2781,6 +2781,49 @@ class DeviceTestCase(ViewTestCases.PrimaryObjectViewTestCase):
         self.assertEqual(len(ctx.captured_queries), 0)
 
     @override_settings(EXEMPT_VIEW_PERMISSIONS=["*"])
+    def test_device_list_does_not_query_an_ip_address_per_row(self):
+        """The `primary_ip` column must not cost one query per rendered row.
+
+        `Device.primary_ip` is a *property*, and the `select_related` that `BaseTable` derives
+        from a table's columns walks each accessor through `model._meta.get_field()` (see
+        `nautobot/core/tables.py`), which raises `FieldDoesNotExist` for a property and abandons
+        the walk. The table's own machinery therefore cannot see `primary_ip4`/`primary_ip6`, and
+        until `DeviceUIViewSet.get_queryset()` select_related them for the list action every
+        rendered row issued its own point lookup -- measured at exactly 100 `ipam_ipaddress`
+        queries on a 100-row page.
+        """
+        # Reuse an address `setUpTestData` already created: an IPAddress needs a parent Prefix in
+        # its namespace, and inventing one here just to assign it is an unrelated dependency.
+        ip = IPAddress.objects.filter(ip_version=4).first()
+        self.assertIsNotNone(ip)
+        # update(), not save(): a primary IP normally has to be assigned to one of the device's own
+        # interfaces first, and this test is about how many queries rendering issues rather than
+        # about that validation.
+        Device.objects.update(primary_ip4=ip)
+        self.assertGreater(Device.objects.count(), 0)
+
+        # Rows arrive on the HTMX follow-up request. The document request deliberately renders an
+        # empty table (`nautobot/core/views/renderers.py`), so without the header there is nothing
+        # to count.
+        url = self._get_url("list")
+        self.client.get(url, headers={"HX-Request": "true"})  # warm content-type and config caches
+
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(url, headers={"HX-Request": "true"})
+        self.assertHttpStatus(response, 200)
+
+        # A point lookup reads `FROM "ipam_ipaddress"`; the select_related version reaches the same
+        # rows through `FROM "dcim_device" LEFT OUTER JOIN "ipam_ipaddress"`. So the table name in
+        # the FROM clause is what separates "joined once" from "fetched per row".
+        per_row = [q["sql"] for q in ctx.captured_queries if 'FROM "ipam_ipaddress"' in q["sql"]]
+        self.assertEqual(
+            per_row,
+            [],
+            f"rendering the device list issued {len(per_row)} per-row ipam_ipaddress queries; "
+            "the primary_ip column has lost its select_related coverage",
+        )
+
+    @override_settings(EXEMPT_VIEW_PERMISSIONS=["*"])
     def test_device_modulebays_expand_all(self):
         device = Device.objects.filter(module_bays__isnull=True).first()
         mtype = ModuleType.objects.create(manufacturer=device.device_type.manufacturer, model="EXPAND VENDOR")
