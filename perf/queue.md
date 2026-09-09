@@ -276,6 +276,88 @@ worth writing for a 2.4us call. `primary_ip` being defined three times (Device a
 dcim/models/devices.py:1006, VirtualDeviceContext at 2330, and VirtualMachine) matters only
 for the select_related blind spot below, not for the config read.
 
+### One filter field renders 130 invisible options
+
+`ui.prefix.list` spends **19.8ms rendering 138 `<option>` elements**, and 130 of them are a
+single field:
+
+    130 options  StaticSelect2            prefix_length
+     39 options  Select                   form-0-lookup_field
+     18 options  SelectMultipleOrderable  columns
+      3 options  StaticSelect2Multiple    type
+      3 options  StaticSelect2            ip_version
+
+`prefix_length` enumerates every possible prefix length across both IP versions.
+`ui.ipaddress.list` is the same shape with 129 (mask length). Both land inside the filter
+drawer, which is closed until clicked — so this is ~27ms per page spent on markup nobody sees
+until they open the drawer, and most users never do.
+
+Two ways out, and they are the same two as the drawer entry below: **render it lazily**, or
+**do not render 130 options** (a number input with validation, or an API-backed select). Both
+change behaviour; neither is a rendering optimisation. Worth ~27ms on two pages.
+
+*This entry exists because the aggregate misled.* 19.8ms across 138 renders reads like Django
+template machinery being slow, and the fix that suggests is a Python option-builder. Attribution
+says it is one pathological field. Third time today an aggregate pointed the wrong way, after
+the `<string>` templates and the 224us Constance read.
+
+### Priced and not taken: a Python option-builder for SelectWithDisabled
+
+Django's `select.html` renders `{% include option.template_name with widget=option %}` per
+option, and Nautobot's `selectwithdisabled_option.html` then includes `attrs.html` itself, so
+**every option costs two template renders**. Building that HTML in Python instead would produce
+identical output — the format is fixed and reproducible:
+
+    '<option value="a"\n         selected\n        >Plain</option>'
+
+Measured benefit, on the tree with the queryset guards applied:
+
+| page | option renders | saving | share |
+|---|---|---:|---:|
+| `ui.prefix.list` | 138 + 207 attrs | ~26.8ms | ~15% |
+| `ui.ipaddress.list` | 141 + 205 attrs | ~26ms | ~14% |
+| `ui.device.list` | 37 + 156 attrs | **~6.3ms** | **~3%** |
+
+**Not taken.** It is a whitespace-exact rewrite of HTML generation for the most widely used
+widget class in the product, and 94% of the headline win is `prefix_length` rendering options
+nobody sees (above). 3% on the main list view does not justify that risk. Four subclasses
+override `option_template_name` (`ColorSelect`, `SelectWithPK`, `ContentTypeSelect`) and would
+need a fallback. Revisit if a form turns up where option counts are high across *many* fields —
+the reach is genuinely broad even though the measured benefit here is concentrated.
+
+### The queryset guards do not cover non-Nautobot models
+
+The `_fetch_all`/`exists`/`iterator`/`count` guards live on `RestrictedQuerySet`, so they reach
+every Nautobot model — and nothing else:
+
+    ContentType        QuerySet            guarded=False
+    Group              QuerySet            guarded=False
+    ObjectPermission   RestrictedQuerySet  guarded=True
+
+A `DynamicModelChoiceField` over `ContentType` or `Group` therefore still compiles and discards
+a query per widget. Nautobot has plenty of content-type-driven forms — object permissions,
+computed fields, relationships, custom fields — and **none of them is in the workload**, so the
+cost there is unmeasured rather than shown. *Add a scenario for one of those forms first.*
+
+If it turns out to matter, the fix already exists and is measured: the parked
+`MinimalModelChoiceIterator` change at **6594107e3** keys off the *field* rather than the
+queryset class, so it covers any model. It is 29 lines in form code with no Django-internals
+coupling, and it also stands as the lower-risk fallback if the `RestrictedQuerySet` guards do
+not survive review — recovering 19 of a device list's 99 discarded compilations.
+
+### The In-lookup residual, and the only safe way to widen the guards
+
+After the four guards, one discarded compilation survives on `api.device.list` and two on
+`ui.home`: `filter(pk__in=[])` raises `EmptyResultSet` from the `In` lookup with no
+`NothingNode`, so `query.is_empty()` correctly returns False and the guard declines to fire.
+
+**~1.2ms across the whole workload**, which is why this is a note and not a change. Recorded
+because the obvious extension is unsafe: an empty `In` under an `OR` does not make a query
+empty, and under a negation it makes it match *everything*, so "find an empty `In` anywhere"
+would return no rows for a query that should return all of them. The only sound version applies
+the same structural discipline `is_empty()` uses — an empty `In` as a **direct child of a
+non-negated AND root** — and that buys 1.2ms for a second Django-internals dependency.
+
 ### Two more columns still compile their template once per cell
 
 Finding 54 fixed `TenantColumn`; two columns still subclass
