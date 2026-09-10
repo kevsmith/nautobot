@@ -1,46 +1,48 @@
 {
   "schema": 1,
   "_comment": "The report's cumulative section, one entry per aggregate. Each entry names the tree it describes, so a figure that has fallen behind the branch says so in the rendered table instead of relying on someone remembering. `file` is a perf/scripts/compare_screen.py output under perf/baselines/; `figures` is for an aggregate that is not screen output.",
-  "current_tree": "90dbd96ffbeae6d1b9ed83b3e1042af10f95cdcc6fcc19e4a734be0d30ff36bf",
+  "current_tree": "a7ec144c969825878b71d4ed05621aadeeb5b7dfb132e0bda341e9d29d8ec354",
   "aggregates": [
     {
       "key": "readloop",
       "label": "Read loop, 57 scenarios",
       "source": "tier1",
       "coverage": "57 scenarios on both arms, all 200/302",
-      "note": "on one host with the arms alternated and both trees proved different by content hash. The scenario set includes the 18 row-rendering requests that finding 44 showed were never measured, and **the branch changes not one query on any of them** -- yet their wall clock falls a median 18.6%, because the work removed is Python rather than SQL. The document half of a list view is unchanged at a median -1.3%",
+      "note": "median of three alternating rounds per arm on one host, both trees proved different by content hash before every arm, the stock arm hashing next's own `e308df687`. The scenario set includes the 18 row-rendering requests finding 44 showed were never measured, and their wall clock falls a median -28.6% on -22.1% queries -- **four of the 18 now change query count** (every device-list variant, finding 53), where an earlier version of this row claimed the branch changed not one query on any of them. That claim was true when written and is false now. The document half of a list view has moved too: a median -25.5% against the -1.3% recorded before",
       "baseline_file": "tier1-57-stock.json",
       "current_file": "tier1-57-branch.json",
       "wall_baseline_file": "tier2-57-stock.json",
-      "wall_current_file": "tier2-57-branch.json"
+      "wall_current_file": "tier2-57-branch.json",
+      "tree": "9c9c64dbb"
     },
     {
       "key": "writes",
       "label": "Write screen, every POST endpoint",
       "file": "screen-writes-ab.json",
-      "tree": "90dbd96ff"
+      "tree": "9c9c64dbb",
+      "note": "median of three alternating rounds per arm. Matched on `(id, kind)` rather than id alone -- the three kinds (`create.x1`, `create.x10`, `update.x1`) make 257 measurements from 105 endpoints, and keying on id alone silently collapses them to 105. **This is the first run of this screen since the harness moved into `perf/scripts/`**: the invocation path was stale, so the script had not run at all, which also meant its arms had never actually alternated despite its own header requiring it. Both defects were fixed before this run, and the unbiased result reproduces the biased one to within about one percentage point on all three metrics -- so the ordering defect was real and its effect on this instrument was not"
     },
     {
       "key": "apply",
       "label": "Whole-workflow apply, 11,572 objects",
       "file": null,
-      "tree": "bb57841bf",
+      "tree": "9c9c64dbb",
       "coverage": "11,572 objects across 68 models, row counts identical on both arms",
       "figures": {
         "queries": {
-          "baseline": 841458,
-          "current": 697979
+          "baseline": 845430,
+          "current": 673249
         },
         "db_ms": {
-          "baseline": 33554,
-          "current": 29412
+          "baseline": 33872,
+          "current": 26634
         },
         "wall_ms": {
-          "baseline": 1949000,
-          "current": 1229000
+          "baseline": 1947500,
+          "current": 1193500
         }
       },
-      "note": "both arms from a database reset to the same empty template, trees proved different by content hash, the client driven from a second host so it cannot compete with the stack it is measuring, and every run created exactly 11,572 objects and ended with identical row counts -- 536 devices, 1,616 interfaces, 1,648 cables -- with zero client failures, so the arms provably did the same work. **Of the 720 seconds saved, 4.1 are database execution**. Queries and database time are the median of two branch arms against one stock arm, which settles them: the two branch arms agreed to 0.07% on queries, and `apply_arm.sh` records that one run per arm settles the deterministic half. **The wall-clock figure is provisional.** It rests on one stock arm, run in the order branch, branch, stock rather than three alternating rounds, and this branch's own record is why that matters -- a 2ms and an 11% regression both dissolved on a third round. Two more stock arms with the ordering reversed are needed before it is quotable. The stock arm hashed `0e1d03a4e` rather than next's own `e308df687`, because a path-scoped checkout cannot delete finding 22's migration; it is inert during an apply, and `arm_control.sh` now removes such files"
+      "note": "four arms in a genuine stock/branch/branch/stock alternation, each from a database reset to the same empty template, the client driven from albert so it cannot compete with the stack it is measuring. Every arm created exactly 11,572 objects and ended with identical row counts -- 536 devices, 1,616 interfaces, 1,648 cables -- with zero client failures, so the arms provably did the same work. **Of the 754 seconds saved, 7.2 are database execution.** Figures are the median of two arms per side; within-side agreement is 0.08-0.26% on wall clock and 0.45-0.95% on queries. **The wall-clock figure is no longer provisional**: the earlier row rested on one stock arm run branch-branch-stock, and the two further stock arms it asked for are here with the ordering reversed. Reproducibility across nights is essentially exact on the deterministic half -- the second stock arm landed within 19 queries of the previously recorded stock arm, 0.002%. Both stock arms hashed next's own `e308df687`: `arm_control.sh` now removes files a path-scoped checkout cannot delete, so the earlier note about the stock arm hashing `0e1d03a4e` no longer applies"
     }
   ],
   "stock_ref": "next",
