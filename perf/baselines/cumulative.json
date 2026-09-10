@@ -16,6 +16,13 @@
       "tree": "9c9c64dbb"
     },
     {
+      "key": "readscreen",
+      "label": "Read screen, every REST read endpoint",
+      "file": "screen-reads-ab.json",
+      "tree": "9c9c64dbb",
+      "note": "median of three alternating rounds per arm, enumerated from the URL resolver at run time rather than from a scenario list -- 518 measurements across 166 endpoints. **This row exists to check whether the read loop's gain generalises**, because the loop's 57 scenarios are largely the ones this branch optimised. It does: the unbiased figure is larger, not smaller. **But 471 of 516 comparable measurements are unchanged on query count** -- the aggregate is carried by 43 that improved, and the wall saving is spread across roughly eight endpoints (top five = 29%), every one of them a `list.depth1` nested serialisation. Two measurements regressed on queries, both `dcim-api:cabletocabletermination-list` (list 5 -> 8, detail 4 -> 7), against **-753 queries and -94.5% across that model's four kinds** -- finding 36's prefetch buying heavily on depth1 and costing three queries on the flat paths, which is the trade `perf/README.md` describes rather than a defect. Its wall reads +24.4% on one kind. Other wall regressions run +0.1% to +3.0%. **Coverage caveat:** 66 of the 166 endpoints return zero rows and another 47 return fewer than ten (`perf/dataset-gaps.md`), so this is breadth over a dataset that does not populate everything -- an empty endpoint measures its fixed cost but cannot show a per-row defect. It is REST-only and in-process, so it speaks for neither the UI nor what a user waits for; the read loop above is the row that does"
+    },
+    {
       "key": "writes",
       "label": "Write screen, every POST endpoint",
       "file": "screen-writes-ab.json",
