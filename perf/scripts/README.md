@@ -204,6 +204,22 @@ and made a good run look broken.
 **`build_report.py` appends its own computed statistics to an aggregate's `note`.** Write narrative
 and provenance there, not numbers it derives, or the rendered row says everything twice.
 
+**`median_rounds.py` carries booleans from round 1, silently.** It builds each merged record as
+`dict(rows[0])` and takes a median only of fields that are numeric and *not* `bool`, so every
+boolean in a median file describes **the first round alone**. `query_count_stable` is the one that
+matters: a published `unstable_query_count: 0` is not a three-round claim, and a measurement that
+was stable in round 1 and jittered later reads as clean. Check the flag against the per-round files
+rather than the median when it decides anything.
+
+**`compare_screen.py` counts instability on the current arm only** (`curr[k]`, line 166). A
+baseline-arm jitter does not appear in `unstable_query_count` at all. That is the right default —
+the gate is about whether *this* arm's numbers can be trusted — but it means "0 unstable" says
+nothing about stock. On 2026-09-10 the read screen's stock arm jittered by one query on three
+`list.depth1` endpoints (181→182, 741→742, 767→768), one per round and a different endpoint each
+time, while the branch arm was bit-identical across all three rounds. Nothing was wrong; but
+reading the raw files and the gate figure as the same quantity briefly suggested three
+disqualified rows.
+
 **An unrun script rots.** `run_screen_ab.sh` carried two defects — a path stale since the harness
 moved into `perf/scripts/`, and arms that never actually alternated despite its own header requiring
 it — because nothing had run it since. Grep for the shape after any reorganisation.
