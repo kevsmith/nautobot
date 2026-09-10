@@ -1,0 +1,79 @@
+---
+seq: 57
+id: null
+commit: 6bf5e337f
+status: not-taken
+basis: 'attribution: 3,629 node renders averaging ~7us, no node type above 121us/render'
+behaviour: A
+migration: '-'
+flags: []
+title: The nav menu's residual 20ms has no hot spot, only 3,629 template nodes
+site: nautobot/core/templates/inc/nav_menu.html — perf/scripts/probe_template_nodes.py
+summary: '`inc/nav_menu.html` renders in ~20.4ms on every chrome-bearing page and has done so
+  consistently across six unrelated views. Finding 12 fixed its *construction* (1.1ms), finding 51
+  removed 369 redundant URL reversals worth ~28ms, and finding 52 established the cost is not a
+  superuser artifact. This attributes what is left, one level below the per-template split, and the
+  answer is that there is nothing to optimise in place: 160 compiled nodes expand to **3,629 node
+  renders** across 15 tabs, 42 groups and 123 items, averaging ~7us each. That is ordinary Django
+  template interpretation, not a defect.'
+result:
+  node_types: 'exclusive ms, instrumented: VariableNode 1,160 renders / 11.38ms / 9.8us each;
+    ForNode 59 / 7.16ms / 121.4us; IfNode 511 / 5.87ms / 11.5us; StaticNode 16 / 1.01ms;
+    TextNode 1,854 / 0.44ms / 0.2us; URLNode 3 / 0.25ms; everything else under 0.2ms. Total 3,629
+    renders, 26.48ms instrumented.'
+  overhead_adjusted: 'the probe measures its own cost at **+17.1%** (37.8 -> 44.2ms), so the
+    figures above are discounted rather than quoted raw. Of the real ~20.4ms: VariableNode ~8.8ms,
+    ForNode ~5.5ms, IfNode ~4.5ms. Per-render that is ~7.5us for a variable resolution and ~8.9us
+    for a condition — Django''s own interpretation cost.'
+  concentration: 'VariableNode and IfNode together are 1,671 of 3,629 renders and ~65% of the
+    exclusive time, both at roughly 10us. There is no single expensive node type: the most
+    expensive *per render* is ForNode at 121us, and there are only 59 of them because a loop
+    renders once and its body renders per item.'
+  finding_51_confirmed_sideways: '`URLNode` now renders **3** times. Finding 51 hoisted 369 of
+    them out of the menu, and this is that change observed from the other direction — a different
+    instrument, agreeing.'
+controls: 'not applicable — an attribution with no product change. The probe restricts its
+  instrumentation to the target template''s own render, so the rest of the page is not measured and
+  cannot contaminate the split.'
+tests: 'not applicable — no product code changed.'
+wall_clock: "not measured — an attribution, no change to measure"
+wall_clock_detail: 'Five reps on a quiesced host through measure.sh. The number under attribution
+  (~20.4ms of nav_menu render) is itself well established: 20.1-20.6ms across six unrelated views
+  measured today by probe_page_phases.py, which carries only +1.6% overhead.'
+reason: 'Not taken because there is nothing here a micro-optimisation could reach. 3,629 renders at
+  ~7us is the cost of interpreting the template, and the only levers are **fewer nodes** or
+  **fewer renders**.
+
+
+  Fewer nodes means a smaller menu, which is a product decision rather than a performance one.
+
+
+  Fewer renders means not rendering the menu per request, and there are two shapes for that, both
+  out of scope for this branch as it stands. Caching the rendered HTML is risk B2 and awkward:
+  the menu is permission-filtered, so the cache key is the user''s permission set, and finding 52
+  measured a broad non-superuser seeing 15/42/122 against a superuser''s 15/42/123 — close but not
+  equal. Rendering it client-side is more interesting, because **the data is already in the page
+  twice**: `inc/javascript.html` emits the whole menu as JSON via `json_script` (12,841 bytes,
+  logged separately in the queue), so the browser receives both a rendered HTML menu costing
+  ~20.4ms of server time and a JSON copy of the same structure. That is an architectural
+  observation, not an experiment this branch can run.'
+note: '**The probe was broken and returned a confident zero.** It hooked
+  `django.template.base.Node.render`, which dispatch never reaches: `NodeList.render` calls
+  `render_annotated`, and every node type overrides `render` anyway. First run reported **zero
+  renders against 160 compiled nodes** — the fifth instrument on this branch to fail that way
+  rather than erroring. Fixed in the same commit by walking the subclass tree and patching every
+  class that owns a `render_annotated`, `TextNode` included; it overrides the method as an
+  optimisation and accounts for 1,854 of the 3,629 renders, so patching only the base class would
+  have hidden the majority.
+
+
+  **The probe''s own overhead is the reason its figures are usable.** `--validate` reports +17.1%,
+  against probe_page_phases.py''s +1.6%. Its docstring predicted it would not be as cheap. Without
+  that number the per-node costs would have been quoted ~17% high, and 9.8us versus 8.4us is the
+  difference between "ordinary" and "ordinary" — but on a hotter template it could have been the
+  difference between a hot spot and none.
+
+
+  **This closes the nav_menu line of inquiry.** Findings 12, 50, 51, 52 and 57 have now taken it
+  from ~47ms to ~20.4ms and established that the remainder is interpretation cost. Anything further
+  requires not rendering it per request, which is a design change rather than an optimisation.'
