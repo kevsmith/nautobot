@@ -175,6 +175,19 @@ breaks the tree gate. Clean up, or write outside the repo.
 **`pkill -f <pattern>` can match your own ssh command line** and kill the shell you are running in.
 Resolve PIDs first, then kill by PID.
 
+**Tier 2 credentials do not survive a database restore.** A session lives in `django_session`, so
+`restore_snapshot.sh` and `arm_control.sh reset` wipe it; the API token is in the snapshot and has
+no expiry, so it survives. A Tier 2 A/B once completed cleanly having timed **one of eight
+scenarios** because the session had been minted before an overnight restore — the probe correctly
+refuses to time an endpoint returning 302, so the run looked like it had worked. `restore_snapshot.sh`
+now ends by calling `ensure_credentials.py`, which mints a **fixed-key** session so scripts can
+hardcode it. Verify the cookie returns 200 before launching anything long regardless.
+
+**A restore used to leave celery running**, which fails `quiesce.sh` ("NOT QUIET, extra:
+celery_beat celery_worker") because the measurement configuration is exactly db, nautobot and
+redis. `restore_snapshot.sh` now restores only the services that were running before it. If a gate
+refuses on unexpected containers, check what last touched the stack rather than the gate.
+
 **`urls.json` goes stale.** Its `pick:` strategies resolve concrete primary keys; when one stops
 existing the endpoint 404s and Tier 2 correctly refuses to time it — silently shrinking coverage.
 Regenerate before any comparison that matters.
