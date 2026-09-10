@@ -137,70 +137,46 @@
 
                 <li class="nb-sidenav-list-divider"></li>
 
-                {% with request.user.navbar_favorites_link_list as navbar_favorites_link_list %}
-                    {% for tab_name, tab_details in nav_menu.tabs.items %}
-                        <li data-section-name="{{ tab_name }}">
-                            <button
-                                aria-controls="sidenav-flyout-{{ forloop.counter }}"
-                                aria-expanded="false"
-                                class="nb-sidenav-list-item"
-                                type="button"
-                            >
-                                {% if '/' in tab_details.icon %}
-                                    {% comment %}If there is a `'/'` in the `icon`, consider it a file URL, not icon name.{% endcomment %}
-                                    <img alt="{{ tab_name }} icon" src="{% static tab_details.icon %}">
-                                {% elif tab_details.icon %}
-                                    {% comment %}If `icon` is given, treat it as icon name to be fetched from nautobot-icons library.{% endcomment %}
-                                    <img alt="{{ tab_details.icon }} icon" src="{% static 'nautobot-icons/'|add:tab_details.icon|add:'.svg' %}">
-                                {% else %}
-                                    {% comment %}If `icon` is missing, generate an "icon" depicting the first nav menu tab name letter inside a rounded rectangle.{% endcomment %}
-                                    <span class="nb-letter-icon">{{ tab_name|first|upper }}</span>
-                                {% endif %}
-                                <span>{{ tab_name }}</span>
-                            </button>
-
-                            <div class="nb-sidenav-flyout" id="sidenav-flyout-{{ forloop.counter }}"
-                                 hx-vals='{"tab_name": "{{ tab_name }}"}'
-                                 hx-swap-oob="true"
-                            >
-                                {% for group_name, group_details in tab_details.groups.items %}
-                                    <ul class="list-unstyled">
-                                        <li class="nb-sidenav-link-group" data-group-weight="{{ group_details.weight }}">
-                                            {{ group_name }}
-                                        </li>
-                                        {% for item_link, item_details in group_details.items.items %}
-                                            <li class="nb-sidenav-link-wrapper{% if item_details.permissions and not request.user|has_perms:item_details.permissions %} disabled{% endif %}">
-                                                <a class="nb-sidenav-link{% if item_details.is_active %} nb-sidenav-link-active{% endif %}"
-                                                   data-item-weight="{{ item_details.weight }}"
-                                                   href="{{ item_link }}">
-                                                    {{ item_details.name }}
-                                                </a>
-                                                <button
-                                                    class="nb-sidenav-favorite{% if item_link in navbar_favorites_link_list %} active{% endif %}"
-                                                    type="button"
-                                                    hx-post="{% if item_link in navbar_favorites_link_list %}{{ navbar_favorites_delete_url }}{% else %}{{ navbar_favorites_add_url }}{% endif %}"
-                                                    hx-vals='{"name": "{{ item_details.name }}", "link": "{{ item_link }}"}'
-                                                    hx-target="#sidenav-flyout-favorites"
-                                                    hx-select="#sidenav-flyout-favorites"
-                                                    hx-swap="outerHTML"
-                                                    hx-on::after-request="toggleFavorite(this, event)"
-                                                    hx-on::config-request="setRequestUrl(this, event)"
-                                                    data-add-url="{{ navbar_favorites_add_url }}"
-                                                    data-delete-url="{{ navbar_favorites_delete_url }}"
-                                                >
-                                                    <span class="visually-hidden">
-                                                        Add to favorites
-                                                    </span>
-                                                </button>
-                                            </li>
-                                        {% endfor %}
-                                    </ul>
-                                {% endfor %}
-                            </div>
-                        </li>
-                    {% endfor %}
-                {% endwith %}
+                {{ nav_menu_items_html }}
             {% endif %}
         </ul>
+        {% comment %}
+        The item fragment above is cached per (user, registry, permission set) and therefore carries
+        no per-request state. The two things that vary per page are applied here: which item is
+        active, and which items are favourited.
+
+        `nav_menu_active_link` is resolved server-side rather than derived from `location.pathname`,
+        because `_build_nav_menu` falls back to the current view's related list URL -- so a device
+        *detail* page highlights the device *list* item, a mapping the browser cannot reproduce.
+
+        This runs inline, immediately after the markup, so it lands before paint and before htmx
+        initialises on DOMContentLoaded -- which matters for the `hx-post` rewrite below, since htmx
+        reads that attribute when it processes the element.
+        {% endcomment %}
+        {{ nav_menu_active_link|json_script:'nav_menu_active_link' }}
+        {{ nav_menu_favorites|json_script:'nav_menu_favorites' }}
+        <script>
+            (function () {
+                var sidenav = document.getElementById('sidenav');
+                if (!sidenav) { return; }
+
+                var activeLink = JSON.parse(document.getElementById('nav_menu_active_link').textContent);
+                if (activeLink) {
+                    var active = sidenav.querySelector('a.nb-sidenav-link[href="' + activeLink + '"]');
+                    if (active) { active.classList.add('nb-sidenav-link-active'); }
+                }
+
+                var favorites = JSON.parse(document.getElementById('nav_menu_favorites').textContent) || [];
+                var deleteUrl = "{{ navbar_favorites_delete_url }}";
+                favorites.forEach(function (link) {
+                    var anchor = sidenav.querySelector('a.nb-sidenav-link[href="' + link + '"]');
+                    var button = anchor && anchor.parentElement.querySelector('button.nb-sidenav-favorite');
+                    if (button) {
+                        button.classList.add('active');
+                        button.setAttribute('hx-post', deleteUrl);
+                    }
+                });
+            })();
+        </script>
     </nav>
 {% endwith %}

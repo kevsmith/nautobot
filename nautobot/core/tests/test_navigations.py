@@ -1,11 +1,15 @@
+import hashlib
 import os
 from unittest.mock import patch
 
 from django.apps import apps
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import override_settings, RequestFactory, tag, TestCase
-from django.urls import resolve
+from django.urls import resolve, reverse
 
+import nautobot
+from nautobot.core import context_processors
 from nautobot.core.apps import NavMenuTab
 from nautobot.core.choices import ButtonActionColorChoices, ButtonActionIconChoices
 from nautobot.core.context_processors import nav_menu
@@ -232,3 +236,101 @@ class NavMenuTestCase(TestCase):
 
             # Assert that the menu item for the requested URL is active
             self.assertTrue(nav["tabs"]["Devices"]["groups"]["Devices"]["items"]["/dcim/devices/"]["is_active"])
+
+
+@tag("unit")
+class NavMenuCacheTestCase(TestCase):
+    """Verify the cached sidenav item fragment.
+
+    The fragment is rendered by `render_to_string` with an explicit context dict, which builds a
+    plain `Context` rather than a `RequestContext`. No context processor runs, so every variable the
+    template needs must be passed explicitly -- and Django resolves a missing one to the empty
+    string rather than raising. The first cut of the cache omitted the two favourites URLs and every
+    star button rendered `hx-post=""`, posting to the current page instead of the favourites
+    endpoint. Nothing failed: the page rendered, the markup was well-formed, and the only visible
+    symptom was that each response was 8,039 bytes smaller, which was read as a saving across three
+    rounds of A/B measurement before it was traced.
+    """
+
+    def setUp(self):
+        cache.clear()
+        User = get_user_model()
+        self.user = User.objects.create(username="navcache-super", is_active=True, is_superuser=True)
+        self.factory = RequestFactory()
+
+    def _fragment(self, user=None, path="/dcim/devices/"):
+        request = self.factory.get(path)
+        request.resolver_match = resolve(path)
+        request.user = user or self.user
+        return str(nav_menu(request)["nav_menu_items_html"])
+
+    def test_fragment_carries_the_favorites_urls(self):
+        """Every star button must post to the favourites endpoint, not to an empty URL."""
+        fragment = self._fragment()
+        add_url = reverse("user:navbar_favorites_add")
+        delete_url = reverse("user:navbar_favorites_delete")
+
+        # Counted rather than asserted with `assertIn`, so a failure prints two integers instead
+        # of dumping a 200KB fragment into the test log.
+        buttons = fragment.count("nb-sidenav-favorite")
+        self.assertGreater(buttons, 0, "no star buttons rendered; the rest of this test is vacuous")
+
+        for attr, url in (("hx-post", add_url), ("data-add-url", add_url), ("data-delete-url", delete_url)):
+            with self.subTest(attribute=attr):
+                self.assertEqual(
+                    fragment.count(f'{attr}="{url}"'),
+                    buttons,
+                    f"{attr} is not the favourites URL on every button",
+                )
+                self.assertEqual(
+                    fragment.count(f'{attr}=""'),
+                    0,
+                    f'{attr} rendered empty -- is "{url}" missing from the fragment context?',
+                )
+
+    def test_fragment_holds_no_per_request_state(self):
+        """The active class and favourite state are applied client-side, so must not be stored."""
+        fragment = self._fragment(path="/dcim/devices/")
+        self.assertIn('href="/dcim/devices/"', fragment)  # precondition: the item is present
+        self.assertNotIn("nb-sidenav-link-active", fragment)
+        self.assertNotIn('class="nb-sidenav-favorite active"', fragment)
+
+    def test_cache_hit_matches_cache_miss(self):
+        """A hit decompresses to exactly what the miss stored."""
+        miss = self._fragment()
+        hit = self._fragment()
+        self.assertEqual(miss, hit)
+        self.assertGreater(len(hit), 1000)
+
+    def test_users_with_different_permissions_get_different_fragments(self):
+        """The permission fingerprint must separate a superuser from a user who sees less."""
+        User = get_user_model()
+        limited = User.objects.create(username="navcache-limited", is_active=True)
+        self.assertNotEqual(self._fragment(user=self.user), self._fragment(user=limited))
+
+    def test_cache_key_tracks_the_template_source(self):
+        """An upgrade that edits the fragment must not serve the previous release's markup.
+
+        The registry fingerprint covers which items are registered, not how they are rendered,
+        and Redis outlives both the process and the deploy -- so without this the cache would
+        hand back the old markup for up to `NAV_MENU_CACHE_TTL` after an upgrade.
+        """
+        first = context_processors._template_fingerprint()
+        self.assertRegex(first, r"^[0-9a-f]{16}$")
+
+        # Same source -> same fingerprint, memoised.
+        self.assertEqual(first, context_processors._template_fingerprint())
+
+        # Different source -> different fingerprint.
+        with patch.object(context_processors, "_TEMPLATE_FINGERPRINT", None):
+            with patch.object(context_processors, "get_template") as mock_get_template:
+                mock_get_template.return_value.template.source = "<li>edited by an upgrade</li>"
+                self.assertNotEqual(first, context_processors._template_fingerprint())
+
+    def test_template_fingerprint_falls_back_to_the_release_version(self):
+        """A loader that does not expose `.source` must still separate one release from the next."""
+        with patch.object(context_processors, "_TEMPLATE_FINGERPRINT", None):
+            with patch.object(context_processors, "get_template", side_effect=AttributeError):
+                fallback = context_processors._template_fingerprint()
+        self.assertRegex(fallback, r"^[0-9a-f]{16}$")
+        self.assertEqual(fallback, hashlib.sha256(nautobot.__version__.encode()).hexdigest()[:16])
