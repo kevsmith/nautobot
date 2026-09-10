@@ -220,6 +220,24 @@ time, while the branch arm was bit-identical across all three rounds. Nothing wa
 reading the raw files and the gate figure as the same quantity briefly suggested three
 disqualified rows.
 
+**Screen results files are written incrementally, so a mid-round copy is valid JSON with a short
+measurement set.** `screen_writes.py` and `screen_reads.py` grow their `--out` file as they go
+rather than writing it once at the end. Copy one before its round finishes and nothing errors:
+`json.load` succeeds, `coverage` is present and self-consistent, and the record count is simply
+lower. **The tell is that the short file is an exact prefix of the full one** — same first record,
+stopping mid-alphabet by app, because the screen walks endpoints in order.
+
+This misleads twice over. `median_rounds.py` drops any key absent from one round, so a truncated
+round shrinks the comparable count in the final row rather than failing; and `coverage.attempted`
+falls with it, which reads exactly like the screen deciding to skip work. On 2026-09-10 copies
+taken mid-write showed `attempted` going 152 → 152 → 80 across rounds and the comparable count
+dropping from 254 to 175, which looked like a collapsing dataset and was nothing at all — the same
+files reconciled to 257 records and 254 comparable once their rounds completed.
+
+**Wait for the round's line in the driver log, or assert the record count**, before comparing
+anything. `python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["measurements"]))'`
+against the expected total costs nothing and is the difference between a result and a scare.
+
 **An unrun script rots.** `run_screen_ab.sh` carried two defects — a path stale since the harness
 moved into `perf/scripts/`, and arms that never actually alternated despite its own header requiring
 it — because nothing had run it since. Grep for the shape after any reorganisation.
