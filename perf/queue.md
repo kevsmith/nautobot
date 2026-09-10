@@ -134,6 +134,11 @@ is 7.6% of the page. They are not the cost. Rendering is.
    those are Django resolving variables and evaluating conditions. `URLNode` is down to 3 renders,
    which is finding 51 confirmed by a second instrument.
 
+   **An implementation plan for the caching route is written up in
+   [`perf/nav-menu-cache-plan.md`](nav-menu-cache-plan.md)** — key shape, the five phases, the
+   tests that make it safe, and a projected −18ms per chrome-bearing request recorded as a
+   prediction to check against.
+
    **There is no hot spot, so the only levers are fewer nodes or fewer renders.** Fewer nodes is a
    product decision about menu size. Fewer renders means not rendering it per request, and the
    interesting shape there is that **the data is already in the page twice**: `inc/javascript.html`
