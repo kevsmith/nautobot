@@ -953,7 +953,8 @@ passed.
 ## Imported candidates: the perf series on Ken's fork
 
 **Queued 2026-09-10.** A second performance series exists, independent of this branch:
-38 product commits on `origin/vibed-api-ui-improvements` in
+38 product commits to evaluate — 8 probably already ours, 2 taking a different route to a goal
+we share, 28 probably new — on `origin/vibed-api-ui-improvements` in
 `~/repos/experiments/perf/ken-nautobot`, authored 2026-07-25/26, indexed by their own
 `pr-breakout-manifest.md` at `43ae11c27` as 8 themed PRs. **None of it is upstream** —
 checked against `upstream/next` (`29bdcaa57`) and `upstream/develop` (`ca72fa539`) on
@@ -1009,7 +1010,7 @@ result rows — and their manifest claims Device 266->57 ms and circuits depth=1
 2,063->23 queries on it. If that holds on our dataset it may subsume several of our
 per-viewset prefetches. Measure before assuming either way.
 
-**Probably new to us.** 27 commits: `API|Caching|4` (custom_field_keys per serializer
+**Probably new to us.** 28 commits: `API|Caching|4` (custom_field_keys per serializer
 field), `API|Behavioral|1-3` (URL route-shape memoization for hyperlinked fields and dynamic
 form `data-url`s, plus a `NATURAL_SLUG_ENABLED` opt-out — note finding 51 memoized
 reversals only in the nav menu, so these are disjoint sites), `API|Targeted|3`,
