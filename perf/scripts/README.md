@@ -41,6 +41,49 @@ not debt.
 | `screen_reads.py`, `screen_writes.py` | screen | enumerate every REST read/write endpoint from the URL resolver at run time, normalised to cost per object. Screening instruments, **not** regression gates. |
 | `workload.py` | — | resolves `perf/workload.yml` into runnable URLs. `DEFAULT_WORKLOAD` is the shared path constant; three instruments broke when it did not exist. |
 
+## The loop and the screens are different instruments
+
+This distinction is the one most likely to produce a wrong number, because both measure "reads"
+and they answer different questions.
+
+**The read loop** is `tier1_queries.py` + `tier2_latency.py` over `perf/workload.yml` — 57
+scenarios naming specific pages and endpoints. It includes **UI pages**: list views, detail pages,
+the home page, and the 18 row-rendering HTMX requests. Its wall clock comes from Tier 2, over HTTP,
+which is what a user actually waits for.
+
+**The read screen** is `screen_reads.py`, which enumerates every REST read endpoint from the URL
+resolver at run time via `api_list_views()` and normalises to cost per object. It is **REST-only** —
+no UI page appears in it at all — and it runs in-process.
+
+|  | read loop | read screen |
+|---|---|---|
+| coverage | 57 named scenarios | every REST read endpoint (~300) |
+| includes UI | **yes** — list, detail, home, HTMX rows | **no**, API only |
+| wall clock | Tier 2, over HTTP | in-process |
+| metric | absolute per scenario | normalised per object |
+| selection | hand-picked for diagnostic interest | exhaustive from the resolver |
+| built for | tracking a workload; the cumulative table | ranking where to look next |
+
+**Neither substitutes for the other, and the reason is the selection.** The loop's scenarios are
+largely the ones this branch has optimised, so its aggregate is favourable by construction — a fair
+description of those pages, not a prediction for an arbitrary one. The screen is unbiased over the
+REST surface and is the only instrument that can say whether a gain generalises to the endpoints
+nobody has looked at. But it cannot speak for the UI, and 14 of the 43 accepted findings rest on UI
+evidence.
+
+Two practical consequences:
+
+*Do not swap one for the other in the cumulative table.* Replacing the loop with the screen would
+remove every UI page from the branch's headline result.
+
+*Do not read the screen as a gate.* Its own header says it: a screening instrument, run
+occasionally, read as a ranked list. `compare.py` against a Tier 1 baseline is the gate.
+
+The same split applies on the write path, with one difference: there is no write *loop*. Tier 1W
+covers a handful of operations, and `screen_writes.py` covers every POST endpoint — so the write
+row in the cumulative table is a screen, while the read row is a loop. That asymmetry is real and
+worth knowing when comparing the two rows against each other.
+
 ## Comparison and reporting
 
 | script | does |
