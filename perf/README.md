@@ -1,5 +1,10 @@
 # Nautobot performance harness
 
+This file is the authority on *what* is measured and *why*: scope, gate semantics, the risk
+taxonomy, the optimization loop. **`perf/scripts/README.md` is the authority on *how*** — what
+each script does, which ones compose into a recipe, and the operational traps that have cost
+real time. Start here, then read that before running anything.
+
 A two-tier measurement setup for finding and fixing performance problems in
 Nautobot core, plus the ground rules for the optimization loop.
 
