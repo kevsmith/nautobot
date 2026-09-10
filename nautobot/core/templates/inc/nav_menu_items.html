@@ -1,0 +1,77 @@
+{% load static %}
+{% load helpers %}
+{% comment %}
+The sidenav item loop, cached per (user, registry, permission set) by
+`nautobot.core.context_processors._nav_menu_items_html`.
+
+**Nothing per-request may appear in here.** One rendered copy serves every request a given user
+makes, so the active-item class, the favourite-star class and the star button's add/delete target
+are all applied client-side by the script in `inc/nav_menu.html`, from `nav_menu_active_link` and
+`nav_menu_favorites`. A conditional on `request` here would leak one page's state into every other
+page the user visits.
+
+Finding 57: 160 compiled nodes expand to 3,629 node renders costing ~20.4ms and 267KB, which is
+67% of a device list page. There is no hot spot inside it -- the cost is interpreting the template
+-- so it is rendered once and reused rather than optimised.
+{% endcomment %}
+                    {% for tab_name, tab_details in nav_menu.tabs.items %}
+                        <li data-section-name="{{ tab_name }}">
+                            <button
+                                aria-controls="sidenav-flyout-{{ forloop.counter }}"
+                                aria-expanded="false"
+                                class="nb-sidenav-list-item"
+                                type="button"
+                            >
+                                {% if '/' in tab_details.icon %}
+                                    {% comment %}If there is a `'/'` in the `icon`, consider it a file URL, not icon name.{% endcomment %}
+                                    <img alt="{{ tab_name }} icon" src="{% static tab_details.icon %}">
+                                {% elif tab_details.icon %}
+                                    {% comment %}If `icon` is given, treat it as icon name to be fetched from nautobot-icons library.{% endcomment %}
+                                    <img alt="{{ tab_details.icon }} icon" src="{% static 'nautobot-icons/'|add:tab_details.icon|add:'.svg' %}">
+                                {% else %}
+                                    {% comment %}If `icon` is missing, generate an "icon" depicting the first nav menu tab name letter inside a rounded rectangle.{% endcomment %}
+                                    <span class="nb-letter-icon">{{ tab_name|first|upper }}</span>
+                                {% endif %}
+                                <span>{{ tab_name }}</span>
+                            </button>
+
+                            <div class="nb-sidenav-flyout" id="sidenav-flyout-{{ forloop.counter }}"
+                                 hx-vals='{"tab_name": "{{ tab_name }}"}'
+                                 hx-swap-oob="true"
+                            >
+                                {% for group_name, group_details in tab_details.groups.items %}
+                                    <ul class="list-unstyled">
+                                        <li class="nb-sidenav-link-group" data-group-weight="{{ group_details.weight }}">
+                                            {{ group_name }}
+                                        </li>
+                                        {% for item_link, item_details in group_details.items.items %}
+                                            <li class="nb-sidenav-link-wrapper">
+                                                <a class="nb-sidenav-link"
+                                                   data-item-weight="{{ item_details.weight }}"
+                                                   href="{{ item_link }}">
+                                                    {{ item_details.name }}
+                                                </a>
+                                                <button
+                                                    class="nb-sidenav-favorite"
+                                                    type="button"
+                                                    hx-post="{{ navbar_favorites_add_url }}"
+                                                    hx-vals='{"name": "{{ item_details.name }}", "link": "{{ item_link }}"}'
+                                                    hx-target="#sidenav-flyout-favorites"
+                                                    hx-select="#sidenav-flyout-favorites"
+                                                    hx-swap="outerHTML"
+                                                    hx-on::after-request="toggleFavorite(this, event)"
+                                                    hx-on::config-request="setRequestUrl(this, event)"
+                                                    data-add-url="{{ navbar_favorites_add_url }}"
+                                                    data-delete-url="{{ navbar_favorites_delete_url }}"
+                                                >
+                                                    <span class="visually-hidden">
+                                                        Add to favorites
+                                                    </span>
+                                                </button>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% endfor %}
+                            </div>
+                        </li>
+                    {% endfor %}
