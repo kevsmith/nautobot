@@ -1040,3 +1040,42 @@ not this branch's doing (it reproduces at `cc45a35f5`).
 Compare against the last completed figure on record: 17,504 tests,
 `OK (skipped=663, expected failures=1)` at `fd48eee32`. A drop in the collected count
 matters as much as a failure — an import error silently shrinks the suite.
+
+## Then: check `perf/recommended` against a moved upstream
+
+**Queued 2026-09-10, ordered after the suite run above.** `upstream/next` was 96 commits ahead
+of our baseline nine days after it was taken — `29bdcaa57` (2026-09-10) against `ce01a0464`
+(2026-09-01) — and it collides with us on nine files:
+
+    nautobot/core/api/serializers.py        nautobot/core/ui/object_detail.py
+    nautobot/core/api/utils.py              nautobot/core/views/generic.py
+    nautobot/core/tables.py                 nautobot/core/views/utils.py
+    nautobot/core/templatetags/helpers.py   nautobot/core/tests/test_tables.py
+                                            nautobot/core/tests/test_views.py
+
+We changed 51 files under `nautobot/`, upstream changed 143, nine in common. Those nine carry
+the densest findings on the branch: `core/api/serializers.py` and `core/api/utils.py` hold
+findings 1, 2 and 9; `core/tables.py` holds 7, 11 and 54; `core/ui/object_detail.py` holds 3
+and 8.
+
+**Two of the nine are test files, and that is the sharper hazard.** `test_tables.py` and
+`test_views.py` are where a conflict resolves cleanly in git and still breaks, because both
+sides added cases to the same class and neither side's additions conflict textually.
+
+**This is a check, not a rebase, and the distinction is the point.** Every recorded number on
+this branch is measured against stock pinned at `ce01a0464`, and tonight's run reproduced that
+stock arm to identical query counts and under 1% on wall clock. Actually rebasing
+`perf/recommended` onto a newer `next` would leave the cumulative table describing a baseline
+the tree no longer sits on. So: find out what conflicts and how badly, record it, and decide
+separately whether re-baselining is worth a fresh overnight run. Do it in a throwaway worktree,
+not on `perf/recommended`.
+
+**Ordered after the import and the suite run** because doing it earlier means doing it twice —
+the import will touch `core/tables.py` heavily (eight of its 38 commits) and there is no point
+resolving that file against upstream before those land. The cost of waiting is that the drift
+keeps growing; nine files is a better place to start than thirty.
+
+**The databot redeploy is not queued here** — Kevin is handling it directly. When it lands it
+unblocks the first measurement of finding 31's tagged path, which the dataset has never been
+able to exercise: `extras-api:tag-list` returns zero rows today, so that tier-C change shipped
+measured entirely on the untagged branch of its own fix.
