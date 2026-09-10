@@ -947,3 +947,95 @@ messages. The two most recently earned: a process can look alive in `ps` and be
 doing nothing, so check consumed CPU rather than elapsed time; and `invoke
 tests --no-keepdb` blocks on a confirmation prompt unless `--no-input` is also
 passed.
+
+---
+
+## Imported candidates: the perf series on Ken's fork
+
+**Queued 2026-09-10.** A second performance series exists, independent of this branch:
+38 product commits on `origin/vibed-api-ui-improvements` in
+`~/repos/experiments/perf/ken-nautobot`, authored 2026-07-25/26, indexed by their own
+`pr-breakout-manifest.md` at `43ae11c27` as 8 themed PRs. **None of it is upstream** —
+checked against `upstream/next` (`29bdcaa57`) and `upstream/develop` (`ca72fa539`) on
+2026-09-10: `display_prefetch_related`, `NATURAL_SLUG_ENABLED`,
+`get_settings_or_config_memoized` and `replace_queryset` all return zero files in both. So
+this is available work, not a rebase problem.
+
+**Each one gets assessed and accepted the same way as everything else here** — attribution
+first, one experiment per commit, deterministic counter as the gate, wall clock as the
+ranking, three alternating rounds, a control that cannot benefit, a findings record. A
+commit arriving with someone else's number attached is a hypothesis, not a result. Their
+manifest reports query deltas almost throughout and two wall-clock figures; on this branch
+query count has ranked fixes wrong twice, so their numbers set expectations rather than
+settle anything.
+
+### Two facts that shape the work
+
+**Cherry-picking will not be clean.** Their base is `25e55bb37` (develop, 2026-07-24); ours
+is `ce01a0464` (next, 2026-09-01) — five weeks and a different branch lineage. Expect to
+re-implement against our tree and use their diff as the specification.
+
+**`nautobot/core/tables.py` is the collision hotspot.** Eight of the 38 touch it, and it
+already carries findings 7, 11 and 54 (TemplateColumn compilation caching). Their
+`UI | BaseTable` set rewrites accessor walking and column selection in the same file. Do
+that subset last, or first and deliberately, but do not interleave it with anything else.
+
+### Triage — needs verification, not to be trusted as written
+
+**Probably already ours; assess for redundancy before spending a round on them.**
+
+    6d2582b93  API|Caching|1   natural_key_field_lookups per model class    -> cf findings 2, 5
+    08af89a00  API|Caching|2   natural_slug once per object                 -> cf findings 1, 4
+    089ee666a  API|Caching|3   Location natural_key_field_lookups override  -> cf findings 14, 42
+    56f4e299f  API|Caching|5   signal-invalidated config memo               -> cf finding 6
+    fd584db6a  API|Caching|6   ProcessTTLCache for tree_queries reads       -> cf finding 6
+    036404a90  API|Targeted|1  Device parent_bay reverse one-to-one         -> cf finding 25
+    26222c5fd  API|Targeted|2  FrontPort/RearPort cable_peer prefetch       -> cf findings 26, 34, 36
+    61e2fffef  Cabling|1       cable-peer/endpoint prefetch enrichment      -> cf findings 2, 9, 26
+
+`API|Caching|5` and `6` are worth a real look rather than a dismissal: finding 6 made those
+reads request-scoped, and theirs are signal-invalidated and TTL'd respectively. Different
+lifetime, different risk tier, possibly a better answer than ours.
+
+**Approach differs from ours where we share the goal — the most interesting pair.**
+
+    2faf6adad  API|Generic|1   prefetch FK serializer fields at depth 0 *instead of JOINing*,
+                               and prefetch nested serialization at all depths
+    d14c9fe57  API|Generic|2   auto-prefetch GenericForeignKey model fields
+
+Finding 2 extends the optimizer upstream already has, which `select_related`s FKs at depth 0.
+Theirs replaces that JOIN with a prefetch, which is a different trade — more queries, smaller
+result rows — and their manifest claims Device 266->57 ms and circuits depth=1
+2,063->23 queries on it. If that holds on our dataset it may subsume several of our
+per-viewset prefetches. Measure before assuming either way.
+
+**Probably new to us.** 27 commits: `API|Caching|4` (custom_field_keys per serializer
+field), `API|Behavioral|1-3` (URL route-shape memoization for hyperlinked fields and dynamic
+form `data-url`s, plus a `NATURAL_SLUG_ENABLED` opt-out — note finding 51 memoized
+reversals only in the nav menu, so these are disjoint sites), `API|Targeted|3`,
+`UI|Views|1-2`, all eight `UI|BaseTable`, all ten `UI|Tables`, and `Cabling|2-4`.
+
+Two of those land on open items above: `UI|Tables|1` batches the Prefix hierarchy lookups
+(their figure: Prefixes tab 264->60), and `UI|Tables|3` replaces the Location tree-link walk
+with `tree_depth` plus batched children (LocationType detail 155->59).
+
+**Their column-level audit is the half this branch skipped**, and `perf/dataset-gaps.md`
+says why: 66 of 166 endpoints return zero rows, so a per-column sweep on our dataset would
+have been auditing empty tables. Theirs reports 183 tables and 1,757 columns down to 8 open
+items, and 247 offenders in the port tables alone. Worth reading their audit output before
+re-deriving it.
+
+## Then: a full serial suite against `perf/recommended`
+
+**After the import above is assessed and whatever passes has landed**, run the whole suite
+serially against the resulting `perf/recommended`. Serial is not a preference — see the
+queued entry near the top of this file: the parallel runner dies during subsuite setup with
+`MaybeEncodingError: cannot pickle '_thread.RLock'` and yields no counts at all, and it is
+not this branch's doing (it reproduces at `cc45a35f5`).
+
+    git checkout perf/recommended
+    invoke tests --parallel-workers=1 -n -k --no-cache-test-fixtures
+
+Compare against the last completed figure on record: 17,504 tests,
+`OK (skipped=663, expected failures=1)` at `fd48eee32`. A drop in the collected count
+matters as much as a failure — an import error silently shrinks the suite.
