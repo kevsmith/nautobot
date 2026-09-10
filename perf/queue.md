@@ -1010,6 +1010,23 @@ result rows — and their manifest claims Device 266->57 ms and circuits depth=1
 2,063->23 queries on it. If that holds on our dataset it may subsume several of our
 per-viewset prefetches. Measure before assuming either way.
 
+**`API|Generic|1` must be gated on wall clock, not query count, and this is the one place on
+the branch where that is not a preference.** Measured 2026-09-10, `dcim-api:device-list` at
+depth 0 runs **8 queries on stock and 8 on branch** — the upstream optimizer already covers
+depth-0 FKs, so there is no N+1 left to remove and no query-count movement available. Their
+266->57 ms comes from JOIN *width*: `select_related` widens every row with columns the
+response barely reads. A query-count gate scores that change at exactly zero on the endpoint
+they chose to headline. Measure row width (`response_bytes` is already recorded per
+measurement) and wall clock, and state plainly in the finding that the deterministic counter
+cannot see this one — the same shape as finding 51, where the gate had to become reversal
+count because no query moved.
+
+Their circuits figure is also the one place their ratio clearly beats ours: -98.9%
+(2,063->23) against our -48.6% (356->183) on `circuits-api:circuit-list list.depth1`.
+Different dataset and different base, so the absolutes do not travel — but a factor that
+large lands directly on the unfixed vpn/circuits `depth1` cluster logged above, and is the
+most valuable single thing in their series for us if it reproduces.
+
 **Probably new to us.** 28 commits: `API|Caching|4` (custom_field_keys per serializer
 field), `API|Behavioral|1-3` (URL route-shape memoization for hyperlinked fields and dynamic
 form `data-url`s, plus a `NATURAL_SLUG_ENABLED` opt-out — note finding 51 memoized
