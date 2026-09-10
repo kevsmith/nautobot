@@ -52,8 +52,33 @@ def _template_name(tpl):
         getattr(tpl, "origin", None), "template_name", None) or "<string>"
 
 
+def _annotated_owners():
+    """Every class defining its own `render_annotated` -- the methods dispatch actually reaches.
+
+    `NodeList.render` calls `node.render_annotated(context)`, never `node.render()`. And every
+    node type overrides `render`, so wrapping the base class's `render` intercepts nothing at
+    all: the first version of this probe did exactly that and reported zero renders against 160
+    compiled nodes -- a plausible zero rather than an error, which is the fifth instrument on
+    this branch to fail that way.
+
+    Patching only `Node.render_annotated` is also not enough. `TextNode` overrides it as an
+    optimisation that skips the debug wrapper, so it would be missed -- and text nodes are the
+    majority of any template. So walk the subclass tree and patch every owner.
+    """
+    seen, owners, stack = set(), [], [Node]
+    while stack:
+        cls = stack.pop()
+        if cls in seen:
+            continue
+        seen.add(cls)
+        if "render_annotated" in cls.__dict__:
+            owners.append(cls)
+        stack.extend(cls.__subclasses__())
+    return owners
+
+
 class NodeSpy:
-    """Time every Node.render that happens while `target` is rendering."""
+    """Time every node render that happens while `target` is rendering."""
 
     def __init__(self, target):
         self.target = target
@@ -64,7 +89,7 @@ class NodeSpy:
 
     def __enter__(self):
         self._tpl = BaseTemplate.render
-        self._node = Node.render
+        self._owners = {cls: cls.__dict__["render_annotated"] for cls in _annotated_owners()}
         spy = self
 
         def tpl_render(tpl_self, *a, **kw):
@@ -78,31 +103,36 @@ class NodeSpy:
                 spy.template_ms += (time.perf_counter() - t) * 1000.0
                 spy.inside -= 1
 
-        def node_render(node_self, context):
-            if not spy.inside:
-                return spy._node(node_self, context)
-            frame = {"child": 0.0}
-            spy.stack.append(frame)
-            t = time.perf_counter()
-            try:
-                return spy._node(node_self, context)
-            finally:
-                incl = (time.perf_counter() - t) * 1000.0
-                spy.stack.pop()
-                rec = spy.by_type[type(node_self).__name__]
-                rec["n"] += 1
-                rec["incl"] += incl
-                rec["excl"] += incl - frame["child"]
-                if spy.stack:
-                    spy.stack[-1]["child"] += incl
+        def make_hook(original):
+            def node_render(node_self, context):
+                if not spy.inside:
+                    return original(node_self, context)
+                frame = {"child": 0.0}
+                spy.stack.append(frame)
+                t = time.perf_counter()
+                try:
+                    return original(node_self, context)
+                finally:
+                    incl = (time.perf_counter() - t) * 1000.0
+                    spy.stack.pop()
+                    rec = spy.by_type[type(node_self).__name__]
+                    rec["n"] += 1
+                    rec["incl"] += incl
+                    rec["excl"] += incl - frame["child"]
+                    if spy.stack:
+                        spy.stack[-1]["child"] += incl
+
+            return node_render
 
         BaseTemplate.render = tpl_render
-        Node.render = node_render
+        for cls, original in self._owners.items():
+            cls.render_annotated = make_hook(original)
         return self
 
     def __exit__(self, *exc):
         BaseTemplate.render = self._tpl
-        Node.render = self._node
+        for cls, original in self._owners.items():
+            cls.render_annotated = original
 
 
 def inventory(target):
