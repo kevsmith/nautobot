@@ -25,7 +25,10 @@ import json
 import statistics
 import sys
 
-SHAPES = (("measurements", ("id", "kind")), ("endpoints", ("id",)))
+# The list key names the shape; it does not determine the identifier. The read screen emits
+# `endpoints` yet carries several `kind`s per id (`list`, `list.depth1`), so keying on id alone
+# collapses them and every measurement then looks incomplete. Detect `kind` from the data.
+LIST_KEYS = ("measurements", "endpoints")
 
 
 def key_of(row, fields):
@@ -41,10 +44,11 @@ def main():
         sys.exit("give at least two rounds; one round needs no collapsing")
 
     docs = [json.load(open(p)) for p in args.rounds]
-    listkey = next((k for k, _ in SHAPES if k in docs[0]), None)
+    listkey = next((k for k in LIST_KEYS if k in docs[0]), None)
     if listkey is None:
-        sys.exit(f"unrecognised shape: no {' or '.join(k for k, _ in SHAPES)} in {args.rounds[0]}")
-    idfields = dict(SHAPES)[listkey]
+        sys.exit(f"unrecognised shape: no {' or '.join(LIST_KEYS)} in {args.rounds[0]}")
+    first = docs[0][listkey]
+    idfields = ("id", "kind") if first and "kind" in first[0] else ("id",)
 
     per = collections.defaultdict(list)
     for doc in docs:
