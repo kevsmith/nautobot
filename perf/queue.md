@@ -127,23 +127,22 @@ is 7.6% of the page. They are not the cost. Rendering is.
    `manufacturer` are the same accessor-on-a-property shape as `primary_ip`.
 2. **`api.device.list` — 441ms of database across 8 queries**, ~55ms each, no templates at
    all. A different problem from everything else here.
-3. **`inc/nav_menu.html` — ~47ms on every chrome-bearing page**, 46.2–48.4ms across five
-   unrelated views. A plain `{% include %}` at `base_django.html:24`. Construction is
-   **1.1ms**; rendering the same data is **48.4ms**, 44× more — so finding 12 fixed
-   construction completely and this is a separate cost nothing had timed.
+3. **`inc/nav_menu.html` — CLOSED, and the remainder is interpretation cost.** Findings 12, 50,
+   51, 52 and 57 took it from ~47ms to **~20.4ms**, and finding 57 attributed what is left one
+   level below the per-template split: 160 compiled nodes expanding to **3,629 node renders** at
+   ~7us each. VariableNode (1,160 renders, ~7.5us) and IfNode (511, ~8.9us) are 65% of it, and
+   those are Django resolving variables and evaluating conditions. `URLNode` is down to 3 renders,
+   which is finding 51 confirmed by a second instrument.
 
-   **~28ms of it is now gone — finding 51.** 369 of a page's 387 URL reversals were two
-   argument-free names reversed once per menu item; resolving them once per process took a
-   chrome-only response from 66.9ms to 38.1ms, **−43.0%**. The remaining ~20ms is ordinary
-   Django template interpretation across 180 items, which points at not rendering it per
-   request rather than at micro-optimisation. Two open threads: `inc/nav_favorites.html:21`
-   has the same `{% url %}`-in-a-loop pattern, unmeasured because the test user has no
-   favourites; and the superuser question is **answered by finding 52** —
-   construction goes 1.17 → 2.45ms for a non-superuser seeing the same menu while rendering
-   stays at 20.2ms against 20.6ms, so the ratio narrows from 44× to ~8× and rendering still
-   dominates. `ObjectPermission` loads once per user object and caches, so 186 backend checks
-   cost ~1.3ms. Two traps recorded there: Django `auth.Permission` grants are **inert** for
-   Nautobot's checks, and a user's ObjectPermissions carrying *constraints* is still untested.
+   **There is no hot spot, so the only levers are fewer nodes or fewer renders.** Fewer nodes is a
+   product decision about menu size. Fewer renders means not rendering it per request, and the
+   interesting shape there is that **the data is already in the page twice**: `inc/javascript.html`
+   emits the whole menu as JSON (12,841 bytes, item 5 below), so the browser gets a rendered HTML
+   menu costing ~20.4ms of server time *and* a JSON copy of the same structure. Caching the HTML
+   instead is risk B2 with a permission-set cache key, which finding 52 showed is not uniform even
+   between two users who see nearly the same menu. Neither is an experiment this branch can run as
+   scoped; both are design changes.
+
 4. **The filter drawer — ~46.5ms, list views only.** 33 select widgets and 156 renders of
    `django/forms/widgets/attrs.html`, on a drawer that is closed until clicked. So the fixed
    cost is ~47ms on every full HTML page and ~95ms on a list view, not ~95ms everywhere.
