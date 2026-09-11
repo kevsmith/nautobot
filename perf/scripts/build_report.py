@@ -79,6 +79,12 @@ FLAG_HELP = {
         "differential test now renders the same cell both ways so a divergence fails a test "
         "instead of producing wrong output."
     ),
+    "unmeasurable-on-this-dataset": (
+        "The endpoint returns zero rows on both snapshots, so no timing and no endpoint probe here "
+        "can show the defect. Gated instead on a deterministic counter over rows synthesised inside "
+        "a rolled-back transaction: the mechanism is demonstrated, the value on a populated instance "
+        "is not."
+    ),
     "security-visible": (
         "Touches an authorisation decision rather than a displayed value, so a stale or shared "
         "result is a permissions bug."
