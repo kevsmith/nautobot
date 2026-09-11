@@ -177,6 +177,11 @@ class TreeModel(TreeNode):
         When the ancestry is already loaded in memory - as `select_related("parent__parent__...")` in a list view
         or serializer arranges - the string is assembled from those instances instead. That is cheaper than the
         cache round-trip it replaces, and cannot return a value that is stale relative to what was loaded.
+
+        Otherwise the shared cache read goes through `cache_get_or_set()`, so the first read of an instance in a
+        request populates the `request_cache()` scope and later reads of the same instance cost nothing. Nested
+        serialization re-reads the same few tree objects once per row - a page of 100 Locations at `?depth=1`
+        read one LocationType display per row - and each of those reads was a Redis round trip.
         """
         if not hasattr(self, "name"):
             raise NotImplementedError("default TreeModel.display implementation requires a `name` attribute!")
@@ -194,9 +199,12 @@ class TreeModel(TreeNode):
             return " → ".join(reversed(names))
 
         cache_key = construct_cache_key(self, method_name="display", branch_aware=True)
-        display_str = cache.get(cache_key, "")
-        if display_str:
-            return display_str
+        display_str, _ = cache_get_or_set(cache_key, lambda: self._uncached_display(cache_key), timeout=5)
+        return display_str
+
+    def _uncached_display(self, cache_key):
+        """Assemble this node's ancestry string, reusing the parent's cached one if there is one."""
+        display_str = ""
         try:
             if self.parent_id is not None:
                 parent_display_str = cache.get(cache_key.replace(str(self.id), str(self.parent_id)), "")
@@ -207,7 +215,6 @@ class TreeModel(TreeNode):
             # Expected to occur at times during bulk-delete operations
             pass
         display_str += self.name  # pylint: disable=no-member  # we checked with hasattr() above
-        cache.set(cache_key, display_str, timeout=5)
         return display_str
 
     @property
