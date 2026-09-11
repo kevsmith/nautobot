@@ -1,0 +1,61 @@
+---
+seq: 65
+id: null
+commit: 85adcc318
+recommended_commit: dcd487473
+status: accepted
+basis: 'attribution on synthesised rows: 1.000 q/row before, 0.000 after, at depth 0'
+behaviour: A
+migration: '-'
+flags: [unmeasurable-on-this-dataset]
+title: Prefetch the cable peer on the FrontPort and RearPort API viewsets
+site: nautobot/dcim/api/views.py FrontPortViewSet - RearPortViewSet
+summary: 'Seven of the nine cable-termination viewsets prefetch
+  `cable_peer_prefetch_related_fields()`. FrontPort and RearPort do not, and since neither is a
+  `PathEndpoint` their `connection_prefetch_related_fields()` returns an empty list — so these two
+  viewsets prefetch **nothing at all** today, and the serializer reads each row''s cable termination
+  on its own. **Ported from Ken Celenza''s `26222c5fd` (`API | Targeted | 2`)** on
+  github.com/itdependsnetworks/nautobot.'
+result:
+  dataset_caveat: '**This is the first finding on the branch measured on rows that do not exist.**
+    `frontport` and `rearport` return zero rows on both snapshots (`perf/dataset-gaps.md`), so no
+    endpoint probe on this dataset can show the defect — a table with no rows cannot iterate.
+    `perf/scripts/probe_ports_nplus1.py` builds 100 RearPort/FrontPort pairs inside a transaction
+    that is always rolled back, and asserts the rollback before printing. Synthesised rows measure
+    the **shape** of the defect, not its cost on any instance.'
+  attribution: 'queries at 25 and 100 rows, before -> after:
+    `/api/dcim/front-ports/` 39/114 -> 15/15 (**1.000 -> 0.000 q/row**);
+    `/api/dcim/rear-ports/` 34/109 -> 10/10 (1.000 -> 0.000);
+    `/api/dcim/front-ports/?depth=1` 88/313 -> 64/214 (3.000 -> 2.000);
+    `/api/dcim/rear-ports/?depth=1` 59/209 -> 35/110 (2.000 -> 1.000).'
+  flat_in_row_count: 'at depth 0 the count is **identical at 25 and 100 rows** — 15 and 15, 10 and
+    10. A count that falls could be many things; a count that stops growing with the page is a
+    grouped prefetch.'
+  residual: '**depth 1 is improved but not closed**, at 2 and 1 queries per row. That residual is
+    nested serialization asking for the same relations again, which `Cabling | 1` (`61e2fffef`) in
+    the same imported series addresses with a `for_nested_serialization` flavour of these
+    prefetches. Left for that experiment rather than folded in here.'
+controls: 'the probe asserts `FrontPort.objects.filter(name__startswith="perf-front-").exists()` is
+  false after the transaction unwinds, and prints the surviving row count (0). The dataset is
+  unchanged, which `run_experiment.sh`''s drift check would otherwise catch on the next run.'
+tests: '`nautobot.dcim.tests.test_api.FrontPortTest` + `RearPortTest`, 70 OK, serial. A first run
+  reported `FAILED (errors=1)` from a third label that does not exist — `InterfaceTestVersion14` —
+  which is exactly the trap recorded in `perf/README.md`: a bad label errors, the remaining labels
+  still run, and the process exits 0.'
+wall_clock: 'not measured: zero rows on both snapshots, so there is nothing to time'
+wall_clock_detail: '**No wall-clock figure exists for this change and none can be taken here.** With
+  zero rows there is nothing to time; the synthesised rows live inside a rolled-back transaction,
+  where a timing number would measure the probe''s own setup as much as the endpoint. The gate is
+  the deterministic slope. This is the same instrument-selection rule as finding 63: an instrument
+  that cannot see the change should not be run to produce a number that looks like one.'
+note: '**What a reader should take from this.** The mechanism is certain — seven sibling viewsets
+  carry the same prefetch, and the slope goes to zero on rows built to the model''s own shape. The
+  *value* is unknown, because it is entirely governed by how many front and rear ports an instance
+  has, and this dataset has none. An instance with patch panels pays 1 query per row per port list
+  and this removes it; an instance without them sees nothing.
+
+
+  **It also prices a gap in the dataset rather than only working around one.** `perf/dataset-gaps.md`
+  lists 66 zero-row endpoints; this is the first time one of them has been shown to hide a real
+  per-row defect. That is an argument for the databot generator growing pass-through ports, and the
+  same technique — synthesise, measure, roll back — is available for the other 65.'
