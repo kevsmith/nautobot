@@ -1,0 +1,91 @@
+---
+seq: 62
+id: null
+commit: f7d9e7864
+recommended_commit: eb14140e9
+status: accepted
+basis: 'attribution: Device widens 32 -> 212 columns at depth 0 for columns DRF never reads'
+behaviour: A
+migration: '-'
+flags: []
+title: Prefetch depth-0 FK serializer fields instead of JOINing them
+site: nautobot/core/api/views.py ModelViewSetMixin.get_queryset — nautobot/core/tests/test_api.py
+summary: 'At `?depth=0` a DRF `RelatedField` renders a hyperlink or a natural key, never the related
+  row, so DRF''s pk-only optimization leaves every joined column unread — yet the optimizer
+  `select_related`s each one, copying its columns into every base row. On Device that is 16 foreign
+  keys widening a row from 32 columns to 212. Prefetching instead fetches each related object once.
+  Nested serializers at `?depth>=1` keep the JOIN, because they render the whole related object and
+  every joined column is read. A relation the viewset joined explicitly stays joined.
+
+
+  **Ported from Ken Celenza''s `2faf6adad` (`API | Generic | 1`) on
+  github.com/itdependsnetworks/nautobot**, taking its first part only; that commit also adds nested
+  prefixed prefetches and a recursion budget, which are separate experiments.'
+result:
+  attribution: '100 rows, queryset fetch alone: Device 447ms joined -> 41ms prefetched (32 -> 212
+    columns, 16 FKs); Interface 94 -> 24ms (9 FKs); Prefix 88 -> 25ms (7 FKs); IPAddress 24 -> 13ms
+    (5 FKs). The cost scales with FK count and related-row width, which is why it is dramatic on
+    Device and modest on IPAddress.'
+  tier2: 'three alternating rounds per arm over HTTP, arms proved distinct by content hash
+    (A `ae2b867484304c3b`, B `c4cb8a5b31156e4a`). **`api.*` 6,148 -> 5,076 ms (−17.4%, n=11)**;
+    `ui.*` 14,096 -> 14,144 ms (+0.3%, n=46); workload total 20,244 -> 19,220 ms (−5.1%).
+    Per scenario, every round of B beating every round of A: `api.device.list.deep`
+    685/686/687 -> 244/244/242 (−64.4%), `api.device.list` 684/687/680 -> 250/252/246 (−63.4%),
+    `api.device.detail` 171/170/170 -> 130/129/129 (−24.2%), `api.prefix.list` −18.2%,
+    `api.interface.list` −7.4%.'
+  read_screen: '516 measurements, 3-round medians: db time 4,746 -> 4,000 ms (−15.7%), wall
+    32.2 -> 31.5 s (−2.0%), queries 4,681 -> 4,936 (**+5.4%**). Above finding 43''s 100ms trust
+    floor: 43 improved, 26 worse, gaining 773 ms against 119 ms lost — 6.5:1. **Every one of those
+    26 has overlapping round ranges**, so none is a stable regression.'
+  by_action: 'list n=43 wall −11.1% on +15.5% queries; detail n=19 wall −4.3% on +26.0% queries;
+    list.depth1 n=52 +0.2%; detail.depth1 n=25 −0.1%. Detail actions improve too — Device''s own
+    detail is −27.0% on 7 -> 14 queries — so this is **not** scoped to list actions. Both
+    `depth>=1` rows are flat, which is correct by construction.'
+controls: '**46 `ui.*` Tier 2 scenarios, which the change cannot reach**: UI tables build their
+  querysets through `BaseTable`, not `ModelViewSetMixin.get_queryset`. They moved +0.3% in
+  aggregate and every individual UI movement has overlapping rounds. An internal control of that
+  size, on the same runs, is stronger evidence than a hand-picked pair.'
+tests: '`nautobot.core.tests.test_api` 61 OK, `nautobot.core.tests.test_filters` 62 OK,
+  `nautobot.dcim.tests.test_api` 1,673 OK, `nautobot.ipam.tests.test_api` 543 OK — all serial,
+  because the parallel runner cannot report on this repository. **Two assertions in
+  `test_get_queryset_optimizations` encoded the JOIN strategy** and were updated: the fetch goes
+  6 -> 8 queries, and 2 -> 4 under `exclude_m2m`. Reading the FKs afterwards still costs zero
+  queries, because prefetching populates the same field cache `select_related` did; only the
+  comment claiming they are "auto-selected" needed correcting.'
+wall_clock: "−63.4% api.device.list, −17.4% across every API scenario the change reaches"
+wall_clock_detail: 'The two figures answer different questions and both belong in the headline.
+  −63.4% is what the most-requested endpoint in a typical deployment does; −17.4% is the aggregate
+  over all 11 `api.*` scenarios, which is what a workload gets. The whole-workload −5.1% is
+  reported in the record but not headlined, because 46 of its 57 scenarios are UI paths the change
+  provably cannot reach, and averaging over them measures the scenario mix rather than the change.
+
+
+  **The read screen and Tier 2 disagree in magnitude and both are right.** In-process the wall
+  aggregate moves −2.0% while database time moves −15.7%: the saving is database-side row
+  transfer, and Python serialization dominates most of the 516 measurements. Over HTTP, on the
+  scenarios that actually fetch wide rows, it is −17.4%.'
+note: '**The query counter reads this change as a regression and must not be the gate.** Queries
+  rise by design, one per prefetched relation: +5.4% on the read screen, with 140 measurements
+  worse and 1 better. Those 255 extra queries buy 746 ms of database time. This is the third
+  finding on this branch where the deterministic counter cannot see the result — finding 51 had to
+  gate on URL reversals because no query moved, and finding 58 on content hash and cache-key
+  presence because a cache read is not SQL. The rule that query count is the gate holds for N+1
+  work and fails for anything that trades round trips against row width.
+
+
+  **A correction, recorded because the reasoning was published before it was checked.** An earlier
+  reading of this experiment reported `api.device.detail.depth1` as a stable +3.8% regression and
+  attached a mechanism: that prefetching is worse for single-row responses, where a JOIN duplicates
+  nothing. In-process that endpoint reads 165.8 -> 165.0 ms — flat — and detail actions as a class
+  improve 4.3%. The Tier 2 figure was HTTP-layer noise, and the mechanism was invented to explain
+  it. That is the second time in one session a mechanism was offered ahead of the measurement that
+  could settle it; the first was the tag-cache path in finding 60.
+
+
+  **What is still on the table from the same upstream commit.** `2faf6adad` also adds
+  `_nested_serializer_prefetches` — prefixed prefetches covering a nested serializer''s own foreign
+  keys, natural-key walks and model-declared traversal prefetches at `?depth>=1` — and recursion
+  through deeper levels bounded by `NESTED_PREFETCH_BUDGET = 150`. Its claim there is circuits at
+  `depth=1` going 2,063 -> 23 queries. This branch measures `circuits-api:circuit-list list.depth1`
+  at 356 -> 183 queries against stock, so the shape is present in our data and unfixed; it is the
+  next experiment, not this one.'
