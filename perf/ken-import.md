@@ -51,13 +51,18 @@ rows over 16 endpoints — a key that does not grow with the page is already mem
 | 7 | `2faf6adad` | Generic \| 1 — prefetch depth-0 FKs instead of JOINing | `ported` | **Finding 62.** Gated on wall clock and row width, not query count — the deterministic counter cannot see it. |
 | 8 | `d14c9fe57` | Generic \| 2 — auto-prefetch GenericForeignKeys | `ported` | **Finding 63.** 8 endpoints improved, 508 unchanged, 0 worse. |
 
-## PR 3 — API | Targeted
+## PR 3 — API | Targeted  (closed 2026-09-11, 3/3)
+
+Attributed with `probe_query_slope.py` (queries per rendered row) and, for the two zero-row
+endpoints, `probe_ports_nplus1.py` (rows synthesised inside a rolled-back transaction).
+**Two of the three sites this PR fixes are on endpoints with no rows on either snapshot**, which is
+why the triage in `queue.md` could not tell whether they were already ours.
 
 | # | Hash | Commit | Status | Verdict |
 |---|---|---|---|---|
-| 9 | `036404a90` | Targeted \| 1 — Device parent_bay reverse one-to-one | `open` | Triaged as probably ours (cf finding 25) — unverified. |
-| 10 | `26222c5fd` | Targeted \| 2 — FrontPort/RearPort cable_peer prefetch | `open` | Triaged as probably ours (cf findings 26, 34, 36) — unverified. |
-| 11 | `c4dfe22a8` | Targeted \| 3 — Job task_queues; UserSavedViewAssociation chain | `open` | Probably new. |
+| 9 | `036404a90` | Targeted \| 1 — Device parent_bay reverse one-to-one | `superseded` | **By upstream, not by us** — `eed5db211` (#9326) is already in our base `next`, and `DeviceViewSet` carries `parent_bay` there. The queue's triage credited finding 25; that finding is the *nested* case, `InterfaceViewSet.select_related("device__parent_bay")`. Both exist; nothing to port. |
+| 10 | `26222c5fd` | Targeted \| 2 — FrontPort/RearPort cable_peer prefetch | `ported` | **Not ours after all.** Seven of nine termination viewsets carry the prefetch; these two carry none at all, since neither is a `PathEndpoint`. **Finding 65** (`dcd487473`): 1.000 -> 0.000 q/row at depth 0 on synthesised rows. Zero rows on both snapshots, so no wall clock exists. Depth 1 still scales — left to `Cabling \| 1`. |
+| 11 | `c4dfe22a8` | Targeted \| 3 — Job task_queues; UserSavedViewAssociation chain | `ported` (Job half) | Job: **finding 66** (`ccd08a3f0`), 1.000 -> 0.000 q/row, −19.4% wall, control flat. UserSavedViewAssociation: **blocked on the dataset**, zero rows on both snapshots; see the open-items note below. |
 
 ## PR 4 — API | Behavioral
 
@@ -114,11 +119,26 @@ queue's standing instruction: do not interleave this block with anything else.
 | 37 | `375835e6b` | Cabling \| 3 — connection columns prefetch far-end devices | `open` | |
 | 38 | `bbe6061ee` | Cabling \| 4 — CableTable self-applies | `open` | |
 
+## Blocked on the dataset, not on judgement
+
+Two sites in this series sit on endpoints with zero rows on both snapshots, so nothing here can
+price them:
+
+- `UserSavedViewAssociation.select_related("saved_view__owner", "user")`, the other half of
+  `Targeted | 3`. `savedview` and `usersavedviewassociation` are both empty.
+- The depth-1 residual finding 65 left behind, which `Cabling | 1` targets — measurable only on
+  synthesised ports.
+
+`probe_ports_nplus1.py` shows the way through: synthesise rows to the model's own shape inside a
+transaction that is always rolled back, and gate on the slope. It is a weaker claim than a measured
+endpoint and a much stronger one than reading the diff, and it is available for any of the 66
+zero-row endpoints in `perf/dataset-gaps.md`.
+
 ## Tally
 
 | status | count |
 |---|---|
-| `ported` | 3 (findings 62, 63, 64) |
-| `superseded` | 3 |
+| `ported` | 5 (findings 62, 63, 64, 65, 66) |
+| `superseded` | 4 |
 | `declined` | 2 |
-| `open` | 30 |
+| `open` | 27 |

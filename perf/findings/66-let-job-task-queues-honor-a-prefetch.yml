@@ -1,0 +1,59 @@
+---
+seq: 66
+id: null
+commit: 49121e0a4
+recommended_commit: ccd08a3f0
+status: accepted
+basis: 'attribution: exactly 1.000 query per row, and flat in the row count after'
+behaviour: A
+migration: '-'
+flags: []
+title: Let Job.task_queues honor a prefetch, and prefetch it on the Job viewsets
+site: nautobot/extras/models/jobs.py Job.task_queues - nautobot/extras/api/views.py JobViewSetBase
+summary: 'The deprecated `task_queues` property read `job_queues.values_list("name", flat=True)`,
+  which issues its own query every time and so cannot see a prefetched result. The REST API
+  serializes that property for every Job in a list response, and `exclude_m2m` hides `job_queues`
+  from the automatic prefetch, so nothing upstream could help either. Reading `job_queues.all()`
+  honors a prefetch, and the viewset now asks for one. **Ported from the Job half of Ken Celenza''s
+  `c4dfe22a8` (`API | Targeted | 3`)** on github.com/itdependsnetworks/nautobot.'
+result:
+  attribution: '`perf/scripts/probe_query_slope.py`, queries at 4 and 16 rows (16 Jobs exist):
+    `/api/extras/jobs/` 11/23 -> 8/8, `/api/extras/jobs/?depth=1` 10/22 -> 7/7. **Exactly 1.000
+    query per row before, 0.000 after.**'
+  flat_in_row_count: '8 queries at 4 rows and 8 at 16 — the count stops growing with the page,
+    which is the grouped-prefetch signature rather than merely a smaller number.'
+  wall_clock: '`/api/extras/jobs/` at 16 rows, three alternating rounds of 9 reps on a quiesced
+    host: **84.2 -> 67.9 ms median, −16.3ms, −19.4%**. The arms do not overlap — stock
+    88.7/80.6/84.2 against branch 68.3/67.6/67.9.'
+controls: '`/api/dcim/locations/` was measured in the same reps as a control that cannot benefit:
+  109.1/107.6/111.9 against 110.9/108.2/110.1, medians 109.1 and 110.1, **arms overlapping** — flat.
+  Arm hashes differ (`befe3e612ea47f40` against `241d2fee992d155a`).
+
+
+  **The body digest is not usable on this endpoint and that is worth knowing before anyone
+  re-runs it.** It differed on every round *on both arms*: Nautobot re-registers its Jobs at
+  startup and rewrites `extras_job.last_updated` (measured at 8 seconds after container start), and
+  every arm swap restarts the container. The payload control is instead
+  `perf/scripts/probe_jobs_equivalence.py`, which dumps `{job name: task_queues}` and returns
+  **byte-identical output on both arms** for all 16 Jobs.'
+tests: '`nautobot.extras.tests.test_jobs` + `nautobot.extras.tests.test_api`, 1,630 OK
+  (skipped=69), serial.'
+wall_clock: '−19.4% api.jobs.list; control flat'
+wall_clock_detail: 'Measured in-process by `probe_endpoint_ab.py` under `measure.sh`, 9 reps per
+  arm, arms alternated three times. 16.3ms over 15 removed queries is ~1.1ms per query, which is
+  high for a trivial lookup and consistent with these being unbatched round trips rather than work.'
+note: '**The property still returns a list**, as it did on this branch before the change —
+  `list(values_list(...))` became a list comprehension — so no caller sees a different type. The
+  upstream version returned the `ValuesListQuerySet` itself; that difference predates this change.
+
+
+  **Ordering is untested by this dataset.** All 16 Jobs have exactly one queue (`default`), so a
+  page cannot show whether `values_list()` and a prefetched `all()` order multiple queues the same
+  way. Both go through `JobQueue`''s default ordering, which is why this is recorded as a gap in the
+  evidence rather than a risk in the change.
+
+
+  **The other half of `API | Targeted | 3` is not taken here.** Its `UserSavedViewAssociation`
+  `select_related("saved_view__owner", "user")` sits on an endpoint with **zero rows on both
+  snapshots**, so it has the same problem as finding 65 and is tracked as open in
+  `perf/ken-import.md` rather than folded in silently.'
