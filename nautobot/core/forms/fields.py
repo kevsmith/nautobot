@@ -11,7 +11,7 @@ from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist, 
 from django.db.models import Q
 from django.forms.fields import BoundField, InvalidJSONInput, JSONField as _JSONField
 from django.templatetags.static import static
-from django.urls import reverse
+from django.urls import get_script_prefix, reverse
 from django.urls.exceptions import NoReverseMatch
 from django.utils.choices import CallableChoiceIterator
 from django.utils.html import format_html
@@ -26,6 +26,12 @@ from nautobot.core.utils import data as data_utils, lookup
 from nautobot.core.utils.permissions import get_permission_for_model
 
 logger = logging.getLogger(__name__)
+
+# Each model's API list URL (or None when it has no resolvable route), for
+# `DynamicModelChoiceMixin.get_bound_field()`, keyed by (model, script prefix). Routes are fixed for
+# the life of a process, but the script prefix is a per-request thread-local that `reverse()` embeds
+# in what it returns, so a memo outliving one request has to key on it.
+_api_data_url_memo = {}
 
 __all__ = (
     "CSVChoiceField",
@@ -614,17 +620,25 @@ class DynamicModelChoiceMixin:
         # Set the data URL on the APISelect widget (if not already set)
         widget = bound_field.field.widget
         if not widget.attrs.get("data-url"):
-            route = lookup.get_route_for_model(self.queryset.model, "list", api=True)
-            try:
-                data_url = reverse(route)
-                widget.attrs["data-url"] = data_url
-            except NoReverseMatch:
-                logger.error(
-                    'API route lookup "%s" failed for model %s, form field "%s" will not work properly',
-                    route,
-                    self.queryset.model.__name__,
-                    bound_field.name,
-                )
+            model = self.queryset.model
+            # Memoized per model for the life of the process, because `get_bound_field()` runs during
+            # every form clean -- including filterset validation on REST API requests, where the
+            # widget is never rendered at all -- and that binds every dynamic field on the form.
+            memo_key = (model, get_script_prefix())
+            if memo_key not in _api_data_url_memo:
+                route = lookup.get_route_for_model(model, "list", api=True)
+                try:
+                    _api_data_url_memo[memo_key] = reverse(route)
+                except NoReverseMatch:
+                    _api_data_url_memo[memo_key] = None
+                    logger.error(
+                        'API route lookup "%s" failed for model %s, form field "%s" will not work properly',
+                        route,
+                        model.__name__,
+                        bound_field.name,
+                    )
+            if _api_data_url_memo[memo_key] is not None:
+                widget.attrs["data-url"] = _api_data_url_memo[memo_key]
 
         return bound_field
 
