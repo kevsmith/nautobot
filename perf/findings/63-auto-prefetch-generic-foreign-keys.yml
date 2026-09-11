@@ -1,0 +1,70 @@
+---
+seq: 63
+id: null
+commit: 554c861e2
+recommended_commit: 51d537cd6
+status: accepted
+basis: 'attribution: ~1 query per row per GFK, and exactly 2.19 on the model carrying two'
+behaviour: A
+migration: '-'
+flags: []
+title: Auto-prefetch GenericForeignKey fields in the REST optimizer
+site: nautobot/core/api/views.py ModelViewSetMixin.get_queryset
+summary: 'A `GenericForeignKey` cannot be JOINed, and serialization reads it once per row —
+  whether it is declared as a field (a `SerializerMethodField` named after the model field) or
+  reached only through `display`/`__str__`. Ten lines walk `model._meta.private_fields` and
+  prefetch every GFK, which groups those reads into one query per distinct target content type.
+  **Ported from Ken Celenza''s `d14c9fe57` (`API | Generic | 2`)** on
+  github.com/itdependsnetworks/nautobot.'
+result:
+  attribution: 'queries per rendered row at limit=100, before: `ObjectChange` 1.06 (36,552 rows,
+    two GFKs), `RelationshipAssociation` **2.19** (two GFKs), `ObjectMetadata` 1.16,
+    `ContactAssociation` 1.10. The model carrying two GFKs cost exactly double, which is the
+    prediction the mechanism makes and the reason to trust the attribution rather than merely
+    the correlation.'
+  read_screen: '3-round medians, 516 comparable: queries 4,936 -> 4,698 (−4.8%), **8 improved,
+    508 unchanged, 0 worse**. `relationshipassociation list` 58 -> 10 q and −54.2% wall;
+    `objectmetadata list` 32 -> 8 q, −37.4%; `relationshipassociation list.depth1` 107 -> 59 q,
+    −34.0%; `contactassociation list` 34 -> 10 q, −30.0%; `objectchange list` 32 -> 9 q, −26.7%;
+    `contactassociation list.depth1` −23.1%; `objectmetadata list.depth1` −17.7%;
+    `objectchange list.depth1` −16.0%.'
+  stability: 'every mover is stable — each arm''s three rounds do not overlap the other''s — and
+    the query count is identical across all three rounds on all eight. `objectchange list` reads
+    106/100/100 ms against 79/73/73.'
+  flat_in_row_count: '**the signature, and the part a falling number alone would not prove**:
+    `ObjectChange` reads 8 queries at 25 rows and 8 at 100 rows, where before it read 31 and 106.
+    A count that falls could be many things; a count that stops growing with the page is a
+    grouped prefetch.'
+controls: '508 of 516 measurements unchanged, and zero regressions. The unchanged set includes
+  `dcim.Device`, which carries a GFK (`local_config_context_data_owner`) that is null on
+  essentially every row — so it had no per-row query to save and did not move. A GFK-bearing model
+  that correctly does *not* improve is a better control than an unrelated endpoint.'
+tests: '`nautobot.core.tests.test_api` 61 OK, `nautobot.extras.tests.test_api` 1,475 OK
+  (69 skipped), both serial.'
+wall_clock: "−54.2% relationshipassociation, −26.7% objectchange list; −4.8% queries across the read screen"
+wall_clock_detail: 'Per-endpoint figures are the headline because the aggregate is governed by how
+  many GFK-bearing models the dataset populates rather than by the change. Measured in-process on
+  the read screen; **no Tier 2 figure exists and that is deliberate** — three of the four affected
+  models have no scenario in the 57-scenario read loop, so Tier 2 is blind to this change. A Tier 2
+  leg was launched and killed once that was checked, which is what prompted the instrument-selection
+  rule now in `perf/README.md`.'
+note: '**The aggregate understates the change, and the cause is dataset coverage rather than
+  reach.** Ten of the eighteen GFK-bearing models hold zero rows here — `Note`,
+  `StaticGroupAssociation`, `ImageAttachment`, `ApprovalWorkflow` among them — so only four models
+  could contribute and all four did. `perf/dataset-gaps.md` is the standing record of that limit.
+  A reader should not infer that a −4.8% aggregate bounds what this is worth on a populated
+  instance.
+
+
+  **It does not subsume finding 56**, which hand-prefetched the same `changed_object` GFK on the
+  home page changelog panel. That panel is built in `extras/homepage.py` and never passes through
+  `ModelViewSetMixin`, so the two live in different code paths and both stand. Checked
+  structurally rather than measured, and recorded that way — after findings 60 and 61, where an
+  assumed overlap turned out to be real and an assumed mechanism turned out not to be.
+
+
+  **On the gate''s verdict line.** `run_experiment.sh` reports 2,235 -> 705 queries (−68.5%)
+  against the stock baseline and exits FAIL on eight regressions. All eight are finding 62''s
+  documented depth-0 trade. The baseline is stock by design, so a FAIL is now the permanent state
+  of this branch and the usable signal is whether the regression *set* changed. It did not. Anyone
+  reading the exit status alone from here on will draw the wrong conclusion.'
