@@ -374,8 +374,13 @@ class Job(PrimaryModel):
 
     @property
     def task_queues(self) -> list[str]:
-        """Deprecated backward-compatibility property for the list of queue names for this Job."""
-        return list(self.job_queues.values_list("name", flat=True))
+        """Deprecated backward-compatibility property for the list of queue names for this Job.
+
+        Reads `job_queues.all()` rather than `values_list()`, which issues its own query every time and
+        so cannot see a prefetched result. The REST API serializes this property for every Job in a
+        list response, which made it one query per row.
+        """
+        return [job_queue.name for job_queue in self.job_queues.all()]
 
     @task_queues.setter
     def task_queues(self, value: Union[str, list[str]]):

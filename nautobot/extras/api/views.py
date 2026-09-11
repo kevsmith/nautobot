@@ -825,7 +825,9 @@ class JobViewSetBase(
     ModelViewSetMixin,
     viewsets.GenericViewSet,
 ):
-    queryset = Job.objects.all()
+    # The deprecated `task_queues` serializer field reads the job_queues relation for every Job, and
+    # `exclude_m2m` hides that relation from the automatic prefetch, so it has to be asked for here.
+    queryset = Job.objects.prefetch_related("job_queues")
     serializer_class = serializers.JobSerializer
     filterset_class = filters.JobFilterSet
 
