@@ -64,13 +64,18 @@ why the triage in `queue.md` could not tell whether they were already ours.
 | 10 | `26222c5fd` | Targeted \| 2 — FrontPort/RearPort cable_peer prefetch | `ported` | **Not ours after all.** Seven of nine termination viewsets carry the prefetch; these two carry none at all, since neither is a `PathEndpoint`. **Finding 65** (`dcd487473`): 1.000 -> 0.000 q/row at depth 0 on synthesised rows. Zero rows on both snapshots, so no wall clock exists. Depth 1 still scales — left to `Cabling \| 1`. |
 | 11 | `c4dfe22a8` | Targeted \| 3 — Job task_queues; UserSavedViewAssociation chain | `ported` (Job half) | Job: **finding 66** (`ccd08a3f0`), 1.000 -> 0.000 q/row, −19.4% wall, control flat. UserSavedViewAssociation: **blocked on the dataset**, zero rows on both snapshots; see the open-items note below. |
 
-## PR 4 — API | Behavioral
+## PR 4 — API | Behavioral  (closed 2026-09-11, 3/3)
+
+Attributed with `probe_url_reversals.py`, after fixing the hole that made it report zero reversals
+for the REST API entirely (it patched `django.urls.reverse` only; `rest_framework.reverse` had
+bound the function at import time). A 100-row interfaces page reversed **1,031 routes**, 9.9 per
+row; the two memos take it to **6**.
 
 | # | Hash | Commit | Status | Verdict |
 |---|---|---|---|---|
-| 12 | `68920cacc` | Behavioral \| 1 — memoize serializer URL route shapes | `open` | Probably new. Finding 51 memoized reversals in the nav menu only, so the sites are disjoint. |
-| 13 | `26e6dd995` | Behavioral \| 2 — get_absolute_url and form data-url shapes | `open` | Probably new. |
-| 14 | `a714d9267` | Behavioral \| 3 — NATURAL_SLUG_ENABLED opt-out | `open` | A settings-only behaviour change, not a perf fix; assess as a product decision. |
+| 12 | `68920cacc` | Behavioral \| 1 — memoize serializer URL route shapes | `ported` | **Finding 67** (`ff93cf3e1`): 1,031 -> 542 reversals, −20.6% on `devices?depth=1`, −6.8% on interfaces, control flat. Disjoint from finding 51 as triaged. |
+| 13 | `26e6dd995` | Behavioral \| 2 — get_absolute_url and form data-url shapes | `ported` | **Finding 68** (`90a00176e`): 542 -> 6 reversals, −5.5% on interfaces (−11.9% for the pair). Two departures from theirs: the script prefix is in both memo keys, and `get_absolute_url` keeps its original walk as a fallback instead of raising. |
+| 14 | `a714d9267` | Behavioral \| 3 — NATURAL_SLUG_ENABLED opt-out | `declined` | **Not a perf change; an API contract change with a perf payoff for whoever turns it off.** With the flag off, `natural_slug` serializes as `""` while staying in the schema, and the natural-key prefetches are skipped. Default is on, so it measures zero by default, and its value is a deployment choice rather than a branch result. It also interacts with findings 1, 4, 5, 14 and 42, which all optimize the path it bypasses. **Kevin's call, and an upstream conversation rather than a perf experiment** — declined here so the branch does not carry a feature flag nobody asked for. |
 
 ## PR 5 — UI | Views
 
@@ -138,7 +143,7 @@ zero-row endpoints in `perf/dataset-gaps.md`.
 
 | status | count |
 |---|---|
-| `ported` | 5 (findings 62, 63, 64, 65, 66) |
+| `ported` | 7 (findings 62, 63, 64, 65, 66, 67, 68) |
 | `superseded` | 4 |
-| `declined` | 2 |
-| `open` | 27 |
+| `declined` | 3 |
+| `open` | 24 |
