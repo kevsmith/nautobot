@@ -1,0 +1,72 @@
+---
+seq: 64
+id: null
+commit: cd176d9bb
+recommended_commit: 19f2bdbe6
+status: accepted
+basis: 'attribution: 1.000 cache-backend GET per rendered row, and 97 -> 5 after'
+behaviour: A
+migration: '-'
+flags: []
+title: Memoize TreeModel.display within the request scope
+site: nautobot/core/models/tree_queries.py TreeModel.display
+summary: '`TreeModel.display` read the cache backend directly, so it was the one read on this
+  branch still costing a Redis round trip per rendered row. Nested serialization builds one object
+  per row, so the in-memory ancestry walk finding 6 added cannot help: each row carries a separate
+  LocationType instance with no parent loaded. Routing the read through `cache_get_or_set()` puts
+  it in the `request_cache()` scope alongside every other cached read here.
+  **Ported from the `TreeModel.display` third of Ken Celenza''s `fd584db6a` (`API | Caching | 6`)**
+  on github.com/itdependsnetworks/nautobot, by this branch''s mechanism rather than his
+  process-lifetime TTL cache.'
+result:
+  attribution: '`perf/scripts/probe_cache_gets.py` counts cache-backend GETs per key at 25 and 100
+    rows across 16 endpoints. **Fifteen of the sixteen have no key that scales with row count at
+    all.** The exception is `api.location.depth1`:
+    `nautobot.dcim.locationtype.<uuid>.display` reads 22 at 25 rows and 97 at 100 —
+    **1.000 GET per row**, the signature of a per-object read.'
+  gate: 'the counter, not query count: 97 -> 5 per-row GETs (one per *distinct* LocationType on the
+    page), and 107 -> 15 for the request as a whole. Query count is identical on both arms (9), so
+    the usual gate is blind to this change — the same shape as findings 51 and 62.'
+  wall_clock: '`/api/dcim/locations/?depth=1` at 100 rows, three alternating rounds of 9 reps:
+    **545.4 -> 521.3 ms median, −24.1ms, −4.4%**. The arms do not overlap — stock 546.2/545.4/542.7
+    against branch 518.6/530.4/521.3 — and the separation is the same sign in all three rounds.'
+  per_round_trip: '24.1ms over 92 removed reads is **0.26ms per Redis round trip**, which is the
+    figure to reuse when pricing any future per-object cache read.'
+controls: '`/api/dcim/devices/?depth=1` was measured in the same reps as a control that cannot
+  benefit — the probe shows it has no key scaling with row count — and its median is **identical on
+  both arms**, 1205.6ms against 1205.6ms. The response digest is byte-identical on both arms for
+  both endpoints (`0f5a87779e4b3b46`, `7c3c845318240686`): a memo that changes the payload is a bug,
+  not an optimization. Arm hashes differ (`73cea5fc7ce5893f` against `8d6bd1f98e373040`), so the
+  measurement is not the silent no-op that void six runs in round one.'
+tests: '`nautobot.core.tests.test_tree_queries` 13 OK, including two new cases; and
+  `nautobot.core.tests.test_tree_queries` + `nautobot.dcim.tests.test_models` +
+  `nautobot.core.tests.test_models` 493 OK (skipped=12), serial. The new cases count backend GETs
+  across three separately-loaded instances of one row: 1 inside a `request_cache()` scope, 3 outside
+  it. Writing them corrected a wrong assumption — a *second read of the same instance* was already
+  free before this change, because the recursion in the uncached path loads the parent chain into
+  memory and the next read short-circuits on the in-memory walk. Only separate instances, which is
+  what a rendered page actually has, reach the backend repeatedly.'
+wall_clock: '−4.4% api.location.depth1; control flat at 0.0%'
+wall_clock_detail: 'Measured in-process by `probe_endpoint_ab.py` under `measure.sh` on a quiesced
+  host, 9 reps per arm, arms alternated three times. No Tier 2 figure: `api.location.depth1` is not
+  in the 57-scenario read loop, and per the instrument-selection rule in `perf/README.md` an
+  instrument that cannot see the change should not be run to produce a number that looks like one.'
+note: '**Staleness is strictly tighter than what it replaces.** Nothing invalidates the display
+  cache key anywhere in the tree; it expires on a 5-second TTL, and a request is normally far
+  shorter than that. Outside a request scope — shell, management command, Celery worker — the read
+  pattern is unchanged, which is the difference from the imported version: his memo is a
+  process-lifetime TTL cache that a worker carries between tasks.
+
+
+  **This closes `API | Caching` (PR 1 of the imported series) at 6 of 6.** The other five are
+  recorded in `perf/ken-import.md`: two superseded by finding 1 and finding 4, one superseded by
+  finding 6''s `cache_get_or_set` memo, and two declined because their process-wide caches are
+  invalidated in-process only, so a sibling uwsgi worker keeps a stale value until it restarts.
+  The whole PR aims at one shape — a value read once per serialized object — and findings 1, 4, 5
+  and 6 had already closed that shape everywhere but this site.
+
+
+  **The aggregate is not the point and the endpoint chosen is not arbitrary.** Only tree models
+  reach this path, and only when their ancestry is not already in memory. On this dataset that is
+  Location and LocationType; an instance with a deeper Location tree, or one whose tables carry
+  more tree models, pays more of it.'
