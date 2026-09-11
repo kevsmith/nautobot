@@ -1,0 +1,58 @@
+---
+seq: 67
+id: null
+commit: 38e6878ed
+recommended_commit: ff93cf3e1
+status: accepted
+basis: 'attribution: 1,031 reversals on a 100-row page, 9.9 per row, 78.2ms of reverse()'
+behaviour: A
+migration: '-'
+flags: []
+title: Memoize the route shape of serializer URLs, so reverse() runs once per route
+site: nautobot/core/api/fields.py HyperlinkedURLMemoMixin - nautobot/core/api/serializers.py
+summary: 'Every serializer emits a `url` field and one hyperlink per related object, and each called
+  `reverse()` for every object in the page — the same route every time, differing only in the pk.
+  `HyperlinkedURLMemoMixin` resolves the route once with a sentinel UUID, splits the URL around it,
+  and substitutes the real pk afterwards; the memo lives on the DRF field instance, which is created
+  per serializer instantiation and reused for every object under `many=True`. The same pattern
+  covers `notes_url`, the last per-object `reverse()` in the serializer. **Ported from Ken
+  Celenza''s `68920cacc` (`API | Behavioral | 1`)** on github.com/itdependsnetworks/nautobot.'
+result:
+  attribution: '`perf/scripts/probe_url_reversals.py`, reversals per request:
+    `/api/dcim/interfaces/?limit=100` **1,031 -> 542** (78.2 -> 40.4ms of `reverse()`);
+    `/api/dcim/devices/?limit=100` **891 -> 81** (69.4 -> 6.0ms);
+    `/api/dcim/devices/?limit=100&depth=1` **2,345 -> 103** (197.9 -> 8.2ms);
+    `/api/dcim/interfaces/?limit=25` 288 -> 192. Interfaces reversed **9.9 routes per row** before
+    this, and `extras-api:status-detail` alone was reversed 100 times on a 100-row page.'
+  wall_clock: 'three alternating rounds of 9 reps, three arms, on a quiesced host:
+    `/api/dcim/interfaces/?limit=100` **657.9 -> 613.0 ms (−6.8%)**;
+    `/api/dcim/devices/?limit=100&depth=1` **1,211.5 -> 961.5 ms (−20.6%)**. Arms do not overlap on
+    either endpoint — interfaces 657.5/657.9/673.0 against 607.3/613.0/623.2, devices
+    1203.3/1211.5/1216.4 against 960.8/961.5/963.4.'
+  gate: 'the reversal counter, not query count: queries are identical on every arm (26 interfaces,
+    11 devices, 6 job-queues). The same shape as findings 51, 62 and 64.'
+controls: '`/api/extras/job-queues/` measured in the same reps: 35.0 -> 35.2 ms, +0.6%, arms
+  overlapping — flat, as an endpoint with one row should be. Response digests are byte-identical
+  across all three arms on all three endpoints (`5c79a70c7b2bc546`, `7c3c845318240686`,
+  `5e6c0400b796b7f7`): a URL built by string concatenation that differs from a reversed one is a
+  bug, not an optimization, and this is the check that would catch it. Arm hashes differ.'
+tests: '`nautobot.core.tests.test_api` + `test_models` + `test_forms` +
+  `nautobot.dcim.tests.test_api`, **1,833 OK (skipped=45)**, serial.'
+wall_clock: '−20.6% api.device.list.depth1, −6.8% api.interface.list'
+wall_clock_detail: 'Measured in-process by `probe_endpoint_ab.py` under `measure.sh`, 9 reps per
+  arm, three arms alternated three times. The three arms are this branch before the change, after
+  this change, and after finding 68 — so each finding''s figure is the step it added rather than the
+  pair''s total.'
+note: '**The instrument was blind before this experiment, and that is the more transferable
+  result.** `probe_url_reversals.py` patched `django.urls.reverse` only. `from django.urls import
+  reverse` binds the function object into the importing module at import time, so the patch was
+  invisible to `rest_framework.reverse` — which is the whole of the REST API''s reversing. The probe
+  reported **zero reversals** for `/api/dcim/devices/?limit=100`, a 332ms endpoint, and zero reads
+  as "nothing to find here" rather than as "this instrument cannot see". It now rebinds every alias
+  in `sys.modules`. Finding 45 recorded the same class of failure for query capture; this is the
+  second instrument on the branch that returned a confident zero.
+
+
+  **A route that cannot take a UUID falls back permanently.** `ContentType` and `Group` have
+  integer pks, so the sentinel raises `NoReverseMatch`, the memo stores `None`, and every object of
+  that type takes DRF''s own implementation — one reverse per object, exactly as before.'
