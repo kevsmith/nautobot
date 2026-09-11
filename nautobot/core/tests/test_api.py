@@ -551,10 +551,16 @@ class ModelViewSetMixinTest(testing.APITestCase):
         view.initial(request)
 
         queryset = view.get_queryset()
-        # IPAddress plus one natural-key prefetch (parent__namespace), plus four prefetches.
-        with self.assertNumQueries(6):
+        # IPAddress, plus one query per prefetched relation. At depth 0 the serializer renders
+        # hyperlinks rather than related rows, so foreign keys are prefetched rather than JOINed:
+        # a JOIN would widen every row of a list page with columns nothing reads. Here that is
+        # `status` and `parent` (the other three FKs are null on this instance, so Django skips
+        # their prefetch), the four to-many prefetches, and the `parent__namespace` natural-key
+        # walk. It was 6 when those five FKs were select_related into the base query.
+        with self.assertNumQueries(8):
             instance = queryset.first()
-        # FK related objects should have been auto-selected
+        # FK related objects should have been auto-prefetched, which populates the same field
+        # cache select_related did -- so reading them still costs nothing.
         with self.assertNumQueries(0):
             instance.status
             instance.role
@@ -595,11 +601,14 @@ class ModelViewSetMixinTest(testing.APITestCase):
         view.initial(request)
 
         queryset = view.get_queryset()
-        # IPAddress plus the natural-key prefetch (parent__namespace).
-        # exclude_m2m suppresses the additional M2M/reverse prefetches.
-        with self.assertNumQueries(2):
+        # IPAddress, the two non-null FK prefetches (`status`, `parent`) and the
+        # `parent__namespace` natural-key walk. `exclude_m2m` suppresses the M2M and reverse
+        # prefetches but not the FK ones, which are what the serializer's own fields need.
+        # It was 2 when those FKs were select_related into the base query.
+        with self.assertNumQueries(4):
             instance = queryset.first()
-        # FK related objects should still have been auto-selected
+        # FK related objects should still be resolved without a query -- prefetching populates the
+        # same field cache select_related did.
         with self.assertNumQueries(0):
             instance.status
             instance.role
