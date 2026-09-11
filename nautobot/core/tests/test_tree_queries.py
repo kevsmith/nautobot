@@ -1,12 +1,14 @@
+import contextlib
 from copy import deepcopy
 
 from django.conf import settings
-from django.core.cache import cache
+from django.core.cache import cache, caches
 from django.db import connection
 from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 
 from nautobot.core.testing import TestCase
+from nautobot.core.utils.cache import request_cache
 from nautobot.dcim.models import Location
 
 
@@ -287,3 +289,69 @@ class TreeModelCachedDescendantsPKsTests(TestCase):
                 loc.cacheable_descendants_pks()
             except KeyError as e:
                 self.fail(f"cacheable_descendants_pks raised KeyError when TIMEOUT not in CACHES: {e}")
+
+
+class TreeModelDisplayCacheTests(TestCase):
+    """Tests for the request-scoped memoization of `TreeModel.display`."""
+
+    def setUp(self):
+        super().setUp()
+        cache.delete_pattern("*.display")
+
+    def tearDown(self):
+        cache.delete_pattern("*.display")
+        super().tearDown()
+
+    @staticmethod
+    def _patch_cache_get():
+        """Return (backend class, original `get`, counting `get`, list of keys read)."""
+        calls = []
+        backend_cls = type(caches["default"])
+        original = backend_cls.get
+
+        def counting(cache_self, key, *args, **kwargs):
+            calls.append(key)
+            return original(cache_self, key, *args, **kwargs)
+
+        return backend_cls, original, counting, calls
+
+    def _read_display_from_fresh_instances(self, pk, count, in_request_scope):
+        """Read `display` from `count` separately-loaded instances of `pk`, counting backend GETs.
+
+        Separate instances are the shape that matters: nested serialization of a page builds one
+        object per row, so an in-memory walk on a single instance cannot help and each row's read
+        reached the cache backend. `without_tree_fields()` keeps the ancestry out of memory, which
+        is what sends the property down the cached path at all.
+        """
+        backend_cls, original, counting, calls = self._patch_cache_get()
+        backend_cls.get = counting
+        try:
+            with request_cache() if in_request_scope else contextlib.nullcontext():
+                values = [Location.objects.without_tree_fields().get(pk=pk).display for _ in range(count)]
+        finally:
+            backend_cls.get = original
+        return values, [key for key in calls if key.endswith(f"{pk}.display")]
+
+    def test_display_reads_the_backend_once_per_request_scope(self):
+        """Rendering the same tree object on many rows costs one backend GET, not one per row."""
+        location = Location.objects.filter(parent__isnull=False).first()
+        self.assertIsNotNone(location)
+
+        values, gets = self._read_display_from_fresh_instances(location.pk, 3, in_request_scope=True)
+
+        self.assertEqual(values, [location.display] * 3)
+        self.assertEqual(len(gets), 1, f"expected one GET for this instance, got {gets}")
+
+    def test_display_reads_the_backend_per_instance_outside_a_request_scope(self):
+        """Outside a request scope the read pattern is unchanged: one GET per instance.
+
+        The memo lives in `request_cache()`, so a management command or shell session does not
+        acquire a process-lifetime cache that nothing invalidates.
+        """
+        location = Location.objects.filter(parent__isnull=False).first()
+        self.assertIsNotNone(location)
+
+        values, gets = self._read_display_from_fresh_instances(location.pk, 3, in_request_scope=False)
+
+        self.assertEqual(values, [location.display] * 3)
+        self.assertEqual(len(gets), 3, f"expected one GET per instance, got {gets}")
