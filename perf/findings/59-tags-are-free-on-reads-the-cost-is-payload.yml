@@ -1,0 +1,77 @@
+---
+seq: 59
+id: null
+commit: null
+recommended_commit: null
+status: accepted
+basis: 'dataset A/B on one arm: 9,390 tag assignments cost 0 queries and +10.7KB per 100 rows'
+behaviour: A
+migration: '-'
+flags: []
+title: Tags are free on the read path, and the tagged dataset exists for the write path
+site: perf/snapshot-large-tags.sql — perf/scripts/probe_tag_surface.py, probe_tag_cost.py
+summary: '`extras-api:tag-list` returns zero rows in the baseline dataset, which meant finding 31
+  — a tier C change to `serialize_object`''s tag cache — was measured entirely on the untagged
+  path. A second snapshot was built to close that gap. Before spending a full read/write pass on
+  it, the question of whether tags are visible to the read instruments at all was measured: they
+  are not, in the sense that matters. A serializer touches `obj.tags` per row whether or not any
+  tags come back, and the upstream queryset optimizer''s `TagsField` branch already batches that
+  into **exactly one prefetch per request at any page size**. So the zero-tag dataset was already
+  paying the query and merely receiving nothing. Tags add payload, not queries.'
+result:
+  dataset_ab: 'same arm (stock `e308df687`), same host, only the snapshot changed.
+    `interfaces?limit=25` 21 -> 21 queries and 46,295 -> 45,869 bytes; `interfaces?limit=100`
+    22 -> 21 and 189,521 -> 200,218 (+10.7KB); `interfaces?limit=100&depth=1` 1,228 -> 1,217 and
+    883,238 -> 930,881 (+47.6KB); `devices?limit=100` 7 -> 7 and 207,642 -> 208,095;
+    `object-changes?limit=25` 29 -> 29 and byte-identical. Query deltas run 0 to −11 — at or below
+    the noise the VLAN renumbering introduces — and every delta that is not zero is negative,
+    which is not a saving from tags but dataset drift.'
+  tag_queries: '**one** `extras_taggeditem` query per request on every shape measured, at limit 25,
+    50 and 100 and at depth 0 and 1. There is no N+1 here to find on either arm.'
+  rendered_surface: 'tag coverage correlates with default ordering, so page size decides whether an
+    instrument sees a tag at all: `interfaces?limit=25` renders **0 of 25** tagged rows, `limit=50`
+    7 of 50, `limit=100` 48 of 100 (61 tag objects). `devices?limit=25` renders 1 of 25. The
+    database holds 6,026 of 8,925 interfaces tagged (67.5%) and 116 of 2,902 devices (4.0%).'
+  what_this_rules_out: 'a full read-loop / read-screen / write-screen pass against the tagged
+    dataset. It would have cost about five hours to report that nothing moved, and the read screen
+    — which requests `limit=25` — would have reported it twice over, once because tags are free and
+    once because it renders none.'
+controls: 'the `object-changes` endpoint is byte-identical between the two snapshots (160,405 B,
+  29 queries), which is the expected null: the tagged snapshot was re-seeded on stock precisely so
+  its change log would match the baseline''s shape.'
+tests: 'not applicable — no product code changed. The two probes are
+  `perf/scripts/probe_tag_surface.py` and `perf/scripts/probe_tag_cost.py`.'
+wall_clock: "not measured — in-process probe, and the query result makes a wall figure uninformative"
+wall_clock_detail: 'The probe records in-process milliseconds and they are noisy enough to be
+  useless here: `interfaces?limit=25` read 956.0 ms on the baseline and 590.2 ms on the tagged
+  snapshot, which is a restore-warmth artifact rather than a tag effect, since the same request
+  issues the same 21 queries against both. No Tier 2 pass was run, deliberately: with query count
+  flat and the payload difference under 48KB on the largest shape, there is nothing a wall-clock
+  figure could establish that the query and byte columns have not.'
+note: '**The instinct to characterise a new dataset with a full pass was wrong here, and measuring
+  first cost fifteen minutes instead of five hours.** The reasoning that nearly justified the pass
+  — 67% of interfaces are tagged, so tag-touching endpoints must have changed — was defeated by two
+  independent facts, each sufficient on its own: the optimizer already batches the tag fetch, and
+  the instruments'' page size renders almost no tagged rows.
+
+
+  **The page-size trap is the part worth carrying forward.** Tag coverage in this dataset
+  correlates with default ordering, so any paginated measurement''s exposure to tags depends on its
+  page size. An instrument at `limit=25` sees one tag object across interfaces and devices
+  combined; the same instrument at `limit=100` sees 64. That is a property of the dataset, not of
+  Nautobot, and it is arguably worth raising with the databot work — tag coverage that correlates
+  with ordering makes every paginated measurement page-size dependent.
+
+
+  **What the tagged snapshot is still for.** Finding 31 fixed `serialize_object`''s tag cache,
+  where `tags = getattr(obj, "_tags", []) or obj.tags.only("name")` fell through for an object
+  whose cached tag list was empty. With zero tags in the dataset, `_tags` was always `[]` and
+  always falsy, so **the branch that the fix enables has never executed in any measurement on this
+  branch**. Its recorded −6.9% describes the untagged path only. That is a write-path question —
+  `serialize_object` is called when change-logging — so it needs writes against tagged objects,
+  which is the next experiment rather than this one.
+
+
+  Provenance and restore instructions for the snapshot are in
+  `perf/snapshot-large-tags.provenance.md`, including the hazard that `expected-counts.txt` cannot
+  distinguish the two datasets: they match on all four models it records.'
