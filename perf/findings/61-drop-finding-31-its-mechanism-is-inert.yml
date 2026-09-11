@@ -1,0 +1,71 @@
+---
+seq: 61
+id: null
+commit: 864fbb2c0
+recommended_commit: 5fda65b30
+status: accepted
+basis: 'dropping finding 31 removes 2 queries of 6,637 and moves nothing else'
+behaviour: A
+migration: '-'
+flags: []
+title: Drop finding 31, whose mechanism finding 22 made inert, and shed a tier C change
+site: nautobot/core/models/utils.py — nautobot/extras/api/mixins.py — nautobot/extras/context_managers.py — nautobot/extras/signals.py
+summary: 'Finding 60 established that `_tags` has one reader, `serialize_object`, and that finding
+  22 stopped calling it from `to_objectchange`. This reverts finding 31''s product code — the
+  presence check, the conditional cache in `TaggedModelSerializerMixin.update`, `tag_cache_warmed`
+  and its call site — and measures what that costs. It costs nothing: two queries are removed and
+  every other counter is identical. The branch sheds one of its only two tier C changes.'
+result:
+  tier1w: '13 operations, both arms proved distinct by content hash (`a9e34966073fb1a2` with,
+    `ae2b867484304c3b` without), on the tagged campus dataset. Total 6,637 -> 6,635 queries.
+    **Two operations move and both move down**: `bulk.create.interfaces.x100.deferred`
+    1,108 -> 1,107 and `bulk.update.interfaces.x100.deferred` 1,375 -> 1,374. The other eleven are
+    identical. Wall total 14,241 -> 14,135 ms (−0.74%, noise). No `query_count_stable` false.'
+  the_decisive_row: '`bulk.create.interfaces.x100.loop` reads **1,204 with finding 31 and 1,204
+    without**. That is the operation finding 31''s own record headlines at −6.9%, and removing the
+    finding does not move it by a single query. Its saving comes from finding 22.'
+  rest_path: '50 tagged and 50 untagged interfaces bulk-PATCHed: 1,283 and 1,471 queries with
+    exactly 1 `extras_taggeditem` query, **identical integers with and without finding 31**.'
+  what_the_two_queries_were: '`tag_cache_warmed`''s batch read, firing on the two `deferred`
+    operations and read by nobody. It runs only under `deferred_change_logging_for_bulk_operation`
+    — the UI bulk paths, bulk-action jobs and custom-field provisioning.'
+controls: 'the eleven unchanged Tier 1W operations, which include every non-deferred write path —
+  `create.device`, `create.interface`, `create.interfaces.x50`, `create.ipaddress`, `create.tag`,
+  `delete.device`, `update.device.name`, `update.device.noop`, `bulk.delete.interfaces.x100` and
+  both non-deferred bulk creates. None of them touches `tag_cache_warmed`, and none of them moved.'
+tests: '`nautobot.extras.tests.test_changelog` 36 OK; `nautobot.extras.tests.test_api` 1,475 OK
+  (69 skipped), both on the reverted tree and both serial, because the parallel runner cannot
+  report on this repository (see `perf/scripts/README.md`).'
+wall_clock: "−0.74% Tier 1W total, within noise (−2 queries of 6,637)"
+wall_clock_detail: 'The wall figure is reported for completeness and should not be read as a
+  result: 14,241 -> 14,135 ms across 13 operations is well inside what `probe_f31_wall.py` exists
+  to warn about, since Tier 1W''s reported rep can catch a ~200ms gen-2 collection. The
+  deterministic counter is the result here, and it says −2 queries. A change that removes two
+  queries from 6,637 is not being adopted for its speed; it is being adopted because it deletes a
+  tier C behaviour change that no longer does anything.'
+note: '**The prediction was wrong in the branch''s favour, and it was recorded before measuring.**
+  The scratch-branch commit says "nothing moves". The result is −2 queries — `tag_cache_warmed`
+  firing on the two deferred paths with nobody reading it. Dropping finding 31 is marginally
+  better than neutral rather than free.
+
+
+  **What this subtracts from the ledger.** Finding 31 is now `status: reverted` and appears in its
+  own report section rather than under Rejected, because it was not rejected: it was measured,
+  correct, and worth taking when it landed. `build_report.py` gained that third bucket in this
+  commit, and the fact bar breaks it out, because folding a superseded finding into "we looked and
+  are not doing it" would misdescribe both the decision and the history.
+
+
+  **Why this is worth more than two queries.** Tier C is the only tier that changes observable
+  behaviour, and the branch had exactly two. Finding 31''s own record documents the trap it carried:
+  `TaggedModelSerializerMixin.update` wrote `instance._tags = tags or []` unconditionally, so
+  fixing the presence check without the mixin half would have made every REST PATCH that leaves
+  tags alone log the object as untagged. That trap is now gone from the branch along with the code.
+
+
+  **The general lesson, which is finding 60''s and is repeated here because this is where it pays
+  off.** Two findings on this branch overlapped for six days without any instrument noticing.
+  Each was measured against the tree that preceded it, which is correct procedure; neither could
+  see that a later change would strand it. Query counts kept falling and wall clock kept improving,
+  so nothing looked wrong — only the attribution was. Counting calls rather than queries is what
+  exposed it, and it is worth doing whenever one finding''s subject matter touches another''s.'
