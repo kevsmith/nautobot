@@ -106,4 +106,16 @@ note: 'Three parts, and the first is not optional. `getattr(obj, "_tags", None) 
   per object). That figure is still what the isolated probe measures and it reproduced exactly
   (40 / 40 / 20 queries, 4.88 -> 2.49ms per object), but it is the ceiling of the serializer
   in isolation, not what the change is worth in a write: the operations it sits inside improve
-  by 5-7%, not 50%.'
+  by 5-7%, not 50%.
+
+
+  **SUPERSEDED 2026-09-11 -- see finding 60.** Finding 22 landed the day after this one and
+  removed the `serialize_object` call from `to_objectchange` entirely. `_tags` has exactly one
+  reader in the whole codebase, that function, so nothing on this branch now reads the cache this
+  finding fixed. Measured: `serialize_object` is called 50 times on stock and **0 times on the
+  branch** for the same 50-object bulk write, and the tag-query saving is identical for tagged and
+  untagged objects (51 -> 1 either way) -- the signature of removing the caller rather than of a
+  cache starting to fire. The figures above were true when written and describe a code path the
+  branch no longer takes; the saving they name is now delivered by finding 22, and the two must not
+  be added together. The remaining footprint is `tag_cache_warmed`, which still issues one
+  `TaggedItem` query per batch under the UI bulk paths and whose result nobody reads.'
