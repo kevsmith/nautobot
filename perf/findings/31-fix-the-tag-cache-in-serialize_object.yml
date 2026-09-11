@@ -2,8 +2,10 @@
 seq: 31
 id: null
 commit: d52169a34
+reverted_commit: 864fbb2c0
+reverted_recommended_commit: 5fda65b30
 recommended_commit: 7d2851d6e
-status: accepted
+status: reverted
 behaviour: C
 migration: '-'
 flags: []
@@ -109,7 +111,7 @@ note: 'Three parts, and the first is not optional. `getattr(obj, "_tags", None) 
   by 5-7%, not 50%.
 
 
-  **SUPERSEDED 2026-09-11 -- see finding 60.** Finding 22 landed the day after this one and
+  **REVERTED 2026-09-11 in `864fbb2c0`, carried to `perf/recommended` as `5fda65b30` -- see finding 60 and 61.** Finding 22 landed the day after this one and
   removed the `serialize_object` call from `to_objectchange` entirely. `_tags` has exactly one
   reader in the whole codebase, that function, so nothing on this branch now reads the cache this
   finding fixed. Measured: `serialize_object` is called 50 times on stock and **0 times on the

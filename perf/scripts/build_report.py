@@ -58,6 +58,14 @@ GROUPS = [
         "Measurement or blast-radius analysis ruled these out. Listed because a rejected "
         "optimization prices an option someone would otherwise retry.",
     ),
+    (
+        "reverted",
+        "Reverted after landing",
+        "Accepted and applied, then removed once a later finding made the mechanism inert. "
+        "These are not rejections: each was measured, correct, and worth taking at the time. "
+        "They are listed separately because a reader totalling the branch's effect must not "
+        "count them, and because the reason one finding can strand another is worth seeing.",
+    ),
 ]
 
 # Flags cut across both axes and make any cell stricter. They render in the same
@@ -106,8 +114,18 @@ def group_of(f):
     There is no "parked" bucket. There was one while the ledger still carried
     open decisions; every non-accepted finding has since been measured and
     closed, so a third heading would have been an empty promise of follow-up.
+
+    `reverted` is its own bucket rather than a rejection. A finding that landed,
+    was measured, and was later stranded by a different finding is not something
+    "we looked at and are not doing" -- filing it under Rejected would misdescribe
+    both the decision and the history. What it shares with a rejection is only
+    that a reader must not count it toward the branch's effect.
     """
-    return "accepted" if f["status"] == "accepted" else "rejected"
+    if f["status"] == "accepted":
+        return "accepted"
+    if f["status"] == "reverted":
+        return "reverted"
+    return "rejected"
 
 
 def is_product_change(f):
@@ -258,6 +276,10 @@ def render_factbar(findings):
     """
     product = [f for f in findings if is_product_change(f)]
     accepted = [f for f in product if f["status"] == "accepted"]
+    # Reverted is broken out rather than folded into rejected: a finding that landed and was
+    # later stranded by another is not a rejection, and the section below says so. Folding it
+    # here would have made this bar disagree with that section.
+    reverted = [f for f in product if f["status"] == "reverted"]
     stock = stock_commit()
     against = f"`{STOCK_REF}` at `{stock}`" if stock else f"`{STOCK_REF}`"
     rows = [
@@ -265,7 +287,8 @@ def render_factbar(findings):
         ("Dataset", "databot `enterprise-campus / large` for reads, `datacenter / large` for writes"),
         ("Changes proposed", f"{len(product)}"),
         ("Accepted on this branch", f"**{len(accepted)}**"),
-        ("Rejected", f"{len(product) - len(accepted)}"),
+        ("Rejected", f"{len(product) - len(accepted) - len(reverted)}"),
+        *([("Reverted after landing", f"{len(reverted)}")] if reverted else []),
         (
             "Experiments recorded",
             f"{len(findings)}, of which {len(findings) - len(product)} measured the harness itself",
