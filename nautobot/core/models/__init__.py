@@ -7,7 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.exceptions import FieldDoesNotExist
 from django.db import models
-from django.urls import NoReverseMatch, reverse
+from django.urls import get_script_prefix, get_urlconf, NoReverseMatch, reverse
 from django.utils.encoding import is_protected_type
 from django.utils.functional import classproperty
 
@@ -106,6 +106,16 @@ def _natural_key_map_plan(model, lookup):
     return plan
 
 
+# Route shapes for `BaseModel.get_absolute_url()`, keyed by (concrete model, api, urlconf, script
+# prefix): the (prefix, suffix) around the pk, or None for a model that has to resolve its URL the
+# long way. URL routes are fixed for the life of a process, but two things that are not part of the
+# route still appear in a reversed path, so both are in the key: the urlconf, so a test-time
+# ROOT_URLCONF override resolves separately rather than inheriting the wrong shape, and the script
+# prefix, which Django reads from a thread-local set per request and which a memo living longer than
+# one request would otherwise bake in.
+_absolute_url_shape_memo = {}
+
+
 class BaseModel(models.Model):
     """
     Base model class that all models should inherit from.
@@ -156,7 +166,32 @@ class BaseModel(models.Model):
     def get_absolute_url(self, api=False):
         """
         Return the canonical URL for this object in either the UI or the REST API.
+
+        The route *shape* is memoized per (model, api, urlconf): reversing costs ~51us and this is
+        called once per rendered object -- up to three `reverse()` attempts each, since the action
+        name is discovered by trying `retrieve`, then `detail`, then `""`. The shape is resolved once
+        with a sentinel pk and the real pk substituted afterwards. A model whose route does not
+        reverse a UUID, or whose URL does not contain the pk at all, memoizes `None` and takes the
+        original per-object path below forever after.
         """
+        memo_key = (self._meta.concrete_model, api, get_urlconf() or settings.ROOT_URLCONF, get_script_prefix())
+        shape = _absolute_url_shape_memo.get(memo_key, "")
+        if shape == "":
+            shape = None
+            sentinel = uuid.uuid4()
+            for action in ("retrieve", "detail", ""):  # TODO: Eventually all retrieve
+                try:
+                    url = reverse(get_route_for_model(self, action, api=api), kwargs={"pk": sentinel})
+                except NoReverseMatch:
+                    continue
+                prefix, found, suffix = url.partition(str(sentinel))
+                if found:
+                    shape = (prefix, suffix)
+                break
+            _absolute_url_shape_memo[memo_key] = shape
+        if shape is not None:
+            prefix, suffix = shape
+            return f"{prefix}{self.pk}{suffix}"
 
         # Iterate the pk-like fields and try to get a URL, or return None.
         fields = ["pk"]
