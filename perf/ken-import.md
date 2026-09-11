@@ -77,12 +77,15 @@ row; the two memos take it to **6**.
 | 13 | `26e6dd995` | Behavioral \| 2 — get_absolute_url and form data-url shapes | `ported` | **Finding 68** (`90a00176e`): 542 -> 6 reversals, −5.5% on interfaces (−11.9% for the pair). Two departures from theirs: the script prefix is in both memo keys, and `get_absolute_url` keeps its original walk as a fallback instead of raising. |
 | 14 | `a714d9267` | Behavioral \| 3 — NATURAL_SLUG_ENABLED opt-out | `declined` | **Not a perf change; an API contract change with a perf payoff for whoever turns it off.** With the flag off, `natural_slug` serializes as `""` while staying in the schema, and the natural-key prefetches are skipped. Default is on, so it measures zero by default, and its value is a deployment choice rather than a branch result. It also interacts with findings 1, 4, 5, 14 and 42, which all optimize the path it bypasses. **Kevin's call, and an upstream conversation rather than a perf experiment** — declined here so the branch does not carry a feature flag nobody asked for. |
 
-## PR 5 — UI | Views
+## PR 5 — UI | Views  (closed 2026-09-11, 2/2)
+
+Neither page is in `perf/workload.yml`, so neither had ever been measured here — the read loop does
+not name them and the read screen is REST-only.
 
 | # | Hash | Commit | Status | Verdict |
 |---|---|---|---|---|
-| 15 | `5082f4a10` | Views \| 1 — Device LLDP neighbors prefetch | `open` | Probably new. |
-| 16 | `bb09ebf60` | Views \| 2 — changelog views prefetch changed_object | `open` | Overlaps finding 56 (home page panel) and finding 63 (REST optimizer); both are different code paths, so this may still stand. |
+| 15 | `5082f4a10` | Views \| 1 — Device LLDP neighbors prefetch | `ported` | **Finding 69** (`fa9347675`): **875 -> 34 queries**, 17.857 -> 0.694 per interface, **−81.3% wall** (1,320.7 -> 246.4 ms). The largest single-page reduction on the branch, on a page no instrument here had ever touched. |
+| 16 | `bb09ebf60` | Views \| 2 — changelog views prefetch changed_object | `superseded` | **Measured, not assumed.** `ObjectChangeTable` declares `add_conditional_prefetch("object_repr", "changed_object")`, which applies whenever that column is visible and the data is a queryset — however the table was built, including both views this commit patches. The dataset could not show it (36,552 ObjectChange rows, but the busiest single object has **two**), so `probe_changelog_gfk.py` synthesises 100 rows for one device in a rolled-back transaction: the tab reads **31 queries at 25 rendered rows and 31 at 100**, and the global list 10 at both. Flat, so there is nothing left to prefetch. |
 
 ## PR 6 — UI | BaseTable  — **the collision block; do it as one unit**
 
@@ -143,7 +146,7 @@ zero-row endpoints in `perf/dataset-gaps.md`.
 
 | status | count |
 |---|---|
-| `ported` | 7 (findings 62, 63, 64, 65, 66, 67, 68) |
-| `superseded` | 4 |
+| `ported` | 8 (findings 62-69) |
+| `superseded` | 5 |
 | `declined` | 3 |
-| `open` | 24 |
+| `open` | 22 |

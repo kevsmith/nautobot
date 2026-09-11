@@ -1,0 +1,57 @@
+---
+seq: 69
+id: null
+commit: 0530b30a1
+recommended_commit: fa9347675
+status: accepted
+basis: 'attribution: 875 queries on one page, 17.857 per interface, 484 in two shapes'
+behaviour: A
+migration: '-'
+flags: []
+title: Prefetch connected endpoints on the Device LLDP neighbors tab
+site: nautobot/dcim/views.py DeviceUIViewSet.lldp_neighbors
+summary: 'The LLDP tab renders each interface''s connected endpoint and that endpoint''s device, to
+  compare against what LLDP reports. The queryset was optimized for the cable columns but not for
+  the connection column, so the page walked the cable path once per row. **Ported from Ken
+  Celenza''s `5082f4a10` (`UI | Views | 1`)** on github.com/itdependsnetworks/nautobot.'
+result:
+  attribution: '`perf/scripts/probe_ui_views_nplus1.py` on the device with the most interfaces
+    (`SEA01-01-access-27`, 49 interfaces): **875 queries, 17.857 per interface**. Two shapes are 484
+    of them — 334 SELECTs on `dcim_interface` and 150 on `dcim_device`, the peer interface and its
+    parent device, once per row. After: **34 queries, 0.694 per interface.**'
+  flat_in_row_count: 'three devices of different sizes after the change: 49 interfaces -> 34
+    queries, 33 -> 38, 14 -> 31. **The count no longer tracks the interface count at all** — 33
+    interfaces costs more than 49 — because what remains is per-content-type prefetch groups rather
+    than per-row reads.'
+  wall_clock: 'three alternating rounds of 9 reps on a quiesced host: **1,320.7 -> 246.4 ms,
+    −81.3%**. Arms nowhere near overlapping: 1301.8/1320.7/1353.2 against 246.3/246.4/248.4. The
+    largest single-page reduction recorded on the branch.'
+controls: '`/api/extras/job-queues/` is flat and overlapping across arms (34.7–34.9 against
+  34.6–34.9). **The second control is less clean and is reported as measured**: the device *detail*
+  page reads 208.2/220.7/232.8 on stock against 208.0/207.5/207.0 on branch — the stock arm drifts
+  upward across rounds while the branch arm is steady, and the ranges touch rather than overlap
+  (208.2 against 208.0). Nothing in this change is reachable from the detail page, which renders no
+  LLDP tab, so the reading is that the stock arm drifted; recorded rather than smoothed, because a
+  control that moves is a fact about the measurement.
+
+
+  **Payload equivalence needed its own instrument.** A UI page carries a per-request CSRF token
+  twice — once as a form input and once in the `hx-headers` attribute on `<body>` — so the response
+  digest differs between two renders on the *same* arm. `perf/scripts/probe_lldp_equivalence.py`
+  strips both and digests what is left. Stripped renders are identical within each arm, and the two
+  arms'' pages differ by **exactly one line: a rendered clock** (`23:10` against `23:12`, the arms
+  having been measured two minutes apart).'
+tests: '`nautobot.dcim.tests.test_views.DeviceTestCase`, 83 OK (skipped=1), serial.'
+wall_clock: '−81.3% ui.device.lldp_neighbors'
+wall_clock_detail: 'Measured in-process by `probe_endpoint_ab.py` under `measure.sh`, 9 reps per
+  arm, arms alternated three times. Query counts 875 -> 34 identical in every round.'
+note: '**This page had never been measured here.** It is not in `perf/workload.yml`, so neither the
+  read loop nor the read screen — which is REST-only — has ever touched it. A 1.3-second page sat
+  outside every instrument on the branch. `perf/queue.md` already carries "screen the UI surface" as
+  an open item; this is the second piece of evidence for it, after finding 44 found that all 20
+  `ui.*.list` scenarios were measuring shells.
+
+
+  **It is one device''s page, and the cost scales with cabling rather than with interfaces.** A
+  device whose interfaces are mostly uncabled has less to save; this dataset cables enough of them
+  to make this the slowest single view measured on the branch.'
