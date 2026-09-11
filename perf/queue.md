@@ -962,6 +962,11 @@ checked against `upstream/next` (`29bdcaa57`) and `upstream/develop` (`ca72fa539
 `get_settings_or_config_memoized` and `replace_queryset` all return zero files in both. So
 this is available work, not a rebase problem.
 
+**Per-commit progress lives in [`perf/ken-import.md`](ken-import.md)** — one row for each of the
+38, with a status (`open`, `assessed`, `ported`, `declined`, `superseded`) and the verdict that
+produced it. Update the row in the same commit that records the finding; this section argues the
+ordering, that file tracks the state.
+
 **Each one gets assessed and accepted the same way as everything else here** — attribution
 first, one experiment per commit, deterministic counter as the gate, wall clock as the
 ranking, three alternating rounds, a control that cannot benefit, a findings record. A
