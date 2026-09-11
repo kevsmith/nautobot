@@ -1,0 +1,81 @@
+---
+seq: 60
+id: null
+commit: null
+recommended_commit: null
+status: accepted
+basis: 'serialize_object is called 50x on stock and 0x on the branch for the same 50-object write'
+behaviour: A
+migration: '-'
+flags: []
+title: Finding 22 subsumes finding 31, whose tag cache nothing on the branch reads
+site: nautobot/core/models/utils.py tag_cache_warmed/serialize_object — extras/api/mixins.py — extras/models/change_logging.py to_objectchange
+summary: 'Finding 31 fixed `serialize_object`''s `_tags` cache, where `getattr(obj, "_tags", []) or
+  obj.tags.only("name")` fell through for an object whose cached list was empty. Finding 22 then
+  stopped writing `ObjectChange.object_data`, which **removed the `serialize_object` call from
+  `to_objectchange` entirely**, leaving `serialize_object_v2` — which does not read `_tags`. The
+  `_tags` attribute has exactly two writers and one reader in the whole codebase, and on this
+  branch the reader is no longer called from the change-logging path. Finding 31''s mechanism is
+  therefore inert on the branch, and its `tag_cache_warmed` warmer issues one `TaggedItem` query
+  per batch whose result nobody reads.'
+result:
+  call_counts: '50 tagged interfaces bulk-PATCHed through the REST API, the same request on both
+    arms. **stock**: `serialize_object` 50, `serialize_object_v2` 50. **branch**:
+    `serialize_object` **0**, `serialize_object_v2` 50. Counted by rebinding the module globals,
+    not inferred from reading the diff.'
+  tag_queries: 'same request, `extras_taggeditem` queries: **stock 51, branch 1** for 50 tagged
+    objects, and identically **stock 51, branch 1** for 50 *untagged* ones. That the saving does
+    not depend on whether the objects carry tags is the signature of removing the caller rather
+    than of making a cache fire — finding 22, not finding 31.'
+  reader_writer_set: 'exhaustive grep for `_tags` across `nautobot/` excluding tests: writers are
+    `tag_cache_warmed` (core/models/utils.py) and `TaggedModelSerializerMixin.update`
+    (extras/api/mixins.py), both added by finding 31; the sole reader is `serialize_object` at
+    core/models/utils.py:275. No third party reads it.'
+  where_the_warmer_still_runs: '`tag_cache_warmed` is called only from
+    `ChangeContext.create_object_changes`, which runs only under `defer_object_changes`, which is
+    set only by `deferred_change_logging_for_bulk_operation` — used by `core/jobs/bulk_actions.py`,
+    `core/views/mixins.py:1427`, `extras/customfields.py` and `extras/views.py`. So the UI bulk
+    paths and bulk-action jobs, not the REST API. In those paths it issues one batched
+    `TaggedItem` query per batch and nothing reads the `_tags` it populates.'
+  not_reached_by: 'the REST bulk update path (measured, warmer called 0 times) and
+    `bulk_delete_with_bulk_change_logging` (measured, 0 times) — the latter builds its change
+    records through its own `_build_objectchange` helper and bypasses `create_object_changes`.'
+controls: 'the same probe on untagged objects returns the same 51 -> 1, which is what rules out
+  "the cache started firing" as the explanation and leaves "the caller was removed".'
+tests: 'not applicable — no product code changed by this finding. Probes:
+  perf/scripts/probe_tag_writes.py (query counts per arm), probe_serialize_calls.py (call counts
+  per arm), probe_bulk_delete_tags.py (the bulk-delete path, rolled back).'
+wall_clock: "not measured — a call-count and query-count result; no code changed to time"
+wall_clock_detail: 'Nothing was changed here, so there is nothing to time. The wall-clock question
+  this raises belongs to the revert priced alongside it: if finding 31 is dropped, the prediction
+  is that nothing moves at all, because its mechanism is already inert. That is a measurement to
+  run, not a claim made here.'
+note: '**Correcting the record on finding 31.** Its `wall_clock` reads "−6.9% bulk.create.x100.loop,
+  −5.6% deferred", measured on 2026-09-05 against a tree that still called `serialize_object` from
+  `to_objectchange`. Finding 22 landed afterwards and removed that call. The figure was true when
+  written and describes a code path the branch no longer takes; the saving it names is now
+  delivered by finding 22. Finding 31''s record is not wrong, it is superseded, and the two must
+  not be added together when totalling the branch''s effect.
+
+
+  **How this was found, which is the part worth generalising.** The tagged dataset was built to
+  exercise finding 31''s untested path — the branch where `_tags` is truthy. Looking for where
+  that path runs is what surfaced the fact that it does not run at all. A fix whose measured
+  benefit survives while its mechanism is bypassed is invisible to every instrument this branch
+  owns: query counts still fall, wall clock still improves, and the attribution is simply wrong.
+  Only counting the calls showed it.
+
+
+  **Two of this branch''s own findings overlapped and nobody noticed for six days.** Finding 31
+  landed 2026-09-05 and finding 22 on 2026-09-06. Each was measured against the tree that preceded
+  it, which is correct procedure and still insufficient: neither experiment could see that the
+  later one would strand the earlier. The cumulative table is unaffected — it measures the whole
+  tree against stock and does not sum per-finding figures — but the per-finding column in
+  `perf/report.md` now carries two rows that describe the same saving.
+
+
+  **What follows from this is a subtraction, and it is the useful part.** Finding 31 is the
+  branch''s riskiest tier — C, changing observable behaviour, with a documented trap where fixing
+  the presence check alone would have made every REST PATCH that leaves tags alone log the object
+  as untagged. If its mechanism is inert, the branch can shed a tier C change and a per-batch query
+  for nothing. Priced separately.'
