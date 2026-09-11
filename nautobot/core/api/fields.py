@@ -1,9 +1,11 @@
 from collections import OrderedDict
 import logging
+import uuid
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.validators import URLValidator
 from django.db.models import Model
+from django.urls import NoReverseMatch
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
@@ -187,7 +189,54 @@ class LaxURLField(URLField):
         },
     }
 )
-class NautobotHyperlinkedRelatedField(WritableSerializerMixin, serializers.HyperlinkedRelatedField):
+class HyperlinkedURLMemoMixin:
+    """Memoize the *shape* of a hyperlinked URL so `reverse()` runs once per route per request.
+
+    Reversing a URL costs ~51us (finding 51), and a hyperlinked serializer field reverses the same
+    route once for every object in the page: a 100-row Device list reversed
+    `extras-api:status-detail` 100 times for 100 identical routes differing only in the pk.
+
+    The route shape is resolved once with a sentinel UUID, split around it, and the pk substituted
+    for every later object. The memo lives on the field instance, which DRF creates per serializer
+    instantiation and reuses for every object under `many=True`, so it is request-scoped and cannot
+    outlive a change of host or script prefix. Routes whose lookup is not a UUID pk -- `ContentType`
+    and `Group` have integer pks -- raise `NoReverseMatch` on the sentinel and fall back to DRF's
+    per-object implementation permanently.
+    """
+
+    _url_memo = None
+
+    def get_url(self, obj, view_name, request, format):  # noqa: A002  # shadows builtin, DRF's signature
+        # Unsaved objects have no URL yet; this is DRF's own short-circuit.
+        if hasattr(obj, "pk") and obj.pk in (None, ""):
+            return None
+        # Only a plain pk lookup with no format suffix has a shape constant enough to reuse.
+        if format is not None or self.lookup_field != "pk" or self.lookup_url_kwarg != "pk":
+            return super().get_url(obj, view_name, request, format)
+
+        if self._url_memo is None:
+            self._url_memo = {}
+        shape = self._url_memo.get(view_name, "")
+        if shape == "":
+            sentinel = uuid.uuid4()
+            try:
+                url = self.reverse(view_name, kwargs={"pk": sentinel}, request=request)
+                prefix, found, suffix = url.partition(str(sentinel))
+                shape = (prefix, suffix) if found else None
+            except NoReverseMatch:
+                shape = None
+            self._url_memo[view_name] = shape
+        if shape is None:
+            return super().get_url(obj, view_name, request, format)
+        prefix, suffix = shape
+        return f"{prefix}{obj.pk}{suffix}"
+
+
+class NautobotHyperlinkedIdentityField(HyperlinkedURLMemoMixin, serializers.HyperlinkedIdentityField):
+    """The `url` field of every serializer, with the same per-request route-shape memo."""
+
+
+class NautobotHyperlinkedRelatedField(HyperlinkedURLMemoMixin, WritableSerializerMixin, serializers.HyperlinkedRelatedField):
     """
     Extend HyperlinkedRelatedField to include URL namespace-awareness, add 'object_type' field, and read composite-keys.
     """
