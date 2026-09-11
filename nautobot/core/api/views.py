@@ -257,6 +257,9 @@ class ModelViewSetMixin:
 
         select_fields = []
         prefetch_fields = []
+        # Relations the viewset's own queryset already select_related()s explicitly. Those stay joined.
+        already_joined = queryset.query.select_related
+        already_joined = set(already_joined) if isinstance(already_joined, dict) else set()
         # Related models reached through a nested (`?depth`) serializer, keyed by the field name that reaches them.
         nested_fk_related_models = {}
 
@@ -277,16 +280,32 @@ class ModelViewSetMixin:
                     continue
                 if isinstance(model_field, (ManyToManyField, ManyToManyRel, RelatedField, ManyToOneRel, TagsField)):
                     prefetch_fields.append(field_instance.source)
-            elif isinstance(field_instance, (drf_serializers.RelatedField, drf_serializers.Serializer)):
-                # Serializer with depth > 0, RelatedField with depth 0
+            elif isinstance(field_instance, drf_serializers.Serializer):
+                # Nested serializer (depth > 0) renders the whole related object for every row, so the
+                # joined columns are all read and a JOIN is the right shape.
                 try:
                     model_field = model._meta.get_field(field_instance.source)
                 except FieldDoesNotExist:
                     continue
                 if isinstance(model_field, ForeignKey):
                     select_fields.append(field_instance.source)
-                    if isinstance(field_instance, drf_serializers.Serializer):
-                        nested_fk_related_models[field_instance.source] = model_field.related_model
+                    nested_fk_related_models[field_instance.source] = model_field.related_model
+            elif isinstance(field_instance, drf_serializers.RelatedField):
+                # RelatedField at depth 0 renders a hyperlink or a natural key, not the related row.
+                # Prefetching fetches each related object once; select_related duplicates its columns into
+                # every base row instead, and on a wide model that transfer dominates. Measured on a
+                # 100-row page of this dataset: Device widens from 32 columns to 212 and the fetch goes
+                # 41ms -> 447ms, Interface 24ms -> 94ms, Prefix 25ms -> 88ms. The queries go up (one per
+                # relation) and the wall clock falls, so the query counter reads this as a regression.
+                #
+                # A relation the viewset joined explicitly stays joined: that declaration is deliberate
+                # and a prefetch on top of it would only add a query.
+                try:
+                    model_field = model._meta.get_field(field_instance.source)
+                except FieldDoesNotExist:
+                    continue
+                if isinstance(model_field, ForeignKey) and field_instance.source not in already_joined:
+                    prefetch_fields.append(field_instance.source)
 
         # Prefetch deeper relations needed for this object's natural key (e.g. for `natural_slug`) to avoid N+1 queries.
         try:
@@ -297,8 +316,8 @@ class ModelViewSetMixin:
         for lookup in natural_key_field_lookups:
             if "__" in lookup:
                 prefix, _ = lookup.rsplit("__", 1)
-                # Single-level FKs are already covered by select_fields above.
-                if prefix not in select_fields:
+                # Single-level FKs are already covered by select_fields or prefetch_fields above.
+                if prefix not in select_fields and prefix not in prefetch_fields:
                     natural_key_prefetch_fields.add(prefix)
         # A nested serializer renders the *related* object's `natural_slug`/`display`, which walks that object's own
         # natural-key relations (e.g. `device.location.parent.parent...`). Those lookups sit two or more levels below
