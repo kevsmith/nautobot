@@ -62,11 +62,28 @@ class ReversalSpy:
                     tuple(sorted((kw.get("kwargs") or {}).items())),
                     (time.perf_counter() - t) * 1e6,
                 ))
-        django.urls.reverse = wrapper
+        # `from django.urls import reverse` binds the function object into the importing module at
+        # import time, so patching `django.urls.reverse` alone is invisible to every module that did
+        # that -- including `rest_framework.reverse`, which is the whole of the REST API's reversing.
+        # An earlier version of this probe reported ZERO reversals for `/api/dcim/devices/?limit=100`,
+        # which is not a fast endpoint, it is a blind instrument. Rebind every alias instead.
+        self._aliases = []
+        for module in list(sys.modules.values()):
+            if module is None:
+                continue
+            try:
+                members = list(vars(module).items())
+            except TypeError:  # pragma: no cover - some module objects have no __dict__
+                continue
+            for attr, value in members:
+                if value is self._orig:
+                    self._aliases.append((module, attr))
+                    setattr(module, attr, wrapper)
         return self
 
     def __exit__(self, *exc):
-        django.urls.reverse = self._orig
+        for module, attr in self._aliases:
+            setattr(module, attr, self._orig)
 
     def summary(self):
         grouped = collections.Counter((n, a, k) for n, a, k, _ in self.calls)
@@ -83,11 +100,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--reps", type=int, default=5)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument(
+        "urls",
+        nargs="*",
+        help="URLs to profile instead of the built-in UI scenarios; each is named after itself.",
+    )
     args = ap.parse_args()
 
+    scenarios = [(url, url, {}) for url in args.urls] or SCENARIOS
     client = get_perf_client()
     out = []
-    for name, url, extra in SCENARIOS:
+    for name, url, extra in scenarios:
         client.get(url, **extra)  # warm-up, discarded
         runs = []
         for _ in range(args.reps):
@@ -112,7 +135,7 @@ def main():
         out.append(med)
         if not args.json:
             top = ", ".join(f"{t['name']}x{t['calls']}" for t in med["top"])
-            print(f"  {name:22s} status={med['status']} reversals={med['reversals']:>4} "
+            print(f"  {name:46s} status={med['status']} reversals={med['reversals']:>4} "
                   f"distinct={med['distinct']:>3} redundant={med['redundant']:>4} "
                   f"reverse={med['reverse_ms']:>6.1f}ms wall={med['wall_ms']:>7.1f}ms  {top}")
     if args.json:

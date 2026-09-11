@@ -1,0 +1,71 @@
+---
+seq: 68
+id: null
+commit: a861243b1
+recommended_commit: 90a00176e
+status: accepted
+basis: 'attribution: 542 -> 6 reversals on a 100-row page, and redundant reversals to zero'
+behaviour: A
+migration: '-'
+flags: []
+title: Memoize the route shape of get_absolute_url and dynamic form data-urls
+site: nautobot/core/models/__init__.py BaseModel.get_absolute_url - nautobot/core/forms/fields.py
+summary: 'Two `reverse()` sites remained after finding 67. `BaseModel.get_absolute_url()` discovers
+  its action name by trying `retrieve`, then `detail`, then `""` — up to three reversals per
+  rendered object, in GFK and cable brief representations and in every UI table. And
+  `DynamicModelChoiceMixin.get_bound_field()` reversed the API list URL for its `data-url` on every
+  form clean, which includes filterset validation on REST API requests where the widget is never
+  rendered. Both memoize the route shape for the life of the process. **Ported from Ken Celenza''s
+  `26e6dd995` (`API | Behavioral | 2`)** on github.com/itdependsnetworks/nautobot.'
+result:
+  attribution: 'reversals per request, measured on top of finding 67:
+    `/api/dcim/interfaces/?limit=100` **542 -> 6** (40.4 -> 0.7ms of `reverse()`);
+    `/api/dcim/devices/?limit=100` 81 -> 11; `/api/dcim/devices/?limit=100&depth=1` 103 -> 33;
+    `/api/dcim/interfaces/?limit=25` 192 -> 4. **Cumulatively with finding 67: 1,031 -> 6 on a
+    100-row interfaces page**, and `redundant` — reversals of a route already resolved in the same
+    request — goes to **zero** on all four.'
+  wall_clock: 'three alternating rounds of 9 reps, on top of finding 67:
+    `/api/dcim/interfaces/?limit=100` **613.0 -> 579.4 ms (−5.5%)**, arms not overlapping
+    (607.3/613.0/623.2 against 571.3/579.4/592.3). **Cumulative with finding 67: 657.9 -> 579.4 ms,
+    −11.9%.** `/api/extras/job-queues/` **35.2 -> 33.9 ms (−3.7%)**, which is the point below.'
+  the_one_row_endpoint_moved: '`/api/extras/job-queues/` holds one row and was chosen as the control
+    for finding 67, where it was flat. It is **not** a control for this one and improved by 1.3ms:
+    the `data-url` half is a per-request fixed cost, not a per-row cost — filterset validation binds
+    every dynamic field on the filter form whether or not the response has rows. Recorded rather
+    than discarded, because a control that moves is either a broken control or a second mechanism,
+    and here it is the second mechanism.'
+controls: 'response digests byte-identical across all three arms on all three endpoints. Query
+  counts identical on every arm (26/11/6) — the gate is the reversal counter. Arm hashes differ
+  (`241d2fee992d155a`, `d6a5502a721ae6a1`, `92aacbab225f14e2`).
+
+
+  **One measurement went the wrong way and is reported as measured.** `/api/dcim/devices/?depth=1`
+  reads 961.5 -> 967.5 ms across this step, **+0.6%**, and the arms do not overlap
+  (960.8/961.5/963.4 against 965.5/967.5/971.4). Six milliseconds on a 960ms request. At `?depth=1`
+  the nested serializers hyperlink rather than call `get_absolute_url`, so finding 67 had already
+  taken what there was to take and this step adds a dict lookup per call without removing much. That
+  is a plausible story and not a measured one, so it is offered as a possibility rather than an
+  explanation; what is certain is the sign, the size, and that it is stable across three rounds.'
+tests: '`nautobot.core.tests.test_api` + `test_models` + `test_forms` +
+  `nautobot.dcim.tests.test_api`, **1,833 OK (skipped=45)**, serial. An earlier run of the same set
+  reported `FAILED (errors=1)` from a Postgres deadlock inserting into `auth_user` during `setUp` —
+  two test runners overlapping after a kill, not a code failure. `DeviceTest` passed 43/43 in
+  isolation and the clean re-run passed all 1,833.'
+wall_clock: '−5.5% api.interface.list on top of finding 67; −11.9% for the pair'
+wall_clock_detail: 'Measured in-process by `probe_endpoint_ab.py` under `measure.sh`, 9 reps per
+  arm, three arms alternated three times.'
+note: '**Two departures from the imported version, both deliberate.**
+
+
+  **The script prefix is part of both memo keys.** `reverse()` embeds the thread-local script prefix
+  in the path it returns, and these memos are process-lifetime rather than request-scoped, so a
+  process serving more than one script prefix would otherwise hand one deployment''s prefix to
+  another. Their version keys on `(model, api, urlconf)` only. This is a hazard that would not show
+  up on any instance that mounts Nautobot at a single path, which is most of them — hence a key
+  rather than a caveat.
+
+
+  **`get_absolute_url()` keeps its original per-object walk as the fallback.** Their rewrite raises
+  `AttributeError` when the route reverses but does not contain the pk; ours memoizes `None` for
+  that case and takes the old path, so a model whose detail route does not embed its pk behaves
+  exactly as it did before.'
