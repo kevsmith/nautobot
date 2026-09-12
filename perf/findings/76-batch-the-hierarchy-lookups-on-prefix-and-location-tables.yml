@@ -1,0 +1,50 @@
+---
+seq: 76
+id: null
+commit: 3a6d8994a
+recommended_commit: 0d30bbdc0
+status: accepted
+basis: 'attribution: 3.000 q/row on prefixes and 1.973 on locations, both to 0.000'
+behaviour: A
+migration: '-'
+flags: []
+title: Batch the per-row hierarchy lookups on Prefix and Location tables
+site: nautobot/ipam/utils/__init__.py - nautobot/ipam/tables.py - nautobot/dcim/tables/locations.py
+summary: '`PREFIX_COPY_LINK` and `LOCATION_TREE_LINK` render one indent per ancestor and an expand
+  arrow when a row has children, and asked each row for both — `record.ancestors.count` and
+  `record.children.exists` per rendered row. Locations now read the `tree_depth` annotation the
+  tree-fields queryset already carries and resolve `children_exists` for the page in one query;
+  prefixes are not a tree-fields model, so `prefill_prefix_hierarchy_ui()` walks the `parent` chain
+  one query per tree **level**. **Ported from Ken Celenza''s `f047b8d47` and `ecdfdf4ea`
+  (`UI | Tables | 1` and `3`)** on github.com/itdependsnetworks/nautobot.'
+result:
+  attribution: '`perf/scripts/probe_ui_table_slope.py` with rows actually rendered:
+    `/ipam/prefixes/` 86 -> 311 queries across 25 -> 100 rows (**3.000 q/row**), `/dcim/locations/`
+    58 -> 206 (**1.973 q/row**). The prefix page was the worst per-row offender of the 21 UI list
+    views screened.'
+  flat_in_row_count: 'after: `/ipam/prefixes/` **17 queries at both 25 and 100 rows**,
+    `/dcim/locations/` **10 at both**. The count stops tracking the page size entirely.'
+  wall_clock: 'three alternating rounds of 9 reps on a quiesced host, rows rendered:
+    `/ipam/prefixes/` **1,037.1 -> 608.4 ms (−41.3%)** and `/dcim/locations/`
+    **677.1 -> 454.4 ms (−32.9%)**. Arms nowhere near overlapping on either.'
+controls: '`/dcim/devices/` measured in the same reps: **8 queries on both arms**, 514.8 -> 512.2 ms,
+  −0.5%, ranges overlapping. Response digests **identical across arms** on all four pages measured,
+  including both changed ones (`d9661b42525623b7`, `3178632f8c82b259`).'
+tests: '`nautobot.ipam.tests.test_views` + `test_models` + the Location and LocationType view tests,
+  874 OK (skipped=31); and 2,413 OK (skipped=82) across the extras, rack, device, virtualization and
+  circuits view suites.'
+wall_clock: '−41.3% ui.prefix.list.rows, −32.9% ui.location.list.rows'
+wall_clock_detail: 'Measured in-process by `probe_endpoint_ab.py` under `measure.sh` with
+  `PERF_HX=1`, 9 reps per arm, arms alternated three times.'
+note: '**The two halves are shaped differently and only one is a tree.** Location is a
+  `tree_queries` model, so the depth is already annotated on every row and the fix is to read it.
+  Prefix is not: IPAM maintains `parent` as the closest containing prefix, so the prefill walks that
+  chain a level at a time, which is bounded by tree depth rather than by page size. Both land at a
+  flat query count, by different routes.
+
+
+  **The synthetic rows needed handling or the fix would have been partial.** Prefix tables inject
+  "available" rows that are not in the database and bypass table optimization entirely; they now
+  seed their own hierarchy values, which are known by construction. `add_available_prefixes()` also
+  asked each container whether it had descendants — one query per container — and now answers that
+  for every container on the page at once.'

@@ -1,0 +1,64 @@
+---
+seq: 77
+id: null
+commit: 6a6e66430
+recommended_commit: 2ab871c2f
+status: accepted
+basis: 'audit: 55 offending columns across 4 tables, the 6 outside the interface tables to zero'
+behaviour: A
+migration: '-'
+flags: []
+title: Prefetch what table columns read through properties and templates
+site: nautobot/dcim/tables - nautobot/extras/tables.py - nautobot/ipam - nautobot/virtualization
+summary: 'One defect in many places: a column whose value comes from a property, a template or a
+  linkify callback reads relations the accessor walk cannot name, so `BaseTable`''s automatic
+  optimization derives nothing and the read happens once per row. Fixed by declaration —
+  conditional prefetches, `display_prefetch_related` (finding 74''s convention), and three reads
+  made to honor a prefetch that was already there. **Ported from Ken Celenza''s `9c6431d23`,
+  `4eab9c8d0`, `c5d3cd136`, `ba5cbadaa`, `fd0aa7b4e`, `b28f73e43`, `cafdbbe7f` and `f2d45ff6b`
+  (`UI | Tables | 2` and `4`-`10`)** on github.com/itdependsnetworks/nautobot.'
+result:
+  the_instrument: '**`perf/scripts/probe_table_column_audit.py` is the finding''s foundation and is
+    new here.** It renders every column of every registered table *alone* — which finding 72''s
+    `columns=` kwarg is what makes possible — and reports per-row query cost. First run: **183
+    tables, 136 skipped for holding fewer than 40 rows, 55 offending columns across 4 tables.**'
+  attribution: 'worst first: `InterfaceTable.ip_addresses` **3.250 q/row**,
+    `InterfaceTable.connection` 1.800, every other InterfaceTable column 1.750,
+    `DeviceTable.primary_ip` 1.000, `DeviceTable.parent_device` 1.000, and four
+    `AssociatedContactsTable` columns at 1.000.'
+  per_column_after: '`DeviceTable.primary_ip` 21/41 queries -> **2/2**; `DeviceTable.parent_device`
+    21/41 -> **2/2**; `AssociatedContactsTable.name` 21/41 -> **1/1**;
+    `InterfaceTable.ip_addresses` **3.250 -> 1.750 q/row**, the namespace chain now one query.'
+  audit_delta: 'the audit re-run on both arms: **55 offenders -> 54**, and the six that disappear are
+    every offender outside the two interface tables. What remains is 27 columns on each interface
+    table, all pinned at the same 1.750 — see the note.'
+  wall_clock: '`/circuits/circuits/` **256.0 -> 199.5 ms (−22.1%)**, 46 -> 9 queries, arms not
+    overlapping. Three alternating rounds of 9 reps, rows rendered.'
+controls: '`/dcim/devices/` is the control: 8 queries on both arms, 514.8 -> 512.2 ms, −0.5%, ranges
+  overlapping. Response digests identical across arms on every page measured.'
+tests: '2,413 OK (skipped=82) across `nautobot.extras.tests.test_views`, the Rack and Device view
+  tests, `nautobot.virtualization.tests.test_views` and `nautobot.circuits.tests.test_views`; plus
+  874 OK (skipped=31) from the ipam and location suites.'
+wall_clock: '−22.1% ui.circuit.list.rows; per-column figures elsewhere'
+wall_clock_detail: 'Only circuits moved a page in the workload; the rest of this commit is priced
+  per column, because the tables it fixes are either not in `perf/workload.yml` or already covered
+  by a hand-optimized view queryset.'
+note: '**The remaining 54 offenders have one cause and it is not a column.** Every `InterfaceTable`
+  and `DeviceModuleInterfaceTable` column reads 1.750 q/row, including `mtu` and `description`,
+  because `row_attrs` calls `cable_status_color_css(record)`, which reads `record.cable` for every
+  row whatever columns are visible. A row-level cost is invisible to any column-based optimization,
+  and it is what `Cabling | 2` in the same series addresses — so it is deliberately not fixed here.
+
+
+  **Six declarations are carried unmeasured**, because their models hold too few rows on this
+  dataset to show a slope: `ObjectMetadata`, `ScheduledJob`, `DynamicGroup` memberships,
+  `SoftwareVersion`, `LoadBalancerPoolMember` and `VRFDeviceAssignment`. They are taken on the
+  strength of reading what their `display` and render methods touch, and this is where that is
+  recorded rather than implied.
+
+
+  **One of the fixes is a deferred-field trap rather than a missing prefetch.**
+  `Job.latest_result` used `.only("status")` as a deliberate optimization for the job list; the Last
+  Run column then rendered `date_created` and `user`, so each row loaded two deferred fields and
+  fetched a user. Removing the `.only()` and prefetching the slice is faster than the optimization
+  it replaces.'
