@@ -1,0 +1,46 @@
+---
+seq: 74
+id: null
+commit: 936e76199
+recommended_commit: 750669f74
+status: accepted
+basis: 'attribution: 1.000 q/row on DeviceTable.device_type in isolation, 0.000 after'
+behaviour: A
+migration: '-'
+flags: []
+title: Let models declare what their display reads, and prefetch it in tables
+site: nautobot/core/tables.py BaseTable.__init__ - nautobot/dcim/models/devices.py
+summary: 'A model whose `display`/`__str__` reads relations pays for them once per rendered row, and
+  every table showing that model has to know to prefetch them. `display_prefetch_related` moves that
+  knowledge onto the model, and `BaseTable` consumes it three ways: for the table''s own model
+  unconditionally (the linkified name column renders `display` on effectively every table),
+  prefix-joined when a visible column''s accessor walk lands on another model that declares it, and
+  inside the hover-sample `Prefetch` of a `LinkedCountColumn`. First declarations: `DeviceType` and
+  `ModuleType` (manufacturer) and `Module` (location, the module type''s manufacturer, both sides of
+  the parent module bay). **Ported from Ken Celenza''s `5c40c77d5` and `06276a82e`
+  (`UI | BaseTable | 6` and `7`)** on github.com/itdependsnetworks/nautobot.'
+result:
+  attribution: '`perf/scripts/probe_column_isolated.py`: `DeviceTable.device_type` reads **51 queries
+    at 50 rows and 101 at 100 — 1.000 per row** — because the column renders `device_type.display`,
+    which reads `manufacturer`. After: **2 and 2. 0.000 per row.**'
+  what_it_is_not_worth: '**`/dcim/devices/` reads 8 queries at 100 rows before and after.** The list
+    viewset already `select_related`s `device_type__manufacturer`, so the device list page was never
+    paying this and does not move. What changes is that the *column* is self-sufficient, which
+    matters wherever a table is built over a queryset nobody hand-optimized — related-object tabs,
+    embedded search results, programmatic tables. None of those are in `perf/workload.yml`, so the
+    honest claim is the column figure, not a page figure.'
+  unmeasured_declarations: '`Module` and `ModuleType` hold **zero rows** in this dataset, so their
+    declarations are carried on the strength of reading `display` rather than on a measurement.'
+controls: '`/dcim/devices/` is the control and is flat on queries (8 = 8) and within noise on wall
+  clock across the block A/B. Query counts in the isolated probe are deterministic.'
+tests: '98 OK (skipped=1) across the table tests, 301 OK (skipped=16) across the view tests,
+  including the device-type and module view suites.'
+wall_clock: 'not measured on a page: the pages that would show it are not in the workload'
+wall_clock_detail: 'The column measurement is in-process and deterministic. A page figure would
+  require a related-objects tab in `perf/workload.yml`, which is the "screen the UI surface" item the
+  queue already carries.'
+note: '**This replaces per-table hand-fixes with a model-level declaration, which is a maintenance
+  argument as much as a performance one.** Our tree has three `add_conditional_prefetch` call sites
+  doing this by hand; the convention is where the next one would otherwise go. The risk is the mirror
+  image: a declaration that drifts out of step with what `display` actually reads becomes a prefetch
+  nobody needs, and nothing enforces the correspondence.'

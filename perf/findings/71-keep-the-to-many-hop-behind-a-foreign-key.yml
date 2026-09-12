@@ -1,0 +1,48 @@
+---
+seq: 71
+id: null
+commit: f21e378e3
+recommended_commit: 7b5ca339b
+status: accepted
+basis: 'attribution: 1.000 q/row on the one affected column, 0.000 after'
+behaviour: A
+migration: '-'
+flags: []
+title: Keep the to-many hop when a table column's accessor walks a ForeignKey first
+site: nautobot/core/tables.py BaseTable.__init__ accessor walk
+summary: 'The accessor walk''s to-many branch was guarded with `and not select_path`, so once a
+  ForeignKey segment had been seen, a to-many segment after it was dropped: `interface__ip_addresses`
+  optimized as `select_related("interface")` and the `ip_addresses` hop became a per-row read. The
+  emit was `elif prefetch_path`, so a column could contribute a select *or* a prefetch, never both.
+  **Ported from Ken Celenza''s `c3fb5aee0` (`UI | BaseTable | 1`)** on
+  github.com/itdependsnetworks/nautobot.'
+result:
+  static_scan: '`perf/scripts/probe_accessor_walk_gaps.py` replays the walk over every registered
+    table class: **183 inspected, exactly one column affected** —
+    `InterfaceRedundancyGroupAssociationTable.interface__ip_addresses`, which is the example the
+    original commit names.'
+  attribution: 'that column is **hidden by default**, so no page renders it and the first attempt to
+    measure it found nothing: the redundancy-group detail page reads 123 queries on both arms with 50
+    synthesised associations. With the column made visible by finding 72''s `columns=` kwarg,
+    `perf/scripts/probe_column_isolated.py` reads **11 queries at 10 rows and 21 at 20 — 1.000 per
+    row — against 2 and 2 after. 0.000 per row, flat.**'
+  warmup: 'the probe discards one render before measuring. Without it the first measurement carried
+    the process''s cold content-type and config caches and the second looked artificially cheap —
+    the same cold-cache effect recorded for the write screen in the round-two process rules.'
+controls: 'the before/after arms are a scratch commit that reverts only this change, so the two trees
+  differ in six lines and nothing else. Query counts are deterministic and identical across repeats.'
+tests: '98 OK (skipped=1) across the table tests, 301 OK (skipped=16) across the view tests.'
+wall_clock: 'not measured: the only affected column is hidden by default and renders on no page'
+wall_clock_detail: '**No page moves because of this change on this tree**, and that is the finding as
+  much as the fix is. The cost is real and per-row, but it is paid only by a user who turns that
+  column on. Timing it would mean timing a page nobody is served.'
+note: '**The interesting result is the denominator.** The guard looked like a systemic defect in the
+  table optimizer — it drops a whole class of accessor path — and across 183 table classes it costs
+  exactly one hidden column. That is worth knowing before anyone spends a round on the same-shaped
+  suspicion elsewhere, and it is the argument for the scan existing rather than for reading the code
+  and inferring reach.
+
+
+  **It is still worth taking**, because the cost is unbounded in the column''s row count and appears
+  the moment someone enables it, and because a table optimizer that silently drops half a path is a
+  trap for the next person who adds a column with that shape.'

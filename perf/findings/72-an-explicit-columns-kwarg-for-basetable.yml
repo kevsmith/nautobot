@@ -1,0 +1,34 @@
+---
+seq: 72
+id: null
+commit: 12b676622
+recommended_commit: 67d9634e3
+status: accepted
+basis: 'enabling change: makes a hidden column''s per-row cost measurable at all'
+behaviour: A
+migration: '-'
+flags: []
+title: Add an explicit columns= kwarg to BaseTable
+site: nautobot/core/tables.py BaseTable.__init__
+summary: '`BaseTable(columns=[...])` shows exactly the named columns, in order, outranking the
+  SavedView table config and the user''s saved preferences. **Ported from Ken Celenza''s `34e8d3c61`
+  (`UI | BaseTable | 2`)** on github.com/itdependsnetworks/nautobot.'
+result:
+  removes_nothing: 'this change removes no queries and moves no page. It is recorded because of what
+    it makes possible, not because of what it saves.'
+  why_it_is_needed: 'queryset optimization happens in `BaseTable.__init__` and depends on which
+    columns are **visible**. A column hidden by default is therefore never optimized *and* never
+    measured — the cost exists only for the user who turns it on, and no probe pointed at a page can
+    see it. Findings 71 and 73 are both in exactly that position, and both were measured through this
+    kwarg by `perf/scripts/probe_column_isolated.py`.'
+controls: 'the parameter shadows a local variable of the same name that was built from stored
+  configuration; `resolve_stored_columns` gates every stored source so an explicit argument wins and
+  the default path is unchanged. The table tests cover the stored-configuration paths.'
+tests: '98 OK (skipped=1) across the table tests, 301 OK (skipped=16) across the view tests.'
+wall_clock: 'not measured: an enabling change with no queries removed'
+wall_clock_detail: 'Deliberately none. An instrument-shaped change measured as if it were an
+  optimization would put a number in the report that no user would ever experience.'
+note: '**Two of the eight commits in this block are enabling changes** — this one and finding 75 —
+  and both are recorded as such rather than folded silently into a neighbour. The branch already
+  distinguishes instruments from product changes in the report; this is the same distinction inside
+  the product code.'

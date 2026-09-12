@@ -1,0 +1,42 @@
+---
+seq: 73
+id: null
+commit: 76c182e42
+recommended_commit: e009e62d9
+status: accepted
+basis: 'attribution: 4.200 queries per rendered row on one relationship column'
+behaviour: A
+migration: '-'
+flags: []
+title: Prefetch relationship associations and their peers, and compare relationships by id
+site: nautobot/core/tables.py BaseTable.__init__ - RelationshipColumn.render
+summary: 'Three per-row query sources in a relationship column: the `associations` accessor queries
+  both generic relations per row; `RelationshipAssociation.get_peer()` dereferences each
+  association''s `source` and `destination` GenericForeignKeys; and `render()` filtered with
+  `v.relationship == self.relationship`, fetching the Relationship row per association. The first two
+  are prefetched once per table, the third compares `relationship_id`. **Ported from Ken Celenza''s
+  `054c7009b` and `41e69ca83` (`UI | BaseTable | 4` and `5`)** on
+  github.com/itdependsnetworks/nautobot, taken together because neither is measurable alone — the
+  prefetch is discarded while the render still fetches, and the id comparison has nothing to compare
+  while the associations are fetched per row.'
+result:
+  attribution: 'relationship columns are hidden by default, so the measurement needs finding 72''s
+    `columns=` kwarg. `perf/scripts/probe_column_isolated.py` on `LocationTable`:
+    **20 rows -> 109 queries, 40 rows -> 193 — 4.200 per row.** After: **8 and 8. 0.000 per row.**'
+  stale_content_type_fallback: 'the peer prefetch is skipped, and the lean association prefetch used
+    instead, when any relationship involving the model points at a ContentType whose model class no
+    longer exists — an App that was uninstalled. The GFK prefetch raises in that case. Those peers
+    then resolve per row and render `(unknown)`, which is what they did before.'
+controls: 'query counts are deterministic and identical across repeats; the isolated probe discards
+  one render before measuring. The dataset holds exactly one relationship (`dcim.location` to
+  `dcim.location`, 37 associations), which is what made this measurable at all.'
+tests: '98 OK (skipped=1) across the table tests, including
+  `nautobot.extras.tests.test_relationships`; 301 OK (skipped=16) across the view tests.'
+wall_clock: 'not measured: the affected columns are hidden by default'
+wall_clock_detail: '**No page renders a relationship column by default**, so there is no page to
+  time. 4.2 queries per row is what a user who enables one pays today; this takes it to zero.'
+note: '**This is the largest per-row cost found in the whole block and it is invisible by default.**
+  The pattern is now recorded three times on this branch — finding 65''s zero-row endpoints, finding
+  71''s hidden column, and this one — that the defects the instruments cannot see are not smaller than
+  the ones they can, only harder to reach. Two of the three needed a new way to reach them
+  (synthesised rows, an explicit column list) rather than a new place to look.'
