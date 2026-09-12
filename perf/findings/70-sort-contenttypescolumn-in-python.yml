@@ -1,0 +1,52 @@
+---
+seq: 70
+id: null
+commit: 6965e040d
+recommended_commit: 5ee52a8af
+status: accepted
+basis: 'attribution: exactly 1.000 content-type query per rendered row'
+behaviour: A
+migration: '-'
+flags: []
+title: Sort ContentTypesColumn in Python so it keeps its prefetch cache
+site: nautobot/core/tables.py ContentTypesColumn.filter
+summary: '`ContentTypesColumn.filter()` sorted with `qs.order_by("app_label", "model")`. `order_by()`
+  clones the queryset, which discards the prefetch cache `BaseTable` sets up for `content_types`, so
+  the column issued one query per rendered row. The docstring already said so — *"this sorting comes
+  at a per-row performance hit to querysets for table views"* — and offered `sort_items=False` as
+  the workaround. **Ported from Ken Celenza''s `bb3255f01` (`UI | BaseTable | 3`)** on
+  github.com/itdependsnetworks/nautobot.'
+result:
+  attribution: '`perf/scripts/probe_ui_table_slope.py`, which sends the `HX-Request` header so the
+    table renders rows at all (finding 44): `/extras/roles/` reads 34 queries at 25 rows and **54 at
+    45 — 1.000 per row**, and 45 of the 54 are `django_content_type` SELECTs.'
+  after: '`/extras/roles/` 9 queries at both page sizes; `/extras/statuses/` 31 -> 9. Flat in the row
+    count rather than merely smaller.'
+  wall_clock: 'three alternating rounds of 9 reps on a quiesced host, rows rendered:
+    `/extras/roles/` **224.1 -> 155.8 ms (−30.5%)**, `/extras/statuses/` **132.7 -> 96.2 ms
+    (−27.5%)**. Arms nowhere near overlapping on either.'
+controls: '`/dcim/devices/` rendered the same way is the control: **8 queries on both arms**, and
+  519.0 -> 521.8 ms, +0.5%. Response digests are **identical across arms** on all three pages
+  (`3a20244924178920`, `ffe6983b6e1ff776`, `825c501d150b7fc5`) — an HX row fragment carries no CSRF
+  token, so unlike a full UI page it can be digested directly.
+
+
+  **The A/B arms span all six commits of the block**, so the wall-clock figure is the block''s. The
+  attribution above is per-commit and deterministic, and the other five changes do not touch these
+  two pages: relationship columns are hidden on them, the display convention applies to a device
+  column, and the remaining two are enabling changes that remove nothing.'
+tests: '`nautobot.core.tests.test_tables` + `nautobot.dcim.tests.test_tables` +
+  `nautobot.extras.tests.test_relationships`, 98 OK (skipped=1); and 301 OK (skipped=16) across the
+  device-type, module, status, role and core view tests.'
+wall_clock: '−30.5% ui.role.list.rows, −27.5% ui.status.list.rows'
+wall_clock_detail: 'Measured in-process by `probe_endpoint_ab.py` under `measure.sh`, 9 reps per
+  arm, arms alternated three times, with `PERF_HX=1` so the row-rendering request is the one timed.'
+note: '**Two instrument defects were found getting this number, and both would have produced a
+  confident wrong answer.** The first A/B reported 10 queries on both arms and no difference:
+  `probe_endpoint_ab.py` did not send `HX-Request`, so it timed the shell that renders no rows —
+  finding 44''s trap, two months after finding 44. The second, after adding the header, reported 5
+  queries on both arms: the probe appends `?limit=N`, which is REST''s pagination parameter, and a UI
+  list asked for `?limit=100` **with** the HX header returns a 2-row, 9KB fragment rather than an
+  error. Both are now fixed in the shared probe — `PERF_HX=1` sends the header and switches the page
+  parameter to `per_page` — and the probe voids a run rather than timing a non-200, which is how the
+  second defect surfaced at all.'
