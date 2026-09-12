@@ -1,4 +1,5 @@
 from django.utils.html import format_html, format_html_join
+from django.db.models import QuerySet
 import django_tables2 as tables
 from django_tables2.utils import Accessor
 
@@ -178,6 +179,16 @@ class VirtualChassisMembersTable(BaseTable):
 
 
 class DeviceTable(StatusTableMixin, RoleTableMixin, BaseTable):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # `primary_ip` is a property that picks between two foreign keys, so the accessor-based
+        # optimization cannot see it at all; prefetch both when the column is visible.
+        self.add_conditional_prefetch("primary_ip", db_column="primary_ip4")
+        self.add_conditional_prefetch("primary_ip", db_column="primary_ip6")
+        # The PARENT_DEVICE template reads `parent_bay.device` per row, and `parent_device` is not a
+        # field, so the accessor walk derives nothing from the column name.
+        self.add_conditional_prefetch("parent_device", db_column="parent_bay__device")
+
     pk = ToggleColumn()
     name = TemplateColumn(order_by=("_name",), template_code=DEVICE_LINK)
     tenant = TenantColumn()
@@ -711,6 +722,12 @@ class DeviceModulePowerOutletTable(PowerOutletTable):
 
 
 class BaseInterfaceTable(StatusTableMixin, RoleTableMixin, BaseTable):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The column template renders each IP address's parent prefix's namespace; the automatic
+        # optimization prefetches `ip_addresses` and stops there.
+        self.add_conditional_prefetch("ip_addresses", db_column="ip_addresses__parent__namespace")
+
     enabled = BooleanColumn()
     ip_addresses = TemplateColumn(
         template_code=INTERFACE_IPADDRESSES,
@@ -1057,6 +1074,14 @@ class DeviceBayTable(DeviceComponentTable):
 
 
 class ModuleBayTable(BaseTable):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Both the name column's tree link and the always-rendered action buttons read
+        # `installed_module` for every row, whatever the column configuration, so this is
+        # unconditional rather than conditional on a column being visible.
+        if isinstance(self.data.data, QuerySet):
+            self.replace_queryset(self.data.data.select_related("installed_module"))
+
     pk = ToggleColumn()
     parent_device = tables.Column(
         linkify=lambda record: record.parent_device.get_absolute_url(),
@@ -1368,6 +1393,13 @@ class InterfaceRedundancyGroupTable(StatusTableMixin, BaseTable):
 
 class InterfaceRedundancyGroupAssociationTable(BaseTable):
     """Table for list view."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Same namespace chain as BaseInterfaceTable, one relation further out.
+        self.add_conditional_prefetch(
+            "interface__ip_addresses", db_column="interface__ip_addresses__parent__namespace"
+        )
 
     pk = ToggleColumn()
     interface__enabled = BooleanColumn()

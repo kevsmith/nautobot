@@ -1,3 +1,4 @@
+from django.db.models import Prefetch
 from django.utils.safestring import mark_safe
 import django_tables2 as tables
 from django_tables2.utils import Accessor
@@ -964,6 +965,15 @@ class IPAddressToInterfaceTable(BaseTable):
 
 
 class VLANGroupTable(BaseTable):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The action buttons render `get_next_available_vid` for every row, which needs the group's
+        # used VLAN IDs. Prefetch the VIDs alone rather than whole VLAN rows.
+        self.add_conditional_prefetch(
+            "actions",
+            prefetch=Prefetch("vlans", queryset=VLAN.objects.only("id", "vid", "vlan_group").order_by()),
+        )
+
     pk = ToggleColumn()
     name = tables.Column(linkify=True)
     location = tables.Column(linkify=True)
