@@ -390,6 +390,10 @@ class DeviceType(PrimaryModel):
         if self.rear_image:
             self.rear_image.delete(save=False)
 
+    # Relations that `display` reads, so a table rendering it can prefetch them per page rather
+    # than reading them per row. Consumed by `BaseTable`.
+    display_prefetch_related = ("manufacturer",)
+
     @property
     def display(self):
         return f"{self.manufacturer.name} {self.model}"
@@ -1956,6 +1960,10 @@ class ModuleType(PrimaryModel):
 
         return yaml.dump(dict(data), sort_keys=False, allow_unicode=True)
 
+    # Relations that `display` reads, so a table rendering it can prefetch them per page rather
+    # than reading them per row. Consumed by `BaseTable`.
+    display_prefetch_related = ("manufacturer",)
+
     @property
     def display(self):
         return f"{self.manufacturer.name} {self.model}"
@@ -2052,6 +2060,15 @@ class Module(PrimaryModel):
         serial = f" (Serial: {self.serial})" if self.serial else ""
         asset_tag = f" (Asset Tag: {self.asset_tag})" if self.asset_tag else ""
         return str(self.module_type) + serial + asset_tag
+
+    # Relations that `display` reads: the location, the module type's manufacturer (through
+    # `__str__`), and whichever side of the parent module bay is populated. Consumed by `BaseTable`.
+    display_prefetch_related = (
+        "location",
+        "module_type__manufacturer",
+        "parent_module_bay__parent_device",
+        "parent_module_bay__parent_module",
+    )
 
     @property
     def display(self):
