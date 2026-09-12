@@ -87,21 +87,21 @@ not name them and the read screen is REST-only.
 | 15 | `5082f4a10` | Views \| 1 — Device LLDP neighbors prefetch | `ported` | **Finding 69** (`fa9347675`): **875 -> 34 queries**, 17.857 -> 0.694 per interface, **−81.3% wall** (1,320.7 -> 246.4 ms). The largest single-page reduction on the branch, on a page no instrument here had ever touched. |
 | 16 | `bb09ebf60` | Views \| 2 — changelog views prefetch changed_object | `superseded` | **Measured, not assumed.** `ObjectChangeTable` declares `add_conditional_prefetch("object_repr", "changed_object")`, which applies whenever that column is visible and the data is a queryset — however the table was built, including both views this commit patches. The dataset could not show it (36,552 ObjectChange rows, but the busiest single object has **two**), so `probe_changelog_gfk.py` synthesises 100 rows for one device in a rolled-back transaction: the tab reads **31 queries at 25 rendered rows and 31 at 100**, and the global list 10 at both. Flat, so there is nothing left to prefetch. |
 
-## PR 6 — UI | BaseTable  — **the collision block; do it as one unit**
+## PR 6 — UI | BaseTable  (closed 2026-09-12, 8/8) — the collision block, done as one unit
 
 Eight commits in `nautobot/core/tables.py`, which already carries findings 7, 11 and 54. The
 queue's standing instruction: do not interleave this block with anything else.
 
 | # | Hash | Commit | Status | Verdict |
 |---|---|---|---|---|
-| 17 | `c3fb5aee0` | BaseTable \| 1 — accessor walk keeps to-many segments | `open` | |
-| 18 | `34e8d3c61` | BaseTable \| 2 — explicit `columns=` kwarg | `open` | Enabling change for their column audit. |
-| 19 | `bb3255f01` | BaseTable \| 3 — ContentTypesColumn keeps its prefetch cache | `open` | |
-| 20 | `054c7009b` | BaseTable \| 4 — prefetch relationship associations | `open` | |
-| 21 | `41e69ca83` | BaseTable \| 5 — RelationshipColumn compares by ID | `open` | |
-| 22 | `5c40c77d5` | BaseTable \| 6 — `display_prefetch_related` convention | `open` | The convention PR 7 and PR 8 are built on; assess it before any of them. |
-| 23 | `06276a82e` | BaseTable \| 7 — LinkedCountColumn honors it | `open` | Depends on 22. |
-| 24 | `867cb152e` | BaseTable \| 8 — `replace_queryset()` helper | `open` | Consumed by PRs 7 and 8. |
+| 17 | `c3fb5aee0` | BaseTable \| 1 — accessor walk keeps to-many segments | `ported` | **Finding 71** (`7b5ca339b`). A static scan of all 183 table classes finds **exactly one** affected column, and it is hidden by default: 1.000 -> 0.000 q/row measured with it made visible. No page moves. |
+| 18 | `34e8d3c61` | BaseTable \| 2 — explicit `columns=` kwarg | `ported` | **Finding 72** (`67d9634e3`). Enabling change, removes nothing — and it is what made findings 71 and 73 measurable at all, since optimization keys off *visible* columns. |
+| 19 | `bb3255f01` | BaseTable \| 3 — ContentTypesColumn keeps its prefetch cache | `ported` | **Finding 70** (`5ee52a8af`): 1.000 -> 0.000 q/row; `/extras/roles/` 54 -> 9 queries and **−30.5% wall**, `/extras/statuses/` 31 -> 9 and −27.5%. |
+| 20 | `054c7009b` | BaseTable \| 4 — prefetch relationship associations | `ported` | **Finding 73** (`e009e62d9`), with commit 21 — neither is measurable alone. |
+| 21 | `41e69ca83` | BaseTable \| 5 — RelationshipColumn compares by ID | `ported` | **Finding 73** (`e009e62d9`): **4.200 -> 0.000 q/row**, the largest per-row cost in the block, and invisible by default. |
+| 22 | `5c40c77d5` | BaseTable \| 6 — `display_prefetch_related` convention | `ported` | **Finding 74** (`750669f74`), with commit 23. `DeviceTable.device_type` 1.000 -> 0.000 q/row in isolation; `/dcim/devices/` does not move, because the list viewset already joins that path. |
+| 23 | `06276a82e` | BaseTable \| 7 — LinkedCountColumn honors it | `ported` | **Finding 74** (`750669f74`). |
+| 24 | `867cb152e` | BaseTable \| 8 — `replace_queryset()` helper | `ported` | **Finding 75** (`ae4a7a88c`). Enabling change; taken now so the later blocks need no change to `core/tables.py`. |
 
 ## PR 7 — UI | Tables
 
@@ -146,7 +146,7 @@ zero-row endpoints in `perf/dataset-gaps.md`.
 
 | status | count |
 |---|---|
-| `ported` | 8 (findings 62-69) |
+| `ported` | 14 (findings 62-75) |
 | `superseded` | 5 |
 | `declined` | 3 |
-| `open` | 22 |
+| `open` | 14 |
