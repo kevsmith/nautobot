@@ -1527,6 +1527,10 @@ class SoftwareVersion(PrimaryModel):
             "version",
         )
 
+    # Relations that the display string reads, so a table rendering it can prefetch them per
+    # page rather than reading them per row. Consumed by `BaseTable`.
+    display_prefetch_related = ("platform",)
+
     def __str__(self):
         if self.alias:
             return self.alias
