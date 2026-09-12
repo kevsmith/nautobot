@@ -483,12 +483,18 @@ class BaseTable(django_tables2.Table):
         if not db_column:
             db_column = table_field
         if table_field in self.columns and self.columns[table_field].visible and isinstance(self.data.data, QuerySet):
-            if prefetch:
-                self.data = TableData.from_data(self.data.data.prefetch_related(prefetch))
-            else:
-                self.data = TableData.from_data(self.data.data.prefetch_related(db_column))
-            self.data.set_table(self)
-            self.rows = BoundRows(data=self.data, table=self, pinned_data=self.pinned_data)
+            self.replace_queryset(self.data.data.prefetch_related(prefetch or db_column))
+
+    def replace_queryset(self, queryset):
+        """Rebind this table to `queryset`, rebuilding the row wrappers that point at the old one.
+
+        A subclass that wants to optimize further after `super().__init__()` has run -- once the
+        auto-optimized queryset exists and the visible columns are known -- cannot simply assign to
+        `self.data.data`, because `self.rows` still wraps the previous `TableData`.
+        """
+        self.data = TableData.from_data(queryset)
+        self.data.set_table(self)
+        self.rows = BoundRows(data=self.data, table=self, pinned_data=self.pinned_data)
 
 
 #
