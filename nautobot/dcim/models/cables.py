@@ -1138,6 +1138,31 @@ class Cable(PrimaryModel):
             return None
         return COMPATIBLE_TERMINATION_TYPES[self.termination_a._meta.model_name]
 
+    @classmethod
+    def optimize_queryset_for_cable_columns(cls, queryset):
+        """
+        Apply the `select_related`/`prefetch_related` that `CableTable`'s termination columns need --
+        `termination_a`/`termination_b`, their `*_parent` variants, and the multi-lane
+        `terminations_a`/`terminations_b` -- so that none of them queries per row.
+
+        Those properties walk `terminations.all()` and read each join row's per-type foreign key, its
+        parent, and the foreign keys its display string needs; `get_connections()` also reads
+        `cable_type`. `CableTable` applies this itself when the view has not already done so, which
+        is what makes the table correct wherever it is rendered rather than only on its list view.
+
+        Usage on a list view's `queryset`:
+
+            queryset = Cable.optimize_queryset_for_cable_columns(Cable.objects.all())
+        """
+        from nautobot.dcim.constants import TERMINATION_CABLE_COLUMN_FK_FIELDS
+
+        return queryset.select_related("cable_type").prefetch_related(
+            models.Prefetch(
+                "terminations",
+                queryset=CableToCableTermination.objects.select_related(*TERMINATION_CABLE_COLUMN_FK_FIELDS),
+            )
+        )
+
 
 #
 # Cable Terminations (concrete join table)
