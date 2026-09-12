@@ -1048,6 +1048,22 @@ have been auditing empty tables. Theirs reports 183 tables and 1,757 columns dow
 items, and 247 offenders in the port tables alone. Worth reading their audit output before
 re-deriving it.
 
+## Candidates found while assessing the imported series
+
+**Queued 2026-09-12**, all measured, none fixed — each would be its own experiment.
+
+| endpoint or column | cost | note |
+|---|---|---|
+| `/api/dcim/cables/?depth=1` | **6.027 q/row** (611 queries at 100 rows) | A Cable's nested termination serialization walks each termination's parent: 200 `dcim_cablepath`, 199 `dcim_device`, 173 `dcim_interface` on one page. `Cable` is not a `CableTermination`, so finding 79's rejected commit does not reach it. |
+| `/api/dcim/interfaces/?depth=2` | **14.84 q/row** (1,491 at 100 rows) | Depth 2 is untouched by everything the branch has done; finding 79's enrichment left the slope unchanged. |
+| `/api/circuits/circuits/?depth=2` | **28.0 q/row** (710 at 25 rows) | Same shape, worse. The imported series claims ~1,100 -> ~340 here; ours did not move, so the cause differs. |
+| `/api/dcim/console-ports/?depth=1` | **1.000 q/row** | Pre-existing; found while measuring finding 79. |
+| `PowerFeedTable.utilization`, `RackDetailTable.get_power_utilization`, `PrefixDetailTable.utilization` | 8.0, 3.0, 2.0 q/row | The per-row utilization aggregates. Both this branch and the imported series left them open by design; they are the residue of the column audit. |
+
+**`?depth=2` is the largest unexplored surface on the read side.** Three of the five rows above are
+depth-2 endpoints, and no finding on this branch has ever measured one: the workload names depth 0
+and depth 1 only.
+
 ## Then: a full serial suite against `perf/recommended`
 
 **After the import above is assessed and whatever passes has landed**, run the whole suite

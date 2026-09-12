@@ -11,8 +11,10 @@ anything (see perf/dataset-gaps.md).
         "/api/dcim/front-ports/" "/api/extras/jobs/"
 """
 
+import collections
 import json
 import os
+import re
 import sys
 
 import nautobot
@@ -28,6 +30,13 @@ from tier1_queries import get_perf_client  # noqa: E402
 PAGE_SIZES = [int(x) for x in os.environ.get("PERF_PAGE_SIZES", "25,100").split(",")]
 
 
+def normalize(sql):
+    sql = re.sub(r"'[^']*'", "?", sql)
+    sql = re.sub(r"\b\d+\b", "?", sql)
+    sql = re.sub(r"IN \([^)]*\)", "IN (?)", sql)
+    return " ".join(sql.split())[:104]
+
+
 def measure(client, url, limit):
     sep = "&" if "?" in url else "?"
     full = f"{url}{sep}limit={limit}"
@@ -38,7 +47,8 @@ def measure(client, url, limit):
     if resp.status_code == 200 and resp["Content-Type"].startswith("application/json"):
         body = json.loads(resp.content)
         rows = len(body.get("results", [])) if isinstance(body, dict) else None
-    return resp.status_code, rows, len(ctx.captured_queries)
+    shapes = collections.Counter(normalize(q["sql"]) for q in ctx.captured_queries)
+    return resp.status_code, rows, len(ctx.captured_queries), shapes
 
 
 def main():
@@ -50,8 +60,11 @@ def main():
         queries = [p[2] for p in points]
         delta_rows = (rows[-1] or 0) - (rows[0] or 0)
         slope = (queries[-1] - queries[0]) / delta_rows if delta_rows else 0.0
-        pairs = "  ".join(f"{limit}: {r} rows/{q} q" for limit, (_, r, q) in zip(PAGE_SIZES, points))
+        pairs = "  ".join(f"{limit}: {r} rows/{q} q" for limit, (_, r, q, _s) in zip(PAGE_SIZES, points))
         print(f"  {url:58s} status={sorted(statuses)}  {pairs}   slope={slope:.3f} q/row")
+        if os.environ.get("PERF_SHAPES") and slope >= 0.1:
+            for sql, n in points[-1][3].most_common(4):
+                print(f"      x{n:<4} {sql}")
 
 
 if __name__ == "__main__":

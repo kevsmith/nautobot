@@ -1,0 +1,59 @@
+---
+seq: 78
+id: null
+commit: d5a054e93
+recommended_commit: 977eb44c6
+status: accepted
+basis: 'audit: the 1.750 q/row floor on every interface-table column, and 8.000 on CableTable'
+behaviour: A
+migration: '-'
+flags: []
+title: Make cable and connection tables carry their own queryset optimizations
+site: nautobot/dcim/tables - nautobot/dcim/models/cables.py Cable.optimize_queryset_for_cable_columns
+summary: 'These tables already had the optimizations they need — on the model, as
+  `optimize_queryset_for_cable_columns` and the connection prefetch helpers — but applying them was
+  the **view''s** job, so a table rendered anywhere else got none of it. The tables now apply their
+  own, skipping what the view already prefetched. **Ported from Ken Celenza''s `7c3a785ee`,
+  `375835e6b` and `bbe6061ee` (`Cabling | 2`, `3` and `4`)** on github.com/itdependsnetworks/nautobot.'
+result:
+  attribution: '`perf/scripts/probe_table_column_audit.py`, per-column: **every** `InterfaceTable`
+    column read **1.750 q/row** — including `mtu` and `description` — because `row_attrs` calls
+    `cable_status_color_css(record)`, which reads `record.cable` for every row whatever columns are
+    visible. `CableTable.termination_a_parent` 8.000 q/row, `ConsoleConnectionTable.console_server`
+    8.000, `console_server_port` 5.000, `PowerConnectionTable.pdu` 8.000.'
+  after: '`InterfaceTable.mtu` 41 -> **1** query at 20 rows; `ip_addresses` 44 -> **4**;
+    `CableTable.termination_a_parent` 321 -> **2** at 40 rows; `console_server` 321 -> **3**;
+    `console_server_port` 201 -> **3**; `pdu` 321 -> **4**. All flat in the row count.'
+  audit_total: 'across the whole of the table work (findings 70-77 and this one): **55 offending
+    columns -> 18**.'
+  no_page_moves: '**Four pages measured across three alternating rounds are identical on both arms**
+    — `/dcim/cables/` 9 queries and ~452ms, the device interfaces tab 40 queries and ~542ms,
+    `/dcim/console-connections/` 10 queries and ~299ms, `/dcim/devices/` 8 queries and ~513ms. Every
+    one of them goes through a view that already pre-optimized its queryset. That is the honest
+    result and it is the point of the change: the win is anywhere the table renders *without* that
+    view.'
+controls: '`/dcim/devices/` behaves as a control and is flat, as are the three target pages — which
+  makes this a change with a measured per-column effect and a deliberately absent page effect.
+  Response digests are identical across arms on `/dcim/cables/`, `/dcim/console-connections/` and
+  `/dcim/devices/`; the device interfaces tab is a full UI page and carries a per-request CSRF token,
+  so its digest varies on both arms (see finding 69).'
+tests: '`nautobot.dcim.tests.test_views` Cable, Device and Interface cases +
+  `nautobot.dcim.tests.test_tables` + `nautobot.core.tests.test_tables`, 306 OK (skipped=13),
+  serial.'
+wall_clock: 'not measured on a page: every page that renders these tables is already view-optimized'
+wall_clock_detail: 'The three target pages were timed anyway, 9 reps per arm over three alternating
+  rounds, and are flat to within a millisecond or two. Recorded because a reader is entitled to know
+  the pages did not move, rather than being shown only the column figures.'
+note: '**The 18 remaining audit offenders, and why each is still one.** Three are the power and
+  prefix utilization aggregates, which are per-row computations by design — the imported series left
+  the same ones open, and its audit bottomed out at 8 for the same reason. Four are an artifact of
+  the audit rather than a real cost: `PrefixTable` and `LocationTable` prefill their hierarchy values
+  from `paginate()`, which the audit does not call, so it sees a cost the rendered page does not have
+  — `/ipam/prefixes/` reads 17 queries flat at 100 rows. The rest are `connection` and `reachable`
+  columns over `CablePath`.
+
+
+  **A row-level cost is invisible to a column-level optimizer, and that is why this one survived
+  everything before it.** `cable_status_color_css` runs from `row_attrs`, not from a column, so no
+  amount of per-column declaration reaches it; finding 77 could only watch every column of the table
+  report the same floor.'

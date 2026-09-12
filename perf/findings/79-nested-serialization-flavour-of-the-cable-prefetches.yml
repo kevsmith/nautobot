@@ -1,0 +1,47 @@
+---
+seq: 79
+id: null
+commit: null
+recommended_commit: null
+status: rejected
+behaviour: A
+migration: '-'
+flags: []
+title: A for_nested_serialization flavour of the cable-peer and connection prefetches
+site: nautobot/dcim/models/device_components.py - nautobot/core/api/views.py
+summary: 'Implemented and measured from Ken Celenza''s `61e2fffef` (`Cabling | 1`) on
+  github.com/itdependsnetworks/nautobot: `cable_peer_prefetch_related_fields` and
+  `connection_prefetch_related_fields` gain a `for_nested_serialization` flavour whose inner
+  querysets prefetch each termination type''s natural-key chains, and the REST optimizer swaps the
+  lean flavour for it at `?depth>=1`. Their report: interfaces depth 1 from 0.84 to 0.34 queries per
+  row, circuits depth 2 from ~1,100 to ~340 queries.'
+result:
+  before: '`/api/dcim/interfaces/?depth=1` reads **26 queries at 25 rows and 30 at 100 — 0.053 per
+    row**. That is already better than the 0.34 per row their change reports *after* it, because
+    findings 2, 9, 26, 34, 36, 62 and 63 have been over this path.'
+  after: '**26/30 -> 36/41.** Ten more queries at every page size, and the slope *rises* from 0.053
+    to 0.067 per row. `/api/dcim/interfaces/?depth=2` 167/378 -> 177/388: the same ten added, slope
+    unchanged at 14.07. `/api/circuits/circuits/?depth=2` did not move at all, at 28.000 per row.'
+  why: 'the enriched prefetches are extra queries in their own right — one per natural-key chain per
+    termination type — and on this tree the chains they cover are already prefetched by the
+    optimizer''s own natural-key handling. So the swap pays for coverage it already had.'
+controls: 'measured in-process with `perf/scripts/probe_query_slope.py` at 25 and 100 rows, and at 10
+  and 25 for the depth-2 endpoints. Deterministic counts, repeated with the change reverted to
+  confirm the before figures.'
+tests: 'not run: the change was reverted on the query counts before it earned a test run.'
+wall_clock: 'not measured: rejected on query count, which moved the wrong way'
+wall_clock_detail: 'A change that adds ten queries and removes none does not need a wall-clock
+  measurement to be rejected. This is one of the few places on this branch where the query counter
+  alone settles it — usually it is the counter that misleads.'
+reason: 'Rejected: slower on every endpoint measured. Their tree gains because its depth-1 path was
+  at 0.84 queries per row; ours is at 0.053 before the change, so there is nothing left for the
+  enrichment to remove and its own prefetches are pure addition.'
+caveat: '**The commit is not wrong — it is redundant here, and the distinction matters for anyone
+  reading both branches.** On a tree without findings 2, 9, 26, 34, 36, 62 and 63, it is the change
+  that closes the nested-serialization path. Measured against those, it has nothing to do.'
+note: '**Two live offenders were found while measuring this, and neither is what the commit
+  targets.** `/api/dcim/cables/?depth=1` reads **6.027 queries per row** — 611 on a 100-row page,
+  mostly `dcim_cablepath`, `dcim_device` and `dcim_interface` — because a Cable''s nested termination
+  serialization walks each termination''s parent. Cable is not a `CableTermination`, so this commit
+  does not reach it. And `/api/dcim/console-ports/?depth=1` reads **1.000 per row**. Both are
+  recorded in `perf/queue.md` as candidates rather than fixed here.'
