@@ -10,28 +10,9 @@ context and closed items are below it.**
 `perf/scripts/build_branch.py` with messages composed from the findings. 58 findings
 recorded, 44 accepted, of which 14 are instruments or measurement results rather
 than product changes, leaving 30 accepted product changes. The last completed full
-suite run was 17,504 tests, `OK (skipped=663, expected failures=1)` at `fd48eee32`.
-
-### Queued: a serial full-suite run against `perf/recommended`
-
-**Not yet run, and it has to be serial.** The parallel test runner dies before
-reporting anything:
-
-    multiprocessing.pool.MaybeEncodingError: Error sending result:
-      Reason: TypeError("cannot pickle '_thread.RLock' object")
-
-A worker dies during subsuite setup and its exception cannot be pickled back, so no
-test names print and the run yields no counts at all. It reproduces at suite scale
-and on the single label `nautobot.core.tests.test_views`, and it is **not this
-branch's doing** — the same failure occurs in a worktree at `cc45a35f5`, which
-predates the nav cache. Until someone fixes that, `--parallel-workers=1` is the only
-invocation that produces a trustworthy result.
-
-Two details worth having before starting it. **Run it against `perf/recommended`,
-not `perf/experiments`** — recommended is the tree a reviewer would take, it carries
-only the product changes, and it is the one whose passing matters. And
-`invoke tests --no-keepdb` blocks on a confirmation prompt unless `--no-input` is
-also passed, which is already recorded at the foot of this file.
+suite run was 17,533 tests, `OK (skipped=663, expected failures=1)`, run serially
+against `perf/recommended` at `977eb44c6` on 2026-09-12. See "Done: the serial full
+suite is green" below.
 
 ---
 
@@ -1064,20 +1045,39 @@ re-deriving it.
 depth-2 endpoints, and no finding on this branch has ever measured one: the workload names depth 0
 and depth 1 only.
 
-## Then: a full serial suite against `perf/recommended`
+## Done: the serial full suite is green on `perf/recommended`
 
-**After the import above is assessed and whatever passes has landed**, run the whole suite
-serially against the resulting `perf/recommended`. Serial is not a preference — see the
-queued entry near the top of this file: the parallel runner dies during subsuite setup with
-`MaybeEncodingError: cannot pickle '_thread.RLock'` and yields no counts at all, and it is
-not this branch's doing (it reproduces at `cc45a35f5`).
+Run 2026-09-12 on hannah against `perf/recommended` at `977eb44c6`, with `nautobot/`
+armed by `arm_control.sh` rather than checked out whole:
 
-    git checkout perf/recommended
+    Ran 17533 tests in 7626.657s
+    OK (skipped=663, expected failures=1)
+
+Zero `FAIL:` and zero `ERROR:` lines. The collected count rose by 29 against the
+17,504 on record at `fd48eee32`, so nothing dropped out of the suite — a fall there
+would matter as much as a failure, because an import error silently shrinks it.
+
+    perf/scripts/arm_control.sh arm perf/recommended
     invoke tests --parallel-workers=1 -n -k --no-cache-test-fixtures
 
-Compare against the last completed figure on record: 17,504 tests,
-`OK (skipped=663, expected failures=1)` at `fd48eee32`. A drop in the collected count
-matters as much as a failure — an import error silently shrinks the suite.
+`git checkout perf/recommended` is the wrong way to arm for this. `perf/` and
+`development/docker-compose.perf.yml` do not exist on that branch, so a whole-tree
+checkout deletes the harness and the compose overlay the running container was
+created with. `arm_control.sh` swaps `nautobot/` alone, and
+`git diff perf/recommended -- nautobot/` came back empty afterwards.
+
+Both branches hashed `6d0feb2102b90f4b` and their `nautobot/` trees differ in no file
+of any type, so the run covers `perf/experiments` as well.
+
+Serial is mandatory: the parallel runner dies during subsuite setup with
+`MaybeEncodingError: cannot pickle '_thread.RLock'`, prints no test names, yields no
+counts and exits 0. It reproduces at `cc45a35f5`, so it is not this branch's doing.
+
+`--no-cache-test-fixtures` rules out the cached fixture as a source of stale state.
+`--keepdb` stayed on and the log records `Using existing test database for alias
+'default'`, so the test database itself was reused; `--no-keepdb` is still untried
+and needs `--no-input` beside it or it blocks on a prompt. 2h11m wall, of which
+7,627s was test execution.
 
 ## Then: check `perf/recommended` against a moved upstream
 

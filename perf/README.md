@@ -451,24 +451,33 @@ Nautobot feel good in the situations we sell on", not a complete picture of load
 
 ## Closed: the full test suite passes
 
-`invoke tests --no-parallel` ran the whole suite against the tree with every
-accepted change applied:
+`invoke tests --parallel-workers=1 -n -k --no-cache-test-fixtures` ran the whole
+suite on 2026-09-12 against `perf/recommended` at `977eb44c6`, the tree a
+reviewer would take:
 
-    Ran 17504 tests in 8082.723s
+    Ran 17533 tests in 7626.657s
     OK (skipped=663, expected failures=1)
 
 Zero failures, zero errors, and no `test_get_docs_url` at all -- the run builds
 docs rather than passing `--skip-docs-build`, which is what makes those ~35 dcim
-model tests fail even on a clean tree.
+model tests fail even on a clean tree. `perf/recommended` and `perf/experiments`
+have byte-identical `nautobot/` trees, so the result covers both.
 
-This had been the largest open item on the branch. The earlier attempt died in
-Django's parallel runner with a pickling error that hid the underlying exception
-and **exited 0**; `--no-parallel` is what makes a worker exception surface
-directly, and it is the only way this run should be repeated.
+The collected count is 29 higher than the 17,504 recorded at `fd48eee32`, which
+is the check that matters as much as the failure count: an import error shrinks
+the suite without failing anything.
 
-Two things to carry forward. The run used `--keepdb --cache-test-fixtures`, so
-anything that later smells like stale fixture state should be re-run with
-`--no-keepdb`. And it took 2h15m on the measurement host, which is a background
+Django's parallel runner cannot run this suite. It dies during subsuite setup
+with a pickling error that hides the underlying exception, prints no test names,
+and **exits 0**. It reproduces at `cc45a35f5`, so it is not this branch's doing,
+and `--parallel-workers=1` is the only invocation that produces a trustworthy
+result.
+
+Two things to carry forward. Fixture caching was off this time, so the cached
+fixture is ruled out as a source of stale state, but `--keepdb` stayed on and the
+log records `Using existing test database for alias 'default'` -- a full
+`--no-keepdb` run is still untried, and needs `--no-input` beside it or it blocks
+on a prompt. And it took 2h11m on the measurement host, which is a background
 job rather than an inner-loop check -- targeted per-module runs stay the fast
 signal during an experiment.
 
