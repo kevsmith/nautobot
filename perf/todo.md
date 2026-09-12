@@ -6,6 +6,10 @@ importance. Machine work is serial and host-bound; local work runs alongside it.
 Deadline is self-imposed. If something slips, the cut list at the bottom says
 what goes first.
 
+The plan ran and its phases, cut list and estimates are history. Only "State of
+the world" below is kept current; `perf/queue.md` and `perf/README.md` are the
+live records.
+
 ## Where this stands
 
 **The deliverable is in shape.** `perf/report.md` is 14KB in the target format,
@@ -115,21 +119,23 @@ independently verified. The full suite is green on the measured tree.
 
 ## State of the world, as established
 
+**Refreshed 2026-09-12.**
+
 | Fact | Value |
 |---|---|
-| `next` | `ce01a0464`, identical to `upstream/next` |
-| `perf/verified` | 23 commits, **linear on `next`**, zero merges, 44 files +1,453 −283 |
-| `origin/perf/verified` | published at `f0d690a61`; local is one commit ahead at `02d04700f` |
-| `perf/experiments` | same `nautobot/` tree as `perf/verified`, plus harness and records |
-| Thin commit messages on `perf/verified` | **20 of 23** carry only "Application-code portion of `<sha>` from perf/experiments" |
-| Non-upstream files on `perf/verified` | `development/docker-compose.perf.yml`, `nautobot_config.py`, `uwsgi-perf.ini` |
-| Last full suite | 17,504 tests, 2h18m, green at `fd48eee32`. Findings 22, 37–42 landed after it |
-| `report.md` today | 46 KB, 636 lines |
-| Findings missing a `commit` | 23, 24, 27, 34, 36, 41, 42 |
-| Product tree content hash | `90dbd96ffbe…` — every Phase 0 and Phase 3 result attaches to this |
-| `report.md` after Phase 4 | 13 KB, ~140 lines, tables only |
-| Finding 22's recorded commit | was `9b8831711`, **a reverted commit**; corrected to `3c683a405` |
-| Commit audit | all 32 recorded commits resolve, are ancestors of `perf/experiments`, none reverted |
+| `next` | `ce01a0464`, the baseline every recorded number is measured against. `upstream/next` has since moved 98 commits ahead, to `c3605ae48` |
+| `perf/recommended` | `977eb44c6`, 48 commits, **linear on `next`**, zero merges, 63 files +3,022 −454. It replaced `perf/verified` as the upstream-facing branch |
+| `perf/experiments` | `8052e5a9c`, byte-identical `nautobot/` tree to `perf/recommended`, plus the harness and the records |
+| `perf/verified` | `02d04700f`, superseded; its `nautobot/` tree now differs from `perf/experiments` in 47 files |
+| Published | `origin/perf/experiments` and `origin/perf/recommended` are both at the local tip |
+| Commit messages on `perf/recommended` | composed from the findings by `build_branch.py`; none of the 48 carries the "Application-code portion of `<sha>`" stub that 20 of `perf/verified`'s 23 did |
+| Non-upstream files on `perf/recommended` | none; it adds no file outside `nautobot/` |
+| Last full suite | 17,533 tests, 2h11m, green on `perf/recommended` at `977eb44c6`, run serially |
+| `report.md` today | 32 KB, 185 lines |
+| Findings | 79 recorded: 63 accepted, 9 not-taken, 5 rejected, 1 priced, 1 reverted |
+| Findings missing a `commit` | 50, 59 and 60, and all three are measurement results that `is_product_change()` reads as product changes because it splits `site` on plain hyphens. No product change is missing one |
+| Product tree content hash | `6d0feb2102b90f4b…`, identical on this Mac and on hannah |
+| Commit audit | 60 `commit` values resolve and are ancestors of `perf/experiments`; 47 `recommended_commit` values resolve and are ancestors of `perf/recommended`; none reverted |
 
 **The scheduling unlock:** the measurement protocol verifies tree *content
 hashes*, not commit SHAs. Rewriting commit messages does not change content, so
