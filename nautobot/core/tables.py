@@ -61,6 +61,7 @@ class BaseTable(django_tables2.Table):
         data_transform_callback=None,
         configurable=False,
         is_object_embedded_search_results=False,
+        columns=None,
         **kwargs,
     ):
         """
@@ -68,6 +69,10 @@ class BaseTable(django_tables2.Table):
 
         Args:
             *args (list, optional): Passed through to django_tables2.Table
+            columns (list, optional): Explicit list of column names to show, in order. Takes precedence over
+                SavedView table config and the user's saved preferences. Queryset optimization happens here in
+                `__init__` and depends on which columns are visible, so this is also what lets a caller measure
+                one column's cost in isolation.
             table_changes_pending (bool): TODO
             saved_view (SavedView, optional): TODO
             user (User, optional): Personalize table display for the given user (optional)
@@ -172,10 +177,13 @@ class BaseTable(django_tables2.Table):
 
         # Apply custom column ordering for SavedView if it is available
         # Takes precedence before user config
-        columns = []
         pk = self.base_columns.pop("pk", None)
         actions = self.base_columns.pop("actions", None)
-        if is_object_embedded_search_results:
+        # An explicit `columns` argument outranks every stored source below.
+        resolve_stored_columns = columns is None
+        if resolve_stored_columns:
+            columns = []
+        if resolve_stored_columns and is_object_embedded_search_results:
             # Show only the first 3 columns (excluding "pk" and "actions") in their default order in object embedded search results
             static_columns = list(default_columns or self.base_columns)
             # "pk" and "actions" columns are already removed from `base_columns`, but could be present in `default_columns`
@@ -184,11 +192,11 @@ class BaseTable(django_tables2.Table):
             if "actions" in static_columns:
                 static_columns.remove("actions")
             columns = static_columns[:3]
-        elif saved_view is not None and not table_changes_pending:
+        elif resolve_stored_columns and saved_view is not None and not table_changes_pending:
             view_table_config = saved_view.config.get("table_config", {}).get(f"{self.__class__.__name__}", None)
             if view_table_config is not None:
                 columns = view_table_config.get("columns", [])
-        else:
+        elif resolve_stored_columns:
             if user is not None and not isinstance(user, AnonymousUser):
                 columns = user.get_config(f"tables.{self.__class__.__name__}.columns")
         if columns:
