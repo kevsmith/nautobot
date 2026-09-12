@@ -432,9 +432,31 @@ class CableTerminationTable(BaseTable):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        model = self.Meta.model  # pylint: disable=no-member
+        # The `cable` column and the cable-status row coloring resolve each row's cable through the
+        # CableToCableTermination join row -- and the coloring runs from `row_attrs`, so it happens
+        # for every row whatever columns are visible. Applying the model's cable-column optimization
+        # here means the table is correct on its own, rather than only when the view remembered to
+        # call `optimize_queryset_for_cable_columns` on its queryset.
+        if isinstance(self.data.data, QuerySet):
+            queryset = self.data.data.select_related(*model.cable_columns_select_related_fields())
+            # A view may already have applied it; re-adding a Prefetch for an already-prefetched
+            # path raises at evaluation time, so only add what is missing.
+            already_prefetched = {
+                lookup if isinstance(lookup, str) else lookup.prefetch_to
+                for lookup in queryset._prefetch_related_lookups
+            }
+            missing = [
+                prefetch
+                for prefetch in model.cable_columns_prefetch_related_fields()
+                if (prefetch if isinstance(prefetch, str) else prefetch.prefetch_to) not in already_prefetched
+            ]
+            if missing:
+                queryset = queryset.prefetch_related(*missing)
+            self.replace_queryset(queryset)
         # The `cable_peer` column's prefetch is expensive (it walks the cable's terminations), so
         # only apply it when that column is actually visible for this table/user.
-        for prefetch in self.Meta.model.cable_peer_prefetch_related_fields():  # pylint: disable=no-member
+        for prefetch in model.cable_peer_prefetch_related_fields():
             self.add_conditional_prefetch("cable_peer", prefetch=prefetch)
 
 
