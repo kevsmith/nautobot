@@ -19,19 +19,100 @@ def add_available_prefixes(parent: netaddr.IPNetwork, namespace: Namespace, pref
     Create fake Prefix objects for all unallocated space within a prefix.
     """
 
+    prefix_list = list(prefix_list)
+    # A container has descendants exactly when it has a direct child, so one query answers it for
+    # every container here rather than a `descendants().exists()` per prefix.
+    container_pks = [p.pk for p in prefix_list if p.type == PrefixTypeChoices.TYPE_CONTAINER]
+    parents_with_children = set(
+        Prefix.objects.filter(parent__in=container_pks).values_list("parent_id", flat=True).distinct()
+    )
+
     # Find all unallocated space
     available_prefixes = netaddr.IPSet(parent) ^ netaddr.IPSet(
-        [p.prefix for p in prefix_list if p.type != PrefixTypeChoices.TYPE_CONTAINER or not p.descendants().exists()]
+        [
+            p.prefix
+            for p in prefix_list
+            if p.type != PrefixTypeChoices.TYPE_CONTAINER or p.pk not in parents_with_children
+        ]
     )
     available_prefixes = [
         Prefix(prefix=p, namespace=namespace, type=None, status=None) for p in available_prefixes.iter_cidrs()
     ]
+    for available in available_prefixes:
+        # These rows are synthetic and have no children by construction; seed the hierarchy-UI
+        # properties so rendering them does not query for an answer that is known.
+        available.__dict__["children_exists"] = False
+        available.__dict__["descendants_count"] = 0
 
     # Concatenate and sort complete list of children
     prefix_list = list(prefix_list) + available_prefixes
     prefix_list.sort(key=lambda p: p.prefix)
 
     return prefix_list
+
+
+def prefill_prefix_hierarchy_ui(prefixes):
+    """Batch-resolve the hierarchy-UI lookups for a page of Prefixes.
+
+    `PREFIX_COPY_LINK` renders one indent per ancestor and an expand arrow when children exist, and
+    asked each row for both -- two or three queries per rendered row. This seeds `children_exists`,
+    `ancestors_count` and `descendants_count` for the whole page in a handful of queries, resolved
+    through the `parent` foreign key that IPAM maintains as the closest containing prefix.
+    """
+    if not prefixes:
+        return
+    pks = {prefix.pk for prefix in prefixes}
+
+    # children_exists: one query for the page.
+    parents_with_children = set(Prefix.objects.filter(parent__in=pks).values_list("parent_id", flat=True).distinct())
+    for prefix in prefixes:
+        prefix.__dict__["children_exists"] = prefix.pk in parents_with_children
+
+    # ancestors_count: walk the parent chain upward, one query per tree level rather than per row.
+    chain_parent = {prefix.pk: prefix.parent_id for prefix in prefixes}
+    frontier = {parent_id for parent_id in chain_parent.values() if parent_id is not None} - pks
+    seen = set(chain_parent) | frontier
+    while frontier:
+        rows = Prefix.objects.filter(pk__in=frontier).values_list("pk", "parent_id")
+        frontier = set()
+        for pk, parent_id in rows:
+            chain_parent[pk] = parent_id
+            if parent_id is not None and parent_id not in seen:
+                frontier.add(parent_id)
+                seen.add(parent_id)
+    for prefix in prefixes:
+        depth, parent_id = 0, prefix.parent_id
+        while parent_id is not None:
+            depth += 1
+            parent_id = chain_parent.get(parent_id)
+        prefix.__dict__["ancestors_count"] = depth
+
+    # descendants_count: walk the subtree downward, one query per level, then credit every ancestor
+    # inside the discovered forest -- which is what makes a page row nested under another page row
+    # come out right.
+    edges = {}
+    discovered = set(pks)
+    for prefix in prefixes:
+        if prefix.parent_id in discovered:
+            edges[prefix.pk] = prefix.parent_id
+    frontier = set(pks)
+    while frontier:
+        rows = list(Prefix.objects.filter(parent__in=frontier).values_list("pk", "parent_id"))
+        frontier = set()
+        for pk, parent_id in rows:
+            if pk in discovered:
+                continue
+            edges[pk] = parent_id
+            discovered.add(pk)
+            frontier.add(pk)
+    counts = dict.fromkeys(discovered, 0)
+    for pk in edges:
+        parent_id = edges.get(pk)
+        while parent_id is not None:
+            counts[parent_id] += 1
+            parent_id = edges.get(parent_id)
+    for prefix in prefixes:
+        prefix.__dict__["descendants_count"] = counts[prefix.pk]
 
 
 def get_add_available_prefixes_callback(show_available: bool, parent: Prefix):
