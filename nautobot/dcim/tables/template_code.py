@@ -310,7 +310,7 @@ MODULEBAY_TREE_LINK = """
 
 RACKGROUP_ELEVATIONS = """
 <li>
-    <a href="{% url 'dcim:rack_elevation_list' %}?location={{ record.location.pk }}&rack_group={{ record.pk }}" class="dropdown-item text-primary">
+    <a href="{% url 'dcim:rack_elevation_list' %}?location={{ record.location_id }}&rack_group={{ record.pk }}" class="dropdown-item text-primary">
         <span class="mdi mdi-server me-4" aria-hidden="true"></span>View elevations
     </a>
 </li>

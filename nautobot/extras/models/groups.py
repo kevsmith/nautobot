@@ -1070,7 +1070,9 @@ class DynamicGroup(PrimaryModel):
         """
 
         tree = []
-        memberships = DynamicGroupMembership.objects.filter(parent_group=self)
+        # select_related: the descendants table reads `group` for its name and description columns
+        # and `group.content_type` for the members count, once per row of the tree.
+        memberships = DynamicGroupMembership.objects.filter(parent_group=self).select_related("group__content_type")
         for membership in memberships:
             membership.depth = depth
             tree.append(membership)
