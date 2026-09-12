@@ -50,6 +50,25 @@ class LocationTypeTable(BaseTable):
 
 
 class LocationTable(StatusTableMixin, BaseTable):
+    def paginate(self, *args, **kwargs):
+        """Batch-resolve `children_exists` for the rows on this page.
+
+        `LOCATION_TREE_LINK` renders an expand arrow per row, which asked each Location whether it
+        had children -- one `EXISTS` query per rendered row. One query for the page answers it for
+        every row, and seeding `__dict__` is what the `cached_property` reads.
+        """
+        paginated = super().paginate(*args, **kwargs)
+        records = [getattr(row, "record", row) for row in self.page.object_list]
+        records = [record for record in records if isinstance(record, Location)]
+        parents_with_children = set(
+            Location.objects.filter(parent__in=[record.pk for record in records])
+            .values_list("parent_id", flat=True)
+            .distinct()
+        )
+        for record in records:
+            record.__dict__["children_exists"] = record.pk in parents_with_children
+        return paginated
+
     pk = ToggleColumn()
     name = TemplateColumn(
         template_code=LOCATION_TREE_LINK,
