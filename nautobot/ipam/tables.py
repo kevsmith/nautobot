@@ -1,4 +1,3 @@
-from django.db.models import Prefetch
 from django.utils.safestring import mark_safe
 import django_tables2 as tables
 from django_tables2.utils import Accessor
@@ -21,6 +20,8 @@ from nautobot.extras.tables import RoleTableMixin, StatusTableMixin
 from nautobot.tenancy.tables import TenantColumn
 from nautobot.virtualization.models import VMInterface
 from nautobot.virtualization.tables import VMInterfaceTable
+
+from .utils import prefill_prefix_hierarchy_ui
 
 from .models import (
     IPAddress,
@@ -56,8 +57,8 @@ PREFIX_COPY_LINK = """
 {% load helpers %}
 {% spaceless %}
     {% if not table.hide_hierarchy_ui %}
-        {% with children_exists=record.children.exists %}
-            {% for i in record.ancestors.count|as_range %}
+        {% with children_exists=record.children_exists %}
+            {% for i in record.ancestors_count|as_range %}
                 <span class="nb-subtree"></span>
             {% endfor %}
             {% if table_expandable|default:False %}
@@ -515,6 +516,19 @@ class PrefixTable(StatusTableMixin, RoleTableMixin, BaseTable):
         verbose_name="VPN Tunnel Endpoints",
     )
     actions = ButtonsColumn(Prefix)
+
+    def paginate(self, *args, **kwargs):
+        """Batch-prefill the per-row hierarchy lookups for this page (see prefill_prefix_hierarchy_ui).
+
+        Rows on a paginated table are `BoundRow` wrappers, so the record has to be unwrapped; the
+        synthetic "available" rows are not in the database and seed their own values already.
+        """
+        paginated = super().paginate(*args, **kwargs)
+        records = [getattr(row, "record", row) for row in self.page.object_list]
+        prefill_prefix_hierarchy_ui(
+            [record for record in records if isinstance(record, Prefix) and record.present_in_database]
+        )
+        return paginated
 
     class Meta(BaseTable.Meta):
         model = Prefix
