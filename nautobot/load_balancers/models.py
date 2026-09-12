@@ -245,6 +245,10 @@ class LoadBalancerPoolMember(PrimaryModel):  # pylint: disable=too-many-ancestor
         unique_together = ["ip_address", "port", "load_balancer_pool"]
         verbose_name = "Load Balancer Pool Member"
 
+    # Relations that the display string reads, so a table rendering it can prefetch them per
+    # page rather than reading them per row. Consumed by `BaseTable`.
+    display_prefetch_related = ("ip_address",)
+
     def __str__(self):
         """Stringify instance."""
         return f"{self.ip_address.host}:{self.port}"

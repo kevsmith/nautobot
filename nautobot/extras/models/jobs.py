@@ -316,11 +316,17 @@ class Job(PrimaryModel):
         """
         Return the most recent JobResult object associated with this Job.
 
-        Note that, as a performance optimization for this function's repeated use in
-        JobListview, the returned object only includes its `status` field.
+        Honors a prefetched `_prefetched_latest_results` list when one is present -- `JobTable`
+        prefetches the single latest result per job with a sliced `Prefetch` -- and otherwise
+        queries, joining `user`, which the job list's "Last Run" column renders. It used to
+        `.only("status")`, which made that column load two deferred fields per row instead.
         """
         if self._latest_result is None:
-            self._latest_result = self.job_results.only("status").first()
+            prefetched = getattr(self, "_prefetched_latest_results", None)
+            if prefetched is not None:
+                self._latest_result = prefetched[0] if prefetched else None
+            else:
+                self._latest_result = self.job_results.select_related("user").first()
         return self._latest_result
 
     @property
