@@ -103,20 +103,25 @@ queue's standing instruction: do not interleave this block with anything else.
 | 23 | `06276a82e` | BaseTable \| 7 — LinkedCountColumn honors it | `ported` | **Finding 74** (`750669f74`). |
 | 24 | `867cb152e` | BaseTable \| 8 — `replace_queryset()` helper | `ported` | **Finding 75** (`ae4a7a88c`). Enabling change; taken now so the later blocks need no change to `core/tables.py`. |
 
-## PR 7 — UI | Tables
+## PR 7 — UI | Tables  (closed 2026-09-12, 10/10)
+
+Taken as two commits rather than ten, because on this tree they are two mechanisms: batching the
+hierarchy lookups (1 and 3) and declaring what a column reads when the accessor walk cannot see it
+(the other eight). Attributed by `probe_table_column_audit.py`, which prices every column of every
+table on its own — the audit their series ran, reproduced here rather than taken on trust.
 
 | # | Hash | Commit | Status | Verdict |
 |---|---|---|---|---|
-| 25 | `f047b8d47` | Tables \| 1 — batch Prefix hierarchy lookups | `open` | Lands on an open queue item. Their figure: Prefixes tab 264→60. |
-| 26 | `9c6431d23` | Tables \| 2 — Device tables prefetch primary_ip | `open` | Overlaps finding 53; verify before spending a round. |
-| 27 | `ecdfdf4ea` | Tables \| 3 — Location tree-link via tree_depth | `open` | Lands on an open queue item. Their figure: LocationType detail 155→59. |
-| 28 | `4eab9c8d0` | Tables \| 4 — display_prefetch_related declarations | `open` | Depends on 22. |
-| 29 | `c5d3cd136` | Tables \| 5 — interface IP columns prefetch namespace | `open` | |
-| 30 | `ba5cbadaa` | Tables \| 6 — extras tables join per-row FK/GFK reads | `open` | |
-| 31 | `fd0aa7b4e` | Tables \| 7 — parent objects read by name links | `open` | |
-| 32 | `b28f73e43` | Tables \| 8 — action buttons stop querying per row | `open` | `ButtonsColumn` is 0.765ms/cell in finding 50's attribution. |
-| 33 | `cafdbbe7f` | Tables \| 9 — JobTable batch-prefetches latest results | `open` | |
-| 34 | `f2d45ff6b` | Tables \| 10 — utilization columns prefetch inputs | `open` | `PowerFeed.utilization` is a named row-scaling item in the queue. |
+| 25 | `f047b8d47` | Tables \| 1 — batch Prefix hierarchy lookups | `ported` | **Finding 76** (`0d30bbdc0`): 3.000 -> 0.000 q/row, `/ipam/prefixes/` 311 -> 17 queries and **−41.3% wall**. Worst per-row page of the 21 screened. |
+| 26 | `9c6431d23` | Tables \| 2 — Device tables prefetch primary_ip | `ported` | **Finding 77** (`2ab871c2f`): 1.000 -> 0.000 q/row. Overlaps finding 53 (the REST side); this is the table side. |
+| 27 | `ecdfdf4ea` | Tables \| 3 — Location tree-link via tree_depth | `ported` | **Finding 76** (`0d30bbdc0`): 1.973 -> 0.000 q/row, `/dcim/locations/` 206 -> 10 queries and **−32.9% wall**. |
+| 28 | `4eab9c8d0` | Tables \| 4 — display_prefetch_related declarations | `ported` | **Finding 77**. `/circuits/circuits/` 46 -> 9 queries, **−22.1% wall**. Four of the six declarations are unmeasured here for want of rows. |
+| 29 | `c5d3cd136` | Tables \| 5 — interface IP columns prefetch namespace | `ported` | **Finding 77**: `InterfaceTable.ip_addresses` 3.250 -> 1.750 q/row; the residual is the row-attr floor, not this column. |
+| 30 | `ba5cbadaa` | Tables \| 6 — extras tables join per-row FK/GFK reads | `ported` | **Finding 77**: `AssociatedContactsTable` 1.000 -> 0.000 q/row on four columns; the other five tables it touches hold too few rows here to show a slope. |
+| 31 | `fd0aa7b4e` | Tables \| 7 — parent objects read by name links | `ported` | **Finding 77**: `DeviceTable.parent_device` 1.000 -> 0.000 q/row. |
+| 32 | `b28f73e43` | Tables \| 8 — action buttons stop querying per row | `ported` | **Finding 77**. The rack-elevation button now uses `location_id`; `VLANGroup.available_vids()` iterates `.all()` so a prefetch is honored. |
+| 33 | `cafdbbe7f` | Tables \| 9 — JobTable batch-prefetches latest results | `ported` | **Finding 77**. Also removes a `.only("status")` that was itself the defect: the Last Run column then loaded two deferred fields and a user per row. |
+| 34 | `f2d45ff6b` | Tables \| 10 — utilization columns prefetch inputs | `ported` | **Finding 77**. `Rack.get_utilization()` now filters a prefetched `devices` cache in Python instead of re-filtering the queryset per row. |
 
 ## PR 8 — Cabling
 
@@ -146,7 +151,7 @@ zero-row endpoints in `perf/dataset-gaps.md`.
 
 | status | count |
 |---|---|
-| `ported` | 14 (findings 62-75) |
+| `ported` | 24 (findings 62-77) |
 | `superseded` | 5 |
 | `declined` | 3 |
-| `open` | 14 |
+| `open` | 4 |
