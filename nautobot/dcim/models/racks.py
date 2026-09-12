@@ -336,10 +336,15 @@ class Rack(PrimaryModel):
         :param rack_face: The face of the rack (front or rear) required; 'None' if device is full depth
         :param exclude: List of devices IDs to exclude (useful when moving a device within a rack)
         """
-        # Gather all devices which consume U space within the rack
-        devices = self.devices.select_related("device_type").filter(position__gte=1)
-        if exclude is not None:
-            devices = devices.exclude(pk__in=exclude)
+        # Gather all devices which consume U space within the rack. When the caller has prefetched
+        # `devices` -- the rack list's Space column does -- filter that cache in Python; `.filter()`
+        # would clone the queryset and issue a fresh query for every rack on the page.
+        if exclude is None and "devices" in getattr(self, "_prefetched_objects_cache", {}):
+            devices = [device for device in self.devices.all() if device.position is not None and device.position >= 1]
+        else:
+            devices = self.devices.select_related("device_type").filter(position__gte=1)
+            if exclude is not None:
+                devices = devices.exclude(pk__in=exclude)
 
         # Initialize the rack unit skeleton
         units = list(range(1, self.u_height + 1))
