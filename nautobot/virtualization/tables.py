@@ -126,6 +126,12 @@ class ClusterTable(BaseTable):
 
 
 class VirtualMachineTable(StatusTableMixin, RoleTableMixin, BaseTable):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Same shape as DeviceTable: `primary_ip` is a property over two foreign keys.
+        self.add_conditional_prefetch("primary_ip", db_column="primary_ip4")
+        self.add_conditional_prefetch("primary_ip", db_column="primary_ip6")
+
     pk = ToggleColumn()
     name = tables.LinkColumn()
     cluster = tables.Column(linkify=True)
