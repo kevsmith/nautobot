@@ -3,6 +3,7 @@ import re
 from textwrap import dedent
 
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Prefetch, QuerySet
 from django.utils.html import format_html, format_html_join
 import django_tables2 as tables
 from django_tables2.utils import Accessor
@@ -815,6 +816,13 @@ class DynamicGroupTable(BaseTable):
             "actions",
         )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The `members` column reads the `count` property, which needs `content_type` to resolve the
+        # member model per row. Subclasses carry a different model, hence the guard.
+        if self._meta.model is DynamicGroup and isinstance(self.data.data, QuerySet):
+            self.replace_queryset(self.data.data.select_related("content_type"))
+
     def render_members(self, value, record):
         """Provide a filtered URL to the group members (if any)."""
         # Only linkify if there are members.
@@ -828,6 +836,14 @@ class DynamicGroupMembershipTable(DynamicGroupTable):
 
     description = tables.Column(accessor="group__description")
     members = tables.Column(accessor="group__count", verbose_name="Group Members", orderable=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The `name` property and the description and members columns all read the `group` FK, and
+        # `group.count` needs `group.content_type`. `name` is not a field, so the accessor walk
+        # derives nothing from it.
+        if isinstance(self.data.data, QuerySet):
+            self.replace_queryset(self.data.data.select_related("group__content_type"))
 
     class Meta(BaseTable.Meta):
         model = DynamicGroupMembership
@@ -1135,6 +1151,25 @@ def log_entry_color_css(record):
 
 
 class JobTable(BaseTable):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Both columns read `latest_result`, which is memoized per row but queried per row. Prefetch
+        # the single latest JobResult per job -- a sliced Prefetch, which requires `to_attr` -- with
+        # the `user` the Last Run column renders. Added once even when both columns are visible,
+        # because a duplicate prefetch lookup raises.
+        if isinstance(self.data.data, QuerySet) and any(
+            column in self.columns and self.columns[column].visible for column in ("last_run", "last_status")
+        ):
+            self.replace_queryset(
+                self.data.data.prefetch_related(
+                    Prefetch(
+                        "job_results",
+                        queryset=JobResult.objects.select_related("user").order_by("-date_created")[:1],
+                        to_attr="_prefetched_latest_results",
+                    )
+                )
+            )
+
     pk = ToggleColumn()
     # grouping is used to, well, group the Jobs, so it isn't a column of its own.
     name = tables.Column(
@@ -1514,6 +1549,14 @@ class ObjectMetadataTable(BaseTable):
             "actions",
         )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # `render_value` delegates to `get_value_display()`, which reads the `metadata_type` FK per
+        # row, and the `contact`/`team` FKs for contact and team metadata. The `value` accessor maps
+        # to the `_value` field, so the accessor walk derives none of them.
+        if isinstance(self.data.data, QuerySet):
+            self.replace_queryset(self.data.data.select_related("metadata_type", "contact", "team"))
+
     def render_scoped_fields(self, value):
         if not value:
             return "(all fields)"
@@ -1565,6 +1608,12 @@ class ScheduledJobTable(BaseTable):
     total_run_count = tables.Column(verbose_name="Total Run Count")
     actions = ButtonsColumn(ScheduledJob, buttons=("delete",), prepend_template=SCHEDULED_JOB_BUTTONS)
     approval_state = tables.Column(empty_values=[], orderable=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # `render_approval_state` reads `associated_approval_workflows.first()` per row. The
+        # relation is ordered by its own Meta, so `first()` is served from the prefetch cache.
+        self.add_conditional_prefetch("approval_state", db_column="associated_approval_workflows")
 
     def render_approval_state(self, record):
         workflow = record.associated_approval_workflows.first()
@@ -1945,6 +1994,13 @@ class AssociatedContactsTable(StatusTableMixin, RoleTableMixin, BaseTable):
     contact_or_team_phone = TemplateColumn(PHONE, accessor="contact_or_team__phone", verbose_name="Phone")
     contact_or_team_email = TemplateColumn(EMAIL, accessor="contact_or_team__email", verbose_name="E-Mail")
     actions = ButtonsColumn(model=ContactAssociation, buttons=("edit", "delete"))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Effectively every column reads the `contact_or_team` property, which dereferences the
+        # `contact` and `team` foreign keys per row; the accessor walk cannot see into a property.
+        if isinstance(self.data.data, QuerySet):
+            self.replace_queryset(self.data.data.select_related("contact", "team"))
 
     class Meta(BaseTable.Meta):
         model = ContactAssociation
