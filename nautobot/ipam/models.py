@@ -1363,6 +1363,20 @@ class Prefix(PrimaryModel):
         return self.subnets(include_self=include_self)
 
     @cached_property
+    def ancestors_count(self):
+        """Count of ancestors, i.e. this prefix's depth in the hierarchy.
+
+        A `cached_property` so a table can batch-prefill it for a whole page; see
+        `nautobot.ipam.utils.prefill_prefix_hierarchy_ui`.
+        """
+        return self.ancestors().count()
+
+    @cached_property
+    def children_exists(self):
+        """Whether any direct child prefix exists. Batch-prefilled per table page, as above."""
+        return self.children.exists()
+
+    @cached_property
     def descendants_count(self):
         """Display count of descendants."""
         return self.descendants().count()
