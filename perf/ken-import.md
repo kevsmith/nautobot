@@ -123,14 +123,19 @@ table on its own — the audit their series ran, reproduced here rather than tak
 | 33 | `cafdbbe7f` | Tables \| 9 — JobTable batch-prefetches latest results | `ported` | **Finding 77**. Also removes a `.only("status")` that was itself the defect: the Last Run column then loaded two deferred fields and a user per row. |
 | 34 | `f2d45ff6b` | Tables \| 10 — utilization columns prefetch inputs | `ported` | **Finding 77**. `Rack.get_utilization()` now filters a prefetched `devices` cache in Python instead of re-filtering the queryset per row. |
 
-## PR 8 — Cabling
+## PR 8 — Cabling  (closed 2026-09-12, 4/4)
+
+Three ported as one commit, one rejected on measurement. The audit that drove PR 7 is what found the
+target here: every column of the two interface tables sat at the same 1.750 q/row floor, which is a
+row-level cost (`row_attrs` -> `cable_status_color_css` -> `record.cable`) that no per-column fix can
+reach.
 
 | # | Hash | Commit | Status | Verdict |
 |---|---|---|---|---|
-| 35 | `61e2fffef` | Cabling \| 1 — nested-serialization cable-peer prefetches | `open` | Triaged as probably ours (cf findings 2, 9, 26) — unverified. |
-| 36 | `7c3a785ee` | Cabling \| 2 — CableTerminationTable self-applies | `open` | Their audit: 247→19 offenders in the port tables. |
-| 37 | `375835e6b` | Cabling \| 3 — connection columns prefetch far-end devices | `open` | |
-| 38 | `bbe6061ee` | Cabling \| 4 — CableTable self-applies | `open` | |
+| 35 | `61e2fffef` | Cabling \| 1 — nested-serialization cable-peer prefetches | `declined` | **Implemented, measured, reverted — finding 79.** `/api/dcim/interfaces/?depth=1` is **0.053 q/row here before the change**, already better than the 0.34 their report quotes after it; the enrichment takes it to 36/41 queries (slope 0.067) — ten added, none removed. Redundant against findings 2, 9, 26, 34, 36, 62 and 63 rather than wrong. |
+| 36 | `7c3a785ee` | Cabling \| 2 — CableTerminationTable self-applies | `ported` | **Finding 78** (`977eb44c6`). The 1.750 q/row floor on **every** interface-table column: `mtu` 41 -> 1 query at 20 rows. This is what PR 7 could not reach. |
+| 37 | `375835e6b` | Cabling \| 3 — connection columns prefetch far-end devices | `ported` | **Finding 78**: `ConsoleConnectionTable.console_server` 8.000 -> 321/3 queries, `console_server_port` 5.000 -> 201/3, `PowerConnectionTable.pdu` 8.000 -> 321/4. |
+| 38 | `bbe6061ee` | Cabling \| 4 — CableTable self-applies | `ported` | **Finding 78**: `CableTable.termination_a_parent` 8.000 q/row -> 321/2 queries at 40 rows, flat. |
 
 ## Blocked on the dataset, not on judgement
 
@@ -151,7 +156,7 @@ zero-row endpoints in `perf/dataset-gaps.md`.
 
 | status | count |
 |---|---|
-| `ported` | 24 (findings 62-77) |
+| `ported` | 27 (findings 62-78) |
 | `superseded` | 5 |
-| `declined` | 3 |
-| `open` | 4 |
+| `declined` | 4 (one of them measured and reverted: finding 79) |
+| `open` | **0 — the series is fully assessed** |
