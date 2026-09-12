@@ -1,3 +1,4 @@
+from django.db.models import QuerySet
 import django_tables2 as tables
 from django_tables2.utils import Accessor
 
@@ -76,6 +77,22 @@ class CableTypeTable(BaseTable):
 
 
 class CableTable(StatusTableMixin, BaseTable):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The termination columns resolve each cable's terminations through the join table via
+        # properties the accessor walk cannot see. Apply the model's optimization here so the table
+        # is correct wherever it renders, not only on the list view that remembered to do it. A
+        # Prefetch re-added for an already-prefetched path raises at evaluation, hence the check.
+        if isinstance(self.data.data, QuerySet):
+            already_prefetched = {
+                lookup if isinstance(lookup, str) else lookup.prefetch_to
+                for lookup in self.data.data._prefetch_related_lookups
+            }
+            if "terminations" in already_prefetched:
+                self.replace_queryset(self.data.data.select_related("cable_type"))
+            else:
+                self.replace_queryset(Cable.optimize_queryset_for_cable_columns(self.data.data))
+
     pk = ToggleColumn()
     id = tables.Column(linkify=True, verbose_name="ID")
     cable_type = tables.Column(linkify=True, verbose_name="Cable Type")
