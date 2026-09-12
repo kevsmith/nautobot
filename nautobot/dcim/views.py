@@ -5641,15 +5641,10 @@ class CableUIViewSet(NautobotUIViewSet):
     form_class = forms.CableForm
     serializer_class = serializers.CableSerializer
     table_class = tables.CableTable
-    queryset = Cable.objects.select_related("cable_type").prefetch_related(
-        Prefetch(
-            "terminations",
-            # `select_related`-ing the per-type FK columns (plus each termination's parent and the
-            # FKs its display string needs) lets the table's `terminations_a` / `terminations_b` and
-            # `*_parent` columns render every FK without an extra query per row.
-            queryset=CableToCableTermination.objects.select_related(*TERMINATION_CABLE_COLUMN_FK_FIELDS),
-        ),
-    )
+    # The termination-column optimization now lives on the model and is applied by CableTable
+    # itself, so every place that renders the table gets it -- see
+    # Cable.optimize_queryset_for_cable_columns.
+    queryset = Cable.objects.all()
     action_buttons = ("add", "import", "export")
 
     def get_queryset(self):
