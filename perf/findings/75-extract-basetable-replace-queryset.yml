@@ -1,0 +1,34 @@
+---
+seq: 75
+id: null
+commit: 629fea4ab
+recommended_commit: ae4a7a88c
+status: accepted
+basis: 'enabling change: the seam the per-table commits are written against'
+behaviour: A
+migration: '-'
+flags: []
+title: Extract BaseTable.replace_queryset from add_conditional_prefetch
+site: nautobot/core/tables.py BaseTable.replace_queryset
+summary: '`add_conditional_prefetch` already knew how to rebind a table to a new queryset — assigning
+  `self.data.data` is not enough, because `self.rows` still wraps the previous `TableData`. That
+  logic is now a public `replace_queryset()`, so a subclass can optimize further after
+  `super().__init__()` has run, which is the only point at which the auto-optimized queryset exists
+  and the visible columns are known. **Ported from Ken Celenza''s `867cb152e`
+  (`UI | BaseTable | 8`)** on github.com/itdependsnetworks/nautobot.'
+result:
+  removes_nothing: 'no behaviour change and no queries removed. `add_conditional_prefetch` now calls
+    the helper and is three lines shorter.'
+  why_now: 'the per-table commits in `UI | Tables` and `Cabling` are written against this seam. Taking
+    it with the rest of the `BaseTable` block keeps `nautobot/core/tables.py` — the file the queue
+    names as the collision hotspot, already carrying findings 7, 11 and 54 — out of those later
+    blocks entirely.'
+controls: 'the extracted body is the original statements in the original order; the only change is
+  that `prefetch or db_column` selects the argument before the call rather than inside an if/else.
+  Exercised by the extras and ipam tables that call `add_conditional_prefetch`.'
+tests: '98 OK (skipped=1) across the table tests, 301 OK (skipped=16) across the view tests.'
+wall_clock: 'not measured: a refactor with no queries removed'
+wall_clock_detail: 'Deliberately none, for the same reason as finding 72.'
+note: '**Second of the two enabling changes in this block**, recorded separately rather than folded
+  into a neighbour so that the report''s accepted table does not imply six optimizations where there
+  are four.'
