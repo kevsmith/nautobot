@@ -237,6 +237,9 @@ class BaseTable(django_tables2.Table):
             prefetch_fields = []
             count_fields = []
             relationship_peer_lookups = None  # resolved lazily below, at most once per table
+            # Relations this model's own display/__str__ reads per row. The linkified name column
+            # renders display on effectively every table, so this applies whatever columns are shown.
+            prefetch_fields.extend(getattr(model, "display_prefetch_related", ()))
             for column in self.columns:
                 if not column.visible:
                     continue
@@ -270,6 +273,22 @@ class BaseTable(django_tables2.Table):
                             # Follow the trailing chain (e.g. `device`) via select_related so the render-time
                             # attribute walk is free.
                             related_qs = related_qs.select_related(remainder)
+                        # The sampled record's own display may read further relations; prefetch those
+                        # under the same path, or rendering the one sampled row queries per object.
+                        display_model = intermediate_model
+                        for part in filter(None, remainder.split("__")):
+                            try:
+                                display_model = display_model._meta.get_field(part).related_model
+                            except FieldDoesNotExist:
+                                display_model = None
+                            if display_model is None:
+                                break
+                        display_lookups = getattr(display_model, "display_prefetch_related", ())
+                        if display_lookups:
+                            prefix = f"{remainder}__" if remainder else ""
+                            related_qs = related_qs.prefetch_related(
+                                *(f"{prefix}{display_lookup}" for display_lookup in display_lookups)
+                            )
                         prefetch_fields.append(
                             Prefetch(first_relation, related_qs[:1], to_attr=_linked_count_to_attr(lookup))
                         )
@@ -344,6 +363,15 @@ class BaseTable(django_tables2.Table):
                     select_fields.append("__".join(select_path))
                 if prefetch_path:
                     prefetch_fields.append("__".join(prefetch_path))
+                # If the walk landed on a related model whose own display reads further relations,
+                # prefetch those under this column's path. The prefetch path is the deeper of the two
+                # when both exist, so it names the model the accessor actually landed on.
+                related_path = prefetch_path or select_path
+                if related_path and column_model is not model:
+                    for display_lookup in getattr(column_model, "display_prefetch_related", ()):
+                        entry = "__".join([*related_path, display_lookup])
+                        if entry not in prefetch_fields:
+                            prefetch_fields.append(entry)
 
             if select_fields:
                 queryset = maybe_select_related(queryset, select_fields)
