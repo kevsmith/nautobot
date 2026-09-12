@@ -222,8 +222,8 @@ LOCATION_TREE_LINK = """
 {% load helpers %}
 {% spaceless %}
     {% if not table.hide_hierarchy_ui %}
-        {% with children_exists=record.children.exists %}
-            {% for i in record.ancestors.count|as_range %}
+        {% with children_exists=record.children_exists %}
+            {% for i in record.tree_depth|as_range %}
                 <span class="nb-subtree"></span>
             {% endfor %}
             {% if table_expandable|default:False %}

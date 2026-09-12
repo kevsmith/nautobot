@@ -5,6 +5,7 @@ from django.core.cache import cache
 from django.db.models import Case, When
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.signals import post_delete, post_save
+from django.utils.functional import cached_property
 from tree_queries.compiler import TreeQuery
 from tree_queries.models import TreeNode
 from tree_queries.query import TreeManager as TreeManager_, TreeQuerySet as TreeQuerySet_
@@ -216,6 +217,15 @@ class TreeModel(TreeNode):
             pass
         display_str += self.name  # pylint: disable=no-member  # we checked with hasattr() above
         return display_str
+
+    @cached_property
+    def children_exists(self):
+        """Whether this node has any direct child.
+
+        A `cached_property` so a table can batch-resolve it for a whole page and seed `__dict__`,
+        rather than every rendered row issuing its own `EXISTS` query.
+        """
+        return self.children.exists()
 
     @property
     def siblings(self):
