@@ -297,6 +297,10 @@ class VRF(PrimaryModel):
         verbose_name = "VRF"
         verbose_name_plural = "VRFs"
 
+    # Relations that the display string reads, so a table rendering it can prefetch them per
+    # page rather than reading them per row. Consumed by `BaseTable`.
+    display_prefetch_related = ("namespace",)
+
     def __str__(self):
         return self.display or super().__str__()
 
@@ -494,6 +498,10 @@ class VRFDeviceAssignment(BaseModel):
             # ["virtual_machine", "rd", "name"],
             # ["virtual_device_context", "rd", "name"],
         ]
+
+    # Relations that the display string reads, so a table rendering it can prefetch them per
+    # page rather than reading them per row. Consumed by `BaseTable`.
+    display_prefetch_related = ("vrf__namespace", "device", "virtual_machine", "virtual_device_context")
 
     def __str__(self):
         obj = self.device or self.virtual_machine or self.virtual_device_context
@@ -795,6 +803,10 @@ class Prefix(PrimaryModel):
             elif field_name == "prefix_length":
                 instance._prefix_length = value
         return instance
+
+    # Relations that the display string reads, so a table rendering it can prefetch them per
+    # page rather than reading them per row. Consumed by `BaseTable`.
+    display_prefetch_related = ("namespace",)
 
     def __str__(self):
         return str(self.prefix)
@@ -2330,7 +2342,9 @@ class VLANGroup(PrimaryModel):
         """
         Return all available VLAN IDs within this VLANGroup as a list.
         """
-        used_ids = self.vlans.all().values_list("vid", flat=True)
+        # Iterate `.all()`, which honors a prefetch cache (VLANGroupTable seeds one for the action
+        # buttons); `.values_list()` clones the queryset and so queries once per rendered row.
+        used_ids = {vlan.vid for vlan in self.vlans.all()}
         available = sorted([vid for vid in self.expanded_range if vid not in used_ids])
 
         return available

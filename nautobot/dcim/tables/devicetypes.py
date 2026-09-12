@@ -1,3 +1,4 @@
+from django.db.models import QuerySet
 import django_tables2 as tables
 
 from nautobot.core.tables import (
@@ -197,6 +198,21 @@ class ModuleTypeTable(BaseTable):
 class ComponentTemplateTable(BaseTable):
     pk = ToggleColumn()
     name = tables.Column(order_by=("_name",))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The name column links through `get_absolute_url()`, which resolves the template's parent
+        # device type -- and module type, for modular component templates -- once per row. The
+        # accessor walk cannot see inside `get_absolute_url()`.
+        if isinstance(self.data.data, QuerySet):
+            model = self._meta.model
+            parent_fields = [
+                field_name
+                for field_name in ("device_type", "module_type")
+                if any(field.name == field_name for field in model._meta.fields)
+            ]
+            if parent_fields:
+                self.replace_queryset(self.data.data.select_related(*parent_fields))
 
 
 class ConsolePortTemplateTable(ComponentTemplateTable):
