@@ -1,7 +1,7 @@
 ---
 seq: 72
 id: null
-commit: 12b676622
+commit: 5f2afe54f
 recommended_commit: 67d9634e3
 status: accepted
 basis: 'enabling change: makes a hidden column''s per-row cost measurable at all'
