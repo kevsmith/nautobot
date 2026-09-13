@@ -2,7 +2,7 @@
 seq: 74
 id: null
 commit: 2c1987078
-recommended_commit: 750669f74
+recommended_commit: dec6b9b94
 status: accepted
 basis: 'attribution: 1.000 q/row on DeviceTable.device_type in isolation, 0.000 after'
 behaviour: A

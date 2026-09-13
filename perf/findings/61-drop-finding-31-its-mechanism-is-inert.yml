@@ -2,7 +2,7 @@
 seq: 61
 id: null
 commit: 427e811f1
-recommended_commit: 5fda65b30
+recommended_commit: e6b496057
 status: accepted
 basis: 'dropping finding 31 removes 2 queries of 6,637 and moves nothing else'
 behaviour: A
