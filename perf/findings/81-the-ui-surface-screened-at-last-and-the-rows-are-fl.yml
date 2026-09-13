@@ -1,0 +1,70 @@
+---
+seq: 81
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: The UI surface screened at last, and its rows are flat; what is left is a fixed page cost
+site: perf/scripts/screen_ui.py
+summary: '`screen_reads.py` filters for namespaces ending in `-api`, so in 81 findings the UI
+  list surface had never been screened: 166 REST endpoints ranked and zero UI endpoints, with
+  the inner loop''s hand-picked scenarios the only UI coverage that ever existed -- and finding
+  44 showed 20 of those were measuring a page that rendered no rows. `screen_ui.py` enumerates
+  every UI list view from the resolver and measures both requests a list view actually makes:
+  the document, which builds its table over `queryset.none()`, and the `HX-Request` follow-up
+  the browser fires from `hx-trigger="load"`, which is where the rows are rendered.'
+result:
+  coverage: '127 UI list views resolved and attempted, 249 measurements, 122 rendered at least
+    one row, 38 rendered a full page of 10 or more, 2 rendered none, 5 skipped (`admin:app_list`
+    and `ipam:ipaddresstointerface_list` do not reverse without arguments,
+    `dcim:rack_elevation_list` returns a non-200). Zero unstable query counts across three reps.
+    119 seconds for the whole surface, which is what makes this cheap enough to re-run.'
+  rows_are_flat: '**37 of the 38 populated tables sit at or below 1.0 queries per rendered row**,
+    and most are far below: `dcim:device_list` 8 queries for 25 rows, `ipam:ipaddress_list` 8,
+    `dcim:cable_list` 9. The row-scaling cost that opened this line of work is substantially
+    gone, which is findings 07, 11, 53, 54 and 76-79 landing.'
+  the_one_outlier: '`extras:relationshipassociation_list` reads **58 queries for 25 rows**,
+    2.32 per row, against a populated-table field where nothing else exceeds 1.00. Stable across
+    three reps with no range, so it is a real per-row defect rather than jitter. It is the only
+    one the screen found.'
+  the_document_is_a_fixed_cost: 'median 90.1 ms and 10 queries, range 19.3 to 187.9 ms and 4 to
+    12 queries, with no dependence on table size -- it renders no rows by construction. Over the
+    38 tables that render a full page the split is **40.9% document, 59.1% rows**, consistent
+    with finding 44''s 60-70% for the row request at a larger page size. Over all 124 answering
+    on both it inverts to 52.9% document, because 86 of them render fewer than ten rows and a
+    near-constant cost dominates a small one.'
+  what_this_reorders: 'the queue ranked the read side below the write path on finding 37, a
+    screen that covered REST only, and said so -- "unsupported rather than wrong" until this
+    ran. It is now supported, and it points somewhere different from where this entry expected:
+    the remaining UI read cost is not per-row work but the fixed document, which the queue
+    already attributes to template rendering rather than to the view.'
+wall_clock: "not applicable: this is a screening instrument, and its own figures are the result"
+basis: every UI list view enumerated from the URL resolver, both requests measured per endpoint
+controls: 'both requests go to the same URL and differ only by the `HX-Request` header, so the
+  document/rows split is not confounded by pagination or filtering. Rows are counted inside
+  `<tbody>` rather than by counting every `<tr>`, which would overcount by one per table and
+  report an endpoint rendering nothing as rendering one. Measured on tree `368a99a0401538e6`
+  under `measure.sh`, so the host was gated quiet and the run holds the timing lock.'
+tests: n/a; harness only, no product code
+caveat: 'Single-arm. This ranks where cost remains on the branch; it is not a stock-versus-branch
+  comparison and says nothing about what the branch removed. The per-row figures rest on
+  `per_page=25`, so a defect that only appears at 100 rows would read as mild here.
+
+
+  **The dataset bounds it in the same way it bounds the read screen.** Only 38 of 127 tables
+  render a full page, so 89 endpoints contribute a measurement whose per-row figure is mostly
+  fixed cost. The ranking excludes them rather than letting a 9-query, 1-row table outrank a
+  genuine N+1.'
+note: '**The first version of this ranking was wrong and it is worth saying how.** It ranked all
+  124 measured row-requests by queries per row, which put eight 1-row tables at 9.00 q/row above
+  every real result -- fixed cost divided by one row, sorted by table size and reading as a
+  defect list. The threshold that `screen_reads.py` already applies for exactly this reason was
+  missing here. It now restricts the ranking to tables rendering a full page, and reports the
+  document/rows split both ways rather than only over everything, because the all-endpoints
+  figure overstates the document for the same reason.
+
+
+  **The screen is cheap and should be re-run rather than trusted indefinitely.** Two minutes for
+  the whole UI surface, in-process, no mutation, safe against a live dataset.'
