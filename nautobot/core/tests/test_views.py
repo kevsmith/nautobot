@@ -32,6 +32,7 @@ from nautobot.core.testing.api import APITestCase
 from nautobot.core.testing.context import load_event_broker_override_settings
 from nautobot.core.testing.utils import extract_page_body
 from nautobot.core.ui.object_detail import get_overview_panel
+from nautobot.core.utils import requests
 from nautobot.core.utils.lookup import get_filterset_for_model, get_model_from_name
 from nautobot.core.utils.permissions import get_permission_for_model
 from nautobot.core.views import MessagesView, NautobotMetricsView
@@ -157,6 +158,76 @@ class ObjectListViewActionButtonsTestCase(TestCase):
         self.assertIn("Export to file", body)  # the dialog is still offered
         self.assertNotIn("Export Templates", body)
         self.assertNotIn("Provider inventory", body)
+
+
+class DeferredFilterDrawerTestCase(TestCase):
+    """The filter drawer is fetched when it is opened rather than rendered into every page.
+
+    A list view renders the drawer closed and most users never open it, so the document carries
+    the drawer's shell and the contents arrive on the first open. Removing that markup is worth
+    roughly a third of a prefix list's server render time.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.add_permissions("circuits.view_provider")
+        self.url = reverse("circuits:provider_list")
+
+    @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
+    def test_document_carries_the_shell_without_the_contents(self):
+        response = self.client.get(self.url)
+        self.assertHttpStatus(response, 200)
+        body = response.content.decode(response.charset)
+        self.assertIn('id="FilterForm_drawer"', body)
+        # The tab strip is the drawer's own markup, so its absence is what says the contents
+        # were not rendered. Asserting on the absence of a `<select>` would pass for a page
+        # whose filter form merely has none.
+        self.assertNotIn('id="filter-tabs"', body)
+
+    @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
+    def test_the_fetch_returns_the_contents_without_the_shell(self):
+        """The swap is innerHTML, so returning the `<section>` would nest a drawer in a drawer."""
+        response = self.client.get(
+            self.url, {"_drawer": "filter"}, headers={"HX-Request": "true"}
+        )
+        self.assertHttpStatus(response, 200)
+        body = response.content.decode(response.charset)
+        self.assertIn('id="filter-tabs"', body)
+        self.assertNotIn('id="FilterForm_drawer"', body)
+
+    @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
+    def test_the_marker_alone_does_not_trigger_the_fetch(self):
+        """Without `HX-Request` this is an ordinary page request that happens to carry a param."""
+        response = self.client.get(self.url, {"_drawer": "filter"})
+        self.assertHttpStatus(response, 200)
+        body = response.content.decode(response.charset)
+        self.assertIn('id="FilterForm_drawer"', body)
+        self.assertNotIn('id="filter-tabs"', body)
+
+    @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
+    def test_the_marker_is_not_treated_as_a_filter(self):
+        """`_drawer` is in NON_FILTER_PARAMS; without that the filterset reports it as invalid."""
+        self.assertIn("_drawer", requests.NON_FILTER_PARAMS)
+        response = self.client.get(self.url, {"_drawer": "filter"})
+        self.assertHttpStatus(response, 200)
+        body = extract_page_body(response.content.decode(response.charset))
+        self.assertNotIn("Invalid filters were specified", body)
+
+    @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
+    def test_the_fetch_keeps_the_filters_the_page_was_showing(self):
+        """The drawer opens onto the current filter state, so its selects must reflect it."""
+        provider = Provider.objects.first()
+        response = self.client.get(
+            self.url, {"_drawer": "filter", "name": provider.name}, headers={"HX-Request": "true"}
+        )
+        self.assertHttpStatus(response, 200)
+        self.assertIn(provider.name, response.content.decode(response.charset))
+
+    @override_settings(EXEMPT_VIEW_PERMISSIONS=[])
+    def test_one_url_answering_three_ways_varies_on_the_header(self):
+        """Document, table rows and drawer share a URL, so a cache must not conflate them."""
+        response = self.client.get(self.url)
+        self.assertIn("HX-Request", response.get("Vary", ""))
 
 
 class ObjectListViewActionButtonsWithoutAddPermissionTestCase(TestCase):
