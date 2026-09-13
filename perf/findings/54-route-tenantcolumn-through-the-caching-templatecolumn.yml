@@ -2,7 +2,7 @@
 seq: 54
 id: null
 commit: fa137b628
-recommended_commit: 5c4d04c70
+recommended_commit: c0d0dbf16
 status: accepted
 basis: 'attribution: 100 template compilations per 100-row page, one per cell, from one column'
 behaviour: A
