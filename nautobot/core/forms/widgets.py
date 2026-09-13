@@ -5,6 +5,8 @@ from urllib.parse import urljoin
 from django import forms
 from django.forms.models import ModelChoiceIterator
 from django.urls import get_script_prefix
+from django.forms.renderers import get_default_renderer
+from django.utils.safestring import mark_safe
 
 from nautobot.core import choices as core_choices
 from nautobot.core.forms import utils
@@ -108,7 +110,108 @@ class SelectMultipleOrderable(forms.SelectMultiple):
         )
 
 
-class SelectWithDisabled(forms.Select):
+# Rendered `<option>` markup, keyed on the option template and the choice list. Both are fixed
+# for a field whose choices are a module-level constant, so an entry is built once per process
+# and reused for the life of it. Each entry holds the unselected and selected rendering of every
+# option, both produced by the option template itself rather than by formatting a string here,
+# which is what makes the output byte-identical by construction instead of by inspection.
+_CACHED_OPTION_HTML = {}
+
+
+class CachedStaticOptionsMixin:
+    """Render a static choice list's `<option>` elements once per process instead of per request.
+
+    Django's `select.html` includes the option template once per option, and Nautobot's
+    `selectwithdisabled_option.html` then includes `attrs.html` itself, so every option costs two
+    template renders. On a field like `PrefixFilterForm.prefix_length`, whose 130 choices come
+    from a module-level constant, that is ~25ms of a ~143ms page spent re-rendering identical
+    markup into a drawer that is closed until the user opens it.
+
+    The rendered markup is a pure function of `(value, label, selected)`: the option template
+    reads only those, `option_inherits_attrs` is False so options never carry the select's
+    attributes, and `selected` is the only per-option attribute Django ever sets. So the two
+    possible renderings of each option can be cached and chosen between.
+
+    Building the option dictionaries is left to Django. `optgroups()` costs 0.2ms against the
+    25ms of template rendering, so reimplementing selection semantics would buy under 1% and
+    risk diverging from them.
+
+    The fast path declines, falling back to the normal one, when anything it does not model is
+    present: named option groups, a choice list that is not a plain sequence, or an option
+    carrying any attribute other than `selected`.
+    """
+
+    cached_options_template_name = "widgets/cached_options_select.html"
+
+    def render(self, name, value, attrs=None, renderer=None):
+        context = self.get_context(name, value, attrs)
+        options = self._cached_options_html(name, context["widget"]["optgroups"], renderer)
+        if options is None:
+            return self._render(self.template_name, context, renderer)
+        context["widget"]["cached_options"] = options
+        return self._render(self.cached_options_template_name, context, renderer)
+
+    def _cached_options_html(self, name, optgroups, renderer):
+        """Joined `<option>` markup for these optgroups, or None to use the normal path."""
+        if not isinstance(self.choices, (list, tuple)):
+            return None
+        flat = []
+        key_parts = []
+        for group_name, group_options, _ in optgroups:
+            if group_name:
+                return None
+            for option in group_options:
+                if set(option["attrs"]) - {"selected"}:
+                    return None
+                flat.append(option)
+                key_parts.append((str(option["value"]), str(option["label"])))
+
+        # `name` is in the key because an option template is free to read `widget.name`, and two
+        # fields can share a choice list under different names. Every option template in core
+        # reads only value, label and attrs, so this is insurance against an App's template
+        # rather than against anything shipped here. `index` needs no such care: the cache is a
+        # list, and the variant at position i was rendered from the option whose index is i.
+        key = (self.option_template_name, name, tuple(key_parts))
+        variants = _CACHED_OPTION_HTML.get(key)
+        if variants is None:
+            variants = self._build_option_variants(flat, renderer)
+            _CACHED_OPTION_HTML[key] = variants
+
+        # `select.html` emits a newline and two spaces before each option; reproduced here
+        # because this replaces that loop rather than the template around it.
+        return mark_safe(
+            "".join(f"\n  {variants[i][bool(option['selected'])]}" for i, option in enumerate(flat))
+        )
+
+    def _build_option_variants(self, flat, renderer):
+        """Both renderings of every option, produced by the option template itself.
+
+        Rendered through the renderer's own template rather than through `Widget._render`,
+        because `_render` calls the renderer, and the renderer calls `.strip()` on what it
+        returns. `select.html` reaches the option template through `{% include %}`, which does
+        not strip, so the markup it produces keeps the trailing newline the file ends with.
+        Going through `_render` drops that newline and the joined output is one byte per option
+        short of what Django emits. Django's form templates live in the renderer's engine rather
+        than the project's, so `django.template.loader.get_template` cannot find them at all.
+        """
+        engine = renderer or get_default_renderer()
+        variants = []
+        for option in flat:
+            pair = []
+            for selected in (False, True):
+                one = dict(option)
+                one["attrs"] = dict(option["attrs"])
+                one["selected"] = selected
+                if selected:
+                    one["attrs"]["selected"] = True
+                else:
+                    one["attrs"].pop("selected", None)
+                pair.append(engine.get_template(one["template_name"]).render({"widget": one}))
+            variants.append(tuple(pair))
+        return variants
+
+
+class SelectWithDisabled(CachedStaticOptionsMixin, forms.Select):
     """
     Modified the stock Select widget to accept choices using a dict() for a label. The dict for each option must include
     'label' (string) and 'disabled' (boolean).
