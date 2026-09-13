@@ -1,7 +1,7 @@
 ---
 seq: 13
 commit: 91d660970
-recommended_commit: 9924ece48
+recommended_commit: b2259f0db
 status: accepted
 behaviour: B1
 migration: '-'
