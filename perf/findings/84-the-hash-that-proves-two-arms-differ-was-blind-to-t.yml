@@ -1,0 +1,52 @@
+---
+seq: 84
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: The content hash that proves two arms differ was blind to templates
+site: perf/scripts/arm_control.sh
+summary: '`arm_control.sh` prints a content hash after every swap, and the protocol leans on it
+  for one thing: proving the two arms of an A/B are not the same code. A `git stash` A/B once
+  measured identical code six times without noticing, and this hash is the answer to that. It
+  hashed `nautobot/**/*.py` and nothing else, so **a change confined to a template armed
+  invisibly** -- two arms differing only in a `.html` file printed the same hash, and the proof
+  read as satisfied while proving nothing.'
+result:
+  how_it_surfaced: 'three arms built to price finding 83 -- baseline, filter drawer stubbed, every
+    hidden drawer stubbed -- differ only in `generic/object_list.html`. All three printed
+    `368a99a0401538e6`. The measurement was sound and its arms were genuinely different, but
+    nothing in the run could demonstrate that.'
+  no_published_figure_is_affected: 'audited every accepted product finding for commits touching
+    non-`.py` files under `nautobot/`. Two exist, findings 51 and 58, and **both also change
+    `.py`** -- `core/context_processors.py` in each case -- so their hashes moved and their arm
+    proofs held. **Zero template-only accepted findings.** The hole was real and had not yet been
+    stepped in.'
+  the_fix: '`nb_hash` now covers `*.py`, `*.html` and `*.txt` under `nautobot/`, still excluding
+    `project-static`, which is build output whose presence depends on whether docs happen to have
+    been built. The four branches in play hash distinctly where three of them previously collided:
+    `066de3e628910b30`, `0595bd3b2bc7aaa4`, `46375107474b8e2a`, `ede0380f56d26552`.'
+  the_stubbed_arms_verified_after_the_fact: 'arming is deterministic from the ref, so re-arming
+    each of the three after widening the hash proves what the original run could not: distinct
+    hashes, and the template carrying 1, 0 and 0 calls to `filter_form_drawer`.'
+wall_clock: "not applicable: this measures the instrument rather than a change to Nautobot"
+basis: three arms that differ only in a template printed one hash between them
+controls: 'the audit is the control: every accepted product finding was checked for non-`.py`
+  paths, not only the ones expected to have them, and the two that turned up were confirmed to
+  carry `.py` changes alongside.'
+tests: n/a; harness only, no product code
+caveat: null
+note: '**Second time in one session this script has been wrong in the same direction, and the
+  shape is identical.** Finding 80 was a removal set computed against the wrong reference; this is
+  a hash computed over the wrong file set. Both produce a check that looks satisfied and covers
+  less than it claims. A gate that cannot fail is worse than no gate, because it is trusted.
+
+
+  **What generalises is the question rather than the fix.** For every check this harness performs,
+  the useful question is not "does it pass" but "what could change without it noticing". `nb_hash`
+  would still not notice a change to `development/`, to `pyproject.toml`, or to a static asset --
+  all of which can alter what is measured. The answer for those is that the arm swap does not
+  touch them, which is true today and is exactly the kind of assumption that was true of templates
+  until a template-only arm was built.'
