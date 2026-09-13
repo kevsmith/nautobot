@@ -1,0 +1,79 @@
+---
+seq: 82
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: The fixed cost of a list view is a filter drawer that is closed until clicked
+site: perf/scripts/probe_page_phases.py - perf/scripts/probe_form_widgets.py
+summary: 'Finding 81 showed the UI list surface has flat rows and a near-constant document cost
+  of ~90ms median, and said the remaining read-side cost is fixed rather than per-row. This
+  attributes that fixed cost. It is not chrome, and it is not the view: **the filter drawer is
+  20-32% of a list view document, and it renders markup the user does not see until they open
+  it.** Most never do.'
+result:
+  chrome_has_collapsed: '`ui.chrome.404` now measures **19.6ms**, against the **64-66ms** finding
+  50 recorded and which `perf/queue.md` still quoted. Findings 51, 52, 57 and 58 took roughly
+  70% out of it, and `inc/nav_menu.html` is down to 0.7-1.3ms exclusive from ~20.4ms. That
+  matters for ranking rather than for its own sake: chrome was previously comparable to the
+  filter drawer, and the drawer is now several times larger than everything else fixed.'
+  the_decomposition: 'measured under `measure.sh` on a gated-quiet host, tree `368a99a0401538e6`,
+  five reps with one discarded:
+
+    ui.device.list   wall 181.3ms   view 21.9   drawer 36.2 (20.0%)   widgets 32.5   144 options
+    ui.prefix.list   wall 143.1ms   view 16.2   drawer 46.0 (32.1%)   widgets 40.8   195 options
+
+  View work is 11-12% of the page. Everything else is template rendering, which is finding 50s
+  conclusion holding on a tree 32 findings later.'
+  one_field_is_most_of_it: '`prefix_length` on `ui.prefix.list` is a single `StaticSelect2`
+  enumerating every prefix length across both IP versions: **133 options for 26.1ms**, 196us per
+  option, 64% of all widget time on that page in one field. `ui.ipaddress.list` is the same
+  shape with 141. Already recorded in the queue as "one filter field renders 130 invisible
+  options" at ~19.8ms; it re-measures larger here because the page around it got cheaper.'
+  empty_selects_are_not_free: '**`APISelectMultiple` renders no options at all and still costs
+  ~400us each** -- 19 of them for 7.6ms on `ui.device.list`, 12 for 4.8ms on `ui.prefix.list`.
+  These are API-backed selects whose options arrive over AJAX, so the server renders an empty
+  `<select>` shell and its attributes. The cost is attribute rendering, not options:
+  `django/forms/widgets/attrs.html` renders 156 times on the device list and 207 on the prefix
+  list. This has not been recorded before and it is a different lever from the 133-option field
+  -- it scales with how many filter fields a model has rather than with how many choices one of
+  them offers.'
+  why_two_renders_per_option: 'Django `select.html` includes the option template once per option,
+  and Nautobot `selectwithdisabled_option.html` then includes `attrs.html` itself, so every
+  option costs two template renders. The templates are already cached, verified in
+  `probe_form_widgets.py` by identity of the inner Template across `get_template` calls, so this
+  is render overhead -- context push and pop, node traversal -- rather than re-parsing.'
+wall_clock: "not measured: an attribution of existing cost, proposing no change to measure"
+basis: per-template exclusive time plus per-widget-class attribution with option counts
+controls: '`ui.chrome.404` renders full chrome and no list machinery, which is what separates the
+  two. `probe_page_phases.py` measures the render boundary rather than subtracting it, and
+  reports `cpu_ms` alongside so the phases can be checked against something not derived from
+  them. Its overhead was validated at +1.6% when finding 50 was taken, and stubbing a template
+  removed 45.6ms against 48ms attributed.'
+tests: n/a; measurement only, no product code
+caveat: 'One instrument reading is wrong and it is visible in the output: `ui.ipaddress.list`
+  reports `view=142.4 render=0.0`, attributing the whole page to view work, where the same probe
+  splits `ui.device.list` and `ui.prefix.list` correctly. The per-template figures for that
+  scenario are still present and consistent with the other two, so the attribution stands, but
+  its phase split does not and is not quoted here. Not chased.
+
+
+  **No fix is proposed and none of this is free.** Rendering the drawer lazily changes when
+  markup exists, which is a behaviour change for anything that reads it on load. Replacing a
+  133-option select with a number input or an API-backed select changes the control a user sees.
+  Both are product decisions rather than rendering optimisations, which is why this is recorded
+  as an attribution rather than taken.'
+note: '**The largest remaining fixed cost on the read side is markup for a control that is
+  hidden when the page loads.** That is the finding, and it is worth stating plainly because
+  every instrument this branch owns was pointed at it for months without seeing it: the query
+  counter cannot see it because the drawer issues almost no queries, the read screen cannot see
+  it because it is REST-only, and the read loop measured the document as one number without
+  attributing it.
+
+
+  **Chrome getting cheaper is what made this visible.** At 64-66ms of chrome the drawer was one
+  of two comparable fixed costs and neither dominated. At 19.6ms it is the answer. A figure that
+  was true when written and is now false -- `perf/queue.md` still quoted the 64-66ms -- is the
+  recurring failure mode on this branch, and the queue is corrected in the same commit.'
