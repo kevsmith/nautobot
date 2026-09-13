@@ -1,10 +1,10 @@
 ---
 seq: 31
 id: null
-commit: 6ca08ebfe
+commit: null
 reverted_commit: 864fbb2c0
 reverted_recommended_commit: 5fda65b30
-recommended_commit: c2c211cd1
+recommended_commit: null
 status: reverted
 behaviour: C
 migration: '-'
@@ -120,4 +120,14 @@ note: 'Three parts, and the first is not optional. `getattr(obj, "_tags", None) 
   cache starting to fire. The figures above were true when written and describe a code path the
   branch no longer takes; the saving they name is now delivered by finding 22, and the two must not
   be added together. The remaining footprint is `tag_cache_warmed`, which still issues one
-  `TaggedItem` query per batch under the UI bulk paths and whose result nobody reads.'
+  `TaggedItem` query per batch under the UI bulk paths and whose result nobody reads.
+
+
+  **NO COMMIT, AND THAT IS THE RECORD RATHER THAN A GAP.** The change was added and then
+  reverted once finding 61 established it had no reader, and on 2026-09-13 both commits were
+  dropped from `perf/experiments` and `perf/recommended`. An addition and its revert cancel to
+  nothing, so the pair bought nobody anything and cost every rebase and every reviewer the work
+  of reasoning about it. Both commits are preserved at the tag `perf/dropped-tag-cache-pair`,
+  and the probes that measured this finding are still carried on `perf/experiments`. The tree is
+  unchanged by the drop: `nautobot/` hashes `368a99a0401538e6` either way, which is what every
+  measurement on this branch is attributed to.'

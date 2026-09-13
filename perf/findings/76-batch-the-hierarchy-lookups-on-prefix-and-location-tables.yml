@@ -1,8 +1,8 @@
 ---
 seq: 76
 id: null
-commit: ee2c3866e
-recommended_commit: 2b951a077
+commit: 56520daa6
+recommended_commit: 8f7fb2a2c
 status: accepted
 basis: 'attribution: 3.000 q/row on prefixes and 1.973 on locations, both to 0.000'
 behaviour: A
