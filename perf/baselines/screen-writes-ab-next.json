@@ -1,0 +1,8242 @@
+{
+  "baseline": "perf/results/screen-writes-stock-next-median.json",
+  "coverage": {
+    "baseline_records": 257,
+    "comparable": 254,
+    "current_records": 257,
+    "excluded_failed": 3,
+    "identical_coverage": true,
+    "matched": 257,
+    "only_in_baseline": 0,
+    "only_in_current": 0
+  },
+  "current": "perf/results/screen-writes-branch-next-median.json",
+  "excluded": [
+    {
+      "failed_on": [
+        "baseline",
+        "current"
+      ],
+      "id": "extras-api:approvalworkflowdefinition-list",
+      "kind": "create.x10",
+      "reason": "HTTP 500: error: duplicate key value violates unique constraint \"extras_approvalworkflowd_model_content_type_id_we_a7156a7e_uniq\"\nDETAIL:; exception: IntegrityError; nautobot_version: 3.3.0a0; python_",
+      "status": [
+        500,
+        500
+      ]
+    },
+    {
+      "failed_on": [
+        "baseline",
+        "current"
+      ],
+      "id": "users-api:token-list",
+      "kind": "update.x1",
+      "reason": "HTTP 404: detail: No Token matches the given query.",
+      "status": [
+        404,
+        404
+      ]
+    },
+    {
+      "failed_on": [
+        "baseline",
+        "current"
+      ],
+      "id": "wireless-api:supporteddatarate-list",
+      "kind": "create.x10",
+      "reason": "HTTP 500: error: duplicate key value violates unique constraint \"wireless_supporteddatarate_standard_rate_5f25aaf0_uniq\"\nDETAIL:  Key (st; exception: IntegrityError; nautobot_version: 3.3.0a0; python_",
+      "status": [
+        500,
+        500
+      ]
+    }
+  ],
+  "invalid": [],
+  "measurements": [
+    {
+      "db_ms": {
+        "baseline": 498.21,
+        "current": 309.83,
+        "delta": -188.38,
+        "pct": -37.81
+      },
+      "id": "ipam-api:ipaddresstointerface-list",
+      "kind": "create.x10",
+      "model": "ipam.ipaddresstointerface",
+      "queries": {
+        "baseline": 974,
+        "current": 590,
+        "delta": -384,
+        "pct": -39.43
+      },
+      "wall_ms": {
+        "baseline": 2476.82,
+        "current": 1062.21,
+        "delta": -1414.61,
+        "pct": -57.11
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 395.35,
+        "current": 242.58,
+        "delta": -152.77,
+        "pct": -38.64
+      },
+      "id": "dcim-api:interfaceredundancygroupassociation-list",
+      "kind": "create.x10",
+      "model": "dcim.interfaceredundancygroupassociation",
+      "queries": {
+        "baseline": 789,
+        "current": 434,
+        "delta": -355,
+        "pct": -44.99
+      },
+      "wall_ms": {
+        "baseline": 2710.75,
+        "current": 871.74,
+        "delta": -1839.01,
+        "pct": -67.84
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 149.36,
+        "current": 91.7,
+        "delta": -57.66,
+        "pct": -38.6
+      },
+      "id": "extras-api:configcontext-list",
+      "kind": "create.x10",
+      "model": "extras.configcontext",
+      "queries": {
+        "baseline": 307,
+        "current": 187,
+        "delta": -120,
+        "pct": -39.09
+      },
+      "wall_ms": {
+        "baseline": 521.39,
+        "current": 289.7,
+        "delta": -231.69,
+        "pct": -44.44
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 129.98,
+        "current": 86.96,
+        "delta": -43.02,
+        "pct": -33.1
+      },
+      "id": "dcim-api:consoleport-list",
+      "kind": "create.x10",
+      "model": "dcim.consoleport",
+      "queries": {
+        "baseline": 288,
+        "current": 170,
+        "delta": -118,
+        "pct": -40.97
+      },
+      "wall_ms": {
+        "baseline": 785.44,
+        "current": 336.37,
+        "delta": -449.07,
+        "pct": -57.17
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 129.2,
+        "current": 83.35,
+        "delta": -45.85,
+        "pct": -35.49
+      },
+      "id": "dcim-api:consoleserverport-list",
+      "kind": "create.x10",
+      "model": "dcim.consoleserverport",
+      "queries": {
+        "baseline": 288,
+        "current": 170,
+        "delta": -118,
+        "pct": -40.97
+      },
+      "wall_ms": {
+        "baseline": 778.99,
+        "current": 328.29,
+        "delta": -450.7,
+        "pct": -57.86
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 129.91,
+        "current": 91.04,
+        "delta": -38.87,
+        "pct": -29.92
+      },
+      "id": "dcim-api:poweroutlet-list",
+      "kind": "create.x10",
+      "model": "dcim.poweroutlet",
+      "queries": {
+        "baseline": 288,
+        "current": 170,
+        "delta": -118,
+        "pct": -40.97
+      },
+      "wall_ms": {
+        "baseline": 783.53,
+        "current": 361.46,
+        "delta": -422.07,
+        "pct": -53.87
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 140.74,
+        "current": 90.07,
+        "delta": -50.67,
+        "pct": -36.0
+      },
+      "id": "dcim-api:powerport-list",
+      "kind": "create.x10",
+      "model": "dcim.powerport",
+      "queries": {
+        "baseline": 288,
+        "current": 170,
+        "delta": -118,
+        "pct": -40.97
+      },
+      "wall_ms": {
+        "baseline": 834.49,
+        "current": 349.16,
+        "delta": -485.33,
+        "pct": -58.16
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 177.24,
+        "current": 118.52,
+        "delta": -58.72,
+        "pct": -33.13
+      },
+      "id": "vpn-api:vpntunnelendpoint-list",
+      "kind": "create.x10",
+      "model": "vpn.vpntunnelendpoint",
+      "queries": {
+        "baseline": 328,
+        "current": 214,
+        "delta": -114,
+        "pct": -34.76
+      },
+      "wall_ms": {
+        "baseline": 870.35,
+        "current": 437.14,
+        "delta": -433.21,
+        "pct": -49.77
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 174.98,
+        "current": 132.64,
+        "delta": -42.34,
+        "pct": -24.2
+      },
+      "id": "dcim-api:interface-list",
+      "kind": "create.x10",
+      "model": "dcim.interface",
+      "queries": {
+        "baseline": 348,
+        "current": 239,
+        "delta": -109,
+        "pct": -31.32
+      },
+      "wall_ms": {
+        "baseline": 950.27,
+        "current": 482.91,
+        "delta": -467.36,
+        "pct": -49.18
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 133.1,
+        "current": 92.66,
+        "delta": -40.44,
+        "pct": -30.38
+      },
+      "id": "dcim-api:powerfeed-list",
+      "kind": "create.x10",
+      "model": "dcim.powerfeed",
+      "queries": {
+        "baseline": 288,
+        "current": 179,
+        "delta": -109,
+        "pct": -37.85
+      },
+      "wall_ms": {
+        "baseline": 672.5,
+        "current": 351.49,
+        "delta": -321.01,
+        "pct": -47.73
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 236.7,
+        "current": 170.45,
+        "delta": -66.25,
+        "pct": -27.99
+      },
+      "id": "ipam-api:prefixlocationassignment-list",
+      "kind": "create.x10",
+      "model": "ipam.prefixlocationassignment",
+      "queries": {
+        "baseline": 442,
+        "current": 342,
+        "delta": -100,
+        "pct": -22.62
+      },
+      "wall_ms": {
+        "baseline": 1188.92,
+        "current": 624.71,
+        "delta": -564.21,
+        "pct": -47.46
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 144.35,
+        "current": 103.2,
+        "delta": -41.15,
+        "pct": -28.51
+      },
+      "id": "vpn-api:vpntermination-list",
+      "kind": "create.x10",
+      "model": "vpn.vpntermination",
+      "queries": {
+        "baseline": 298,
+        "current": 204,
+        "delta": -94,
+        "pct": -31.54
+      },
+      "wall_ms": {
+        "baseline": 721.55,
+        "current": 385.08,
+        "delta": -336.47,
+        "pct": -46.63
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 204.57,
+        "current": 141.7,
+        "delta": -62.87,
+        "pct": -30.73
+      },
+      "id": "ipam-api:vlanlocationassignment-list",
+      "kind": "create.x10",
+      "model": "ipam.vlanlocationassignment",
+      "queries": {
+        "baseline": 378,
+        "current": 287,
+        "delta": -91,
+        "pct": -24.07
+      },
+      "wall_ms": {
+        "baseline": 1009.52,
+        "current": 523.2,
+        "delta": -486.32,
+        "pct": -48.17
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 109.51,
+        "current": 79.52,
+        "delta": -29.99,
+        "pct": -27.39
+      },
+      "id": "dcim-api:inventoryitem-list",
+      "kind": "create.x10",
+      "model": "dcim.inventoryitem",
+      "queries": {
+        "baseline": 208,
+        "current": 130,
+        "delta": -78,
+        "pct": -37.5
+      },
+      "wall_ms": {
+        "baseline": 545.38,
+        "current": 318.96,
+        "delta": -226.42,
+        "pct": -41.52
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 109.75,
+        "current": 80.33,
+        "delta": -29.42,
+        "pct": -26.81
+      },
+      "id": "ipam-api:service-list",
+      "kind": "create.x10",
+      "model": "ipam.service",
+      "queries": {
+        "baseline": 228,
+        "current": 150,
+        "delta": -78,
+        "pct": -34.21
+      },
+      "wall_ms": {
+        "baseline": 702.87,
+        "current": 316.18,
+        "delta": -386.69,
+        "pct": -55.02
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 109.23,
+        "current": 70.07,
+        "delta": -39.16,
+        "pct": -35.85
+      },
+      "id": "dcim-api:modulebay-list",
+      "kind": "create.x10",
+      "model": "dcim.modulebay",
+      "queries": {
+        "baseline": 208,
+        "current": 140,
+        "delta": -68,
+        "pct": -32.69
+      },
+      "wall_ms": {
+        "baseline": 519.56,
+        "current": 281.45,
+        "delta": -238.11,
+        "pct": -45.83
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 109.5,
+        "current": 81.8,
+        "delta": -27.7,
+        "pct": -25.3
+      },
+      "id": "dcim-api:rearport-list",
+      "kind": "create.x10",
+      "model": "dcim.rearport",
+      "queries": {
+        "baseline": 238,
+        "current": 170,
+        "delta": -68,
+        "pct": -28.57
+      },
+      "wall_ms": {
+        "baseline": 703.45,
+        "current": 321.56,
+        "delta": -381.89,
+        "pct": -54.29
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 119.83,
+        "current": 96.53,
+        "delta": -23.3,
+        "pct": -19.44
+      },
+      "id": "dcim-api:virtualdevicecontext-list",
+      "kind": "create.x10",
+      "model": "dcim.virtualdevicecontext",
+      "queries": {
+        "baseline": 232,
+        "current": 170,
+        "delta": -62,
+        "pct": -26.72
+      },
+      "wall_ms": {
+        "baseline": 750.09,
+        "current": 366.97,
+        "delta": -383.12,
+        "pct": -51.08
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 124.45,
+        "current": 88.91,
+        "delta": -35.54,
+        "pct": -28.56
+      },
+      "id": "users-api:objectpermission-list",
+      "kind": "create.x10",
+      "model": "users.objectpermission",
+      "queries": {
+        "baseline": 267,
+        "current": 207,
+        "delta": -60,
+        "pct": -22.47
+      },
+      "wall_ms": {
+        "baseline": 417.82,
+        "current": 267.82,
+        "delta": -150.0,
+        "pct": -35.9
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 58.64,
+        "current": 40.29,
+        "delta": -18.35,
+        "pct": -31.29
+      },
+      "id": "ipam-api:ipaddresstointerface-list",
+      "kind": "create.x1",
+      "model": "ipam.ipaddresstointerface",
+      "queries": {
+        "baseline": 114,
+        "current": 71,
+        "delta": -43,
+        "pct": -37.72
+      },
+      "wall_ms": {
+        "baseline": 287.98,
+        "current": 170.02,
+        "delta": -117.96,
+        "pct": -40.96
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 132.6,
+        "current": 108.73,
+        "delta": -23.87,
+        "pct": -18.0
+      },
+      "id": "cloud-api:cloudresourcetype-list",
+      "kind": "create.x10",
+      "model": "cloud.cloudresourcetype",
+      "queries": {
+        "baseline": 278,
+        "current": 238,
+        "delta": -40,
+        "pct": -14.39
+      },
+      "wall_ms": {
+        "baseline": 503.38,
+        "current": 366.42,
+        "delta": -136.96,
+        "pct": -27.21
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 131.7,
+        "current": 111.15,
+        "delta": -20.55,
+        "pct": -15.6
+      },
+      "id": "extras-api:metadatatype-list",
+      "kind": "create.x10",
+      "model": "extras.metadatatype",
+      "queries": {
+        "baseline": 268,
+        "current": 228,
+        "delta": -40,
+        "pct": -14.93
+      },
+      "wall_ms": {
+        "baseline": 718.32,
+        "current": 616.52,
+        "delta": -101.8,
+        "pct": -14.17
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 41.66,
+        "current": 27.82,
+        "delta": -13.84,
+        "pct": -33.22
+      },
+      "id": "dcim-api:interfaceredundancygroupassociation-list",
+      "kind": "create.x1",
+      "model": "dcim.interfaceredundancygroupassociation",
+      "queries": {
+        "baseline": 91,
+        "current": 52,
+        "delta": -39,
+        "pct": -42.86
+      },
+      "wall_ms": {
+        "baseline": 291.57,
+        "current": 126.32,
+        "delta": -165.25,
+        "pct": -56.68
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 114.62,
+        "current": 85.29,
+        "delta": -29.33,
+        "pct": -25.59
+      },
+      "id": "ipam-api:vrf-list",
+      "kind": "create.x10",
+      "model": "ipam.vrf",
+      "queries": {
+        "baseline": 198,
+        "current": 168,
+        "delta": -30,
+        "pct": -15.15
+      },
+      "wall_ms": {
+        "baseline": 458.6,
+        "current": 325.74,
+        "delta": -132.86,
+        "pct": -28.97
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 146.26,
+        "current": 125.75,
+        "delta": -20.51,
+        "pct": -14.02
+      },
+      "id": "wireless-api:controllermanageddevicegroupradioprofileassignment-list",
+      "kind": "create.x10",
+      "model": "wireless.controllermanageddevicegroupradioprofileassignment",
+      "queries": {
+        "baseline": 276,
+        "current": 246,
+        "delta": -30,
+        "pct": -10.87
+      },
+      "wall_ms": {
+        "baseline": 681.49,
+        "current": 481.12,
+        "delta": -200.37,
+        "pct": -29.4
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 94.82,
+        "current": 86.11,
+        "delta": -8.71,
+        "pct": -9.19
+      },
+      "id": "load_balancers-api:virtualserver-list",
+      "kind": "create.x10",
+      "model": "load_balancers.virtualserver",
+      "queries": {
+        "baseline": 178,
+        "current": 149,
+        "delta": -29,
+        "pct": -16.29
+      },
+      "wall_ms": {
+        "baseline": 418.95,
+        "current": 341.87,
+        "delta": -77.08,
+        "pct": -18.4
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 113.12,
+        "current": 90.38,
+        "delta": -22.74,
+        "pct": -20.1
+      },
+      "id": "extras-api:customfield-list",
+      "kind": "create.x10",
+      "model": "extras.customfield",
+      "queries": {
+        "baseline": 218,
+        "current": 198,
+        "delta": -20,
+        "pct": -9.17
+      },
+      "wall_ms": {
+        "baseline": 877.26,
+        "current": 746.21,
+        "delta": -131.05,
+        "pct": -14.94
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 113.41,
+        "current": 92.98,
+        "delta": -20.43,
+        "pct": -18.01
+      },
+      "id": "extras-api:jobbutton-list",
+      "kind": "create.x10",
+      "model": "extras.jobbutton",
+      "queries": {
+        "baseline": 227,
+        "current": 207,
+        "delta": -20,
+        "pct": -8.81
+      },
+      "wall_ms": {
+        "baseline": 444.75,
+        "current": 295.75,
+        "delta": -149.0,
+        "pct": -33.5
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 95.47,
+        "current": 92.01,
+        "delta": -3.46,
+        "pct": -3.62
+      },
+      "id": "extras-api:role-list",
+      "kind": "create.x10",
+      "model": "extras.role",
+      "queries": {
+        "baseline": 208,
+        "current": 188,
+        "delta": -20,
+        "pct": -9.62
+      },
+      "wall_ms": {
+        "baseline": 373.69,
+        "current": 324.34,
+        "delta": -49.35,
+        "pct": -13.21
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 102.25,
+        "current": 87.35,
+        "delta": -14.9,
+        "pct": -14.57
+      },
+      "id": "extras-api:status-list",
+      "kind": "create.x10",
+      "model": "extras.status",
+      "queries": {
+        "baseline": 208,
+        "current": 188,
+        "delta": -20,
+        "pct": -9.62
+      },
+      "wall_ms": {
+        "baseline": 392.46,
+        "current": 306.81,
+        "delta": -85.65,
+        "pct": -21.82
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 111.36,
+        "current": 93.5,
+        "delta": -17.86,
+        "pct": -16.04
+      },
+      "id": "extras-api:tag-list",
+      "kind": "create.x10",
+      "model": "extras.tag",
+      "queries": {
+        "baseline": 207,
+        "current": 187,
+        "delta": -20,
+        "pct": -9.66
+      },
+      "wall_ms": {
+        "baseline": 447.23,
+        "current": 342.86,
+        "delta": -104.37,
+        "pct": -23.34
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 67.74,
+        "current": 55.87,
+        "delta": -11.87,
+        "pct": -17.52
+      },
+      "id": "extras-api:team-list",
+      "kind": "create.x10",
+      "model": "extras.team",
+      "queries": {
+        "baseline": 138,
+        "current": 118,
+        "delta": -20,
+        "pct": -14.49
+      },
+      "wall_ms": {
+        "baseline": 278.61,
+        "current": 224.7,
+        "delta": -53.91,
+        "pct": -19.35
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 51.32,
+        "current": 44.55,
+        "delta": -6.77,
+        "pct": -13.19
+      },
+      "id": "ipam-api:vrfdeviceassignment-list",
+      "kind": "create.x1",
+      "model": "ipam.vrfdeviceassignment",
+      "queries": {
+        "baseline": 100,
+        "current": 80,
+        "delta": -20,
+        "pct": -20.0
+      },
+      "wall_ms": {
+        "baseline": 245.01,
+        "current": 191.84,
+        "delta": -53.17,
+        "pct": -21.7
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 66.93,
+        "current": 54.65,
+        "delta": -12.28,
+        "pct": -18.35
+      },
+      "id": "wireless-api:radioprofile-list",
+      "kind": "create.x10",
+      "model": "wireless.radioprofile",
+      "queries": {
+        "baseline": 138,
+        "current": 118,
+        "delta": -20,
+        "pct": -14.49
+      },
+      "wall_ms": {
+        "baseline": 281.36,
+        "current": 223.93,
+        "delta": -57.43,
+        "pct": -20.41
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 102.04,
+        "current": 82.98,
+        "delta": -19.06,
+        "pct": -18.68
+      },
+      "id": "dcim-api:controller-list",
+      "kind": "create.x10",
+      "model": "dcim.controller",
+      "queries": {
+        "baseline": 188,
+        "current": 169,
+        "delta": -19,
+        "pct": -10.11
+      },
+      "wall_ms": {
+        "baseline": 450.66,
+        "current": 308.4,
+        "delta": -142.26,
+        "pct": -31.57
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 284.74,
+        "current": 302.83,
+        "delta": 18.09,
+        "pct": 6.35
+      },
+      "id": "dcim-api:device-list",
+      "kind": "create.x10",
+      "model": "dcim.device",
+      "queries": {
+        "baseline": 418,
+        "current": 399,
+        "delta": -19,
+        "pct": -4.55
+      },
+      "wall_ms": {
+        "baseline": 1163.13,
+        "current": 965.97,
+        "delta": -197.16,
+        "pct": -16.95
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 18.15,
+        "current": 13.04,
+        "delta": -5.11,
+        "pct": -28.15
+      },
+      "id": "extras-api:configcontext-list",
+      "kind": "create.x1",
+      "model": "extras.configcontext",
+      "queries": {
+        "baseline": 37,
+        "current": 25,
+        "delta": -12,
+        "pct": -32.43
+      },
+      "wall_ms": {
+        "baseline": 69.19,
+        "current": 49.71,
+        "delta": -19.48,
+        "pct": -28.15
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 22.71,
+        "current": 19.02,
+        "delta": -3.69,
+        "pct": -16.25
+      },
+      "id": "vpn-api:vpntunnelendpoint-list",
+      "kind": "create.x1",
+      "model": "vpn.vpntunnelendpoint",
+      "queries": {
+        "baseline": 44,
+        "current": 32,
+        "delta": -12,
+        "pct": -27.27
+      },
+      "wall_ms": {
+        "baseline": 113.0,
+        "current": 84.07,
+        "delta": -28.93,
+        "pct": -25.6
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 20.13,
+        "current": 15.35,
+        "delta": -4.78,
+        "pct": -23.75
+      },
+      "id": "extras-api:configcontext-list",
+      "kind": "update.x1",
+      "model": "extras.configcontext",
+      "queries": {
+        "baseline": 38,
+        "current": 27,
+        "delta": -11,
+        "pct": -28.95
+      },
+      "wall_ms": {
+        "baseline": 117.22,
+        "current": 81.3,
+        "delta": -35.92,
+        "pct": -30.64
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 95.53,
+        "current": 83.04,
+        "delta": -12.49,
+        "pct": -13.07
+      },
+      "id": "circuits-api:circuit-list",
+      "kind": "create.x10",
+      "model": "circuits.circuit",
+      "queries": {
+        "baseline": 178,
+        "current": 168,
+        "delta": -10,
+        "pct": -5.62
+      },
+      "wall_ms": {
+        "baseline": 426.04,
+        "current": 315.57,
+        "delta": -110.47,
+        "pct": -25.93
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 56.63,
+        "current": 49.54,
+        "delta": -7.09,
+        "pct": -12.52
+      },
+      "id": "circuits-api:provider-list",
+      "kind": "create.x10",
+      "model": "circuits.provider",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 242.21,
+        "current": 203.65,
+        "delta": -38.56,
+        "pct": -15.92
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 72.75,
+        "current": 65.19,
+        "delta": -7.56,
+        "pct": -10.39
+      },
+      "id": "circuits-api:providernetwork-list",
+      "kind": "create.x10",
+      "model": "circuits.providernetwork",
+      "queries": {
+        "baseline": 158,
+        "current": 148,
+        "delta": -10,
+        "pct": -6.33
+      },
+      "wall_ms": {
+        "baseline": 305.82,
+        "current": 252.23,
+        "delta": -53.59,
+        "pct": -17.52
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 64.07,
+        "current": 56.72,
+        "delta": -7.35,
+        "pct": -11.47
+      },
+      "id": "cloud-api:cloudaccount-list",
+      "kind": "create.x10",
+      "model": "cloud.cloudaccount",
+      "queries": {
+        "baseline": 138,
+        "current": 128,
+        "delta": -10,
+        "pct": -7.25
+      },
+      "wall_ms": {
+        "baseline": 278.8,
+        "current": 227.38,
+        "delta": -51.42,
+        "pct": -18.44
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 237.93,
+        "current": 213.23,
+        "delta": -24.7,
+        "pct": -10.38
+      },
+      "id": "dcim-api:cable-list",
+      "kind": "create.x10",
+      "model": "dcim.cable",
+      "queries": {
+        "baseline": 468,
+        "current": 458,
+        "delta": -10,
+        "pct": -2.14
+      },
+      "wall_ms": {
+        "baseline": 923.83,
+        "current": 789.89,
+        "delta": -133.94,
+        "pct": -14.5
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 62.51,
+        "current": 55.71,
+        "delta": -6.8,
+        "pct": -10.88
+      },
+      "id": "dcim-api:cabletype-list",
+      "kind": "create.x10",
+      "model": "dcim.cabletype",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 266.9,
+        "current": 231.55,
+        "delta": -35.35,
+        "pct": -13.24
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 18.65,
+        "current": 15.8,
+        "delta": -2.85,
+        "pct": -15.28
+      },
+      "id": "dcim-api:consoleport-list",
+      "kind": "create.x1",
+      "model": "dcim.consoleport",
+      "queries": {
+        "baseline": 38,
+        "current": 28,
+        "delta": -10,
+        "pct": -26.32
+      },
+      "wall_ms": {
+        "baseline": 108.21,
+        "current": 67.77,
+        "delta": -40.44,
+        "pct": -37.37
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 17.3,
+        "current": 15.03,
+        "delta": -2.27,
+        "pct": -13.12
+      },
+      "id": "dcim-api:consoleserverport-list",
+      "kind": "create.x1",
+      "model": "dcim.consoleserverport",
+      "queries": {
+        "baseline": 38,
+        "current": 28,
+        "delta": -10,
+        "pct": -26.32
+      },
+      "wall_ms": {
+        "baseline": 103.26,
+        "current": 66.77,
+        "delta": -36.49,
+        "pct": -35.34
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 101.94,
+        "current": 82.69,
+        "delta": -19.25,
+        "pct": -18.88
+      },
+      "id": "dcim-api:controllermanageddevicegroup-list",
+      "kind": "create.x10",
+      "model": "dcim.controllermanageddevicegroup",
+      "queries": {
+        "baseline": 188,
+        "current": 178,
+        "delta": -10,
+        "pct": -5.32
+      },
+      "wall_ms": {
+        "baseline": 443.22,
+        "current": 313.47,
+        "delta": -129.75,
+        "pct": -29.27
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 55.9,
+        "current": 51.27,
+        "delta": -4.63,
+        "pct": -8.28
+      },
+      "id": "dcim-api:devicefamily-list",
+      "kind": "create.x10",
+      "model": "dcim.devicefamily",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 235.47,
+        "current": 209.02,
+        "delta": -26.45,
+        "pct": -11.23
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 70.03,
+        "current": 67.91,
+        "delta": -2.12,
+        "pct": -3.03
+      },
+      "id": "dcim-api:deviceredundancygroup-list",
+      "kind": "create.x10",
+      "model": "dcim.deviceredundancygroup",
+      "queries": {
+        "baseline": 138,
+        "current": 128,
+        "delta": -10,
+        "pct": -7.25
+      },
+      "wall_ms": {
+        "baseline": 296.13,
+        "current": 260.15,
+        "delta": -35.98,
+        "pct": -12.15
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 84.46,
+        "current": 69.72,
+        "delta": -14.74,
+        "pct": -17.45
+      },
+      "id": "dcim-api:devicetype-list",
+      "kind": "create.x10",
+      "model": "dcim.devicetype",
+      "queries": {
+        "baseline": 158,
+        "current": 148,
+        "delta": -10,
+        "pct": -6.33
+      },
+      "wall_ms": {
+        "baseline": 351.37,
+        "current": 272.55,
+        "delta": -78.82,
+        "pct": -22.43
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 23.13,
+        "current": 19.16,
+        "delta": -3.97,
+        "pct": -17.16
+      },
+      "id": "dcim-api:interface-list",
+      "kind": "create.x1",
+      "model": "dcim.interface",
+      "queries": {
+        "baseline": 44,
+        "current": 34,
+        "delta": -10,
+        "pct": -22.73
+      },
+      "wall_ms": {
+        "baseline": 128.78,
+        "current": 86.53,
+        "delta": -42.25,
+        "pct": -32.81
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 74.4,
+        "current": 66.88,
+        "delta": -7.52,
+        "pct": -10.11
+      },
+      "id": "dcim-api:interfaceredundancygroup-list",
+      "kind": "create.x10",
+      "model": "dcim.interfaceredundancygroup",
+      "queries": {
+        "baseline": 148,
+        "current": 138,
+        "delta": -10,
+        "pct": -6.76
+      },
+      "wall_ms": {
+        "baseline": 314.21,
+        "current": 257.73,
+        "delta": -56.48,
+        "pct": -17.98
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 17.86,
+        "current": 15.2,
+        "delta": -2.66,
+        "pct": -14.89
+      },
+      "id": "dcim-api:interfaceredundancygroup-list",
+      "kind": "update.x1",
+      "model": "dcim.interfaceredundancygroup",
+      "queries": {
+        "baseline": 37,
+        "current": 27,
+        "delta": -10,
+        "pct": -27.03
+      },
+      "wall_ms": {
+        "baseline": 138.38,
+        "current": 87.66,
+        "delta": -50.72,
+        "pct": -36.65
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 50.37,
+        "current": 45.07,
+        "delta": -5.3,
+        "pct": -10.52
+      },
+      "id": "dcim-api:locationtype-list",
+      "kind": "create.x10",
+      "model": "dcim.locationtype",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 247.15,
+        "current": 202.42,
+        "delta": -44.73,
+        "pct": -18.1
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 45.97,
+        "current": 36.0,
+        "delta": -9.97,
+        "pct": -21.69
+      },
+      "id": "dcim-api:modulefamily-list",
+      "kind": "create.x10",
+      "model": "dcim.modulefamily",
+      "queries": {
+        "baseline": 98,
+        "current": 88,
+        "delta": -10,
+        "pct": -10.2
+      },
+      "wall_ms": {
+        "baseline": 208.67,
+        "current": 166.26,
+        "delta": -42.41,
+        "pct": -20.32
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 75.82,
+        "current": 57.57,
+        "delta": -18.25,
+        "pct": -24.07
+      },
+      "id": "dcim-api:moduletype-list",
+      "kind": "create.x10",
+      "model": "dcim.moduletype",
+      "queries": {
+        "baseline": 138,
+        "current": 128,
+        "delta": -10,
+        "pct": -7.25
+      },
+      "wall_ms": {
+        "baseline": 328.69,
+        "current": 237.02,
+        "delta": -91.67,
+        "pct": -27.89
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 17.5,
+        "current": 14.96,
+        "delta": -2.54,
+        "pct": -14.51
+      },
+      "id": "dcim-api:powerfeed-list",
+      "kind": "create.x1",
+      "model": "dcim.powerfeed",
+      "queries": {
+        "baseline": 38,
+        "current": 28,
+        "delta": -10,
+        "pct": -26.32
+      },
+      "wall_ms": {
+        "baseline": 92.71,
+        "current": 67.13,
+        "delta": -25.58,
+        "pct": -27.59
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 17.1,
+        "current": 16.06,
+        "delta": -1.04,
+        "pct": -6.08
+      },
+      "id": "dcim-api:poweroutlet-list",
+      "kind": "create.x1",
+      "model": "dcim.poweroutlet",
+      "queries": {
+        "baseline": 38,
+        "current": 28,
+        "delta": -10,
+        "pct": -26.32
+      },
+      "wall_ms": {
+        "baseline": 103.63,
+        "current": 69.41,
+        "delta": -34.22,
+        "pct": -33.02
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 18.92,
+        "current": 16.28,
+        "delta": -2.64,
+        "pct": -13.95
+      },
+      "id": "dcim-api:powerport-list",
+      "kind": "create.x1",
+      "model": "dcim.powerport",
+      "queries": {
+        "baseline": 38,
+        "current": 28,
+        "delta": -10,
+        "pct": -26.32
+      },
+      "wall_ms": {
+        "baseline": 110.89,
+        "current": 73.78,
+        "delta": -37.11,
+        "pct": -33.47
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 71.59,
+        "current": 69.67,
+        "delta": -1.92,
+        "pct": -2.68
+      },
+      "id": "dcim-api:rackreservation-list",
+      "kind": "create.x10",
+      "model": "dcim.rackreservation",
+      "queries": {
+        "baseline": 148,
+        "current": 138,
+        "delta": -10,
+        "pct": -6.76
+      },
+      "wall_ms": {
+        "baseline": 558.04,
+        "current": 278.03,
+        "delta": -280.01,
+        "pct": -50.18
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 90.86,
+        "current": 75.76,
+        "delta": -15.1,
+        "pct": -16.62
+      },
+      "id": "dcim-api:softwareimagefile-list",
+      "kind": "create.x10",
+      "model": "dcim.softwareimagefile",
+      "queries": {
+        "baseline": 168,
+        "current": 158,
+        "delta": -10,
+        "pct": -5.95
+      },
+      "wall_ms": {
+        "baseline": 396.9,
+        "current": 292.72,
+        "delta": -104.18,
+        "pct": -26.25
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 86.55,
+        "current": 71.36,
+        "delta": -15.19,
+        "pct": -17.55
+      },
+      "id": "dcim-api:softwareversion-list",
+      "kind": "create.x10",
+      "model": "dcim.softwareversion",
+      "queries": {
+        "baseline": 158,
+        "current": 148,
+        "delta": -10,
+        "pct": -6.33
+      },
+      "wall_ms": {
+        "baseline": 384.32,
+        "current": 286.79,
+        "delta": -97.53,
+        "pct": -25.38
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 60.61,
+        "current": 55.55,
+        "delta": -5.06,
+        "pct": -8.35
+      },
+      "id": "dcim-api:virtualchassis-list",
+      "kind": "create.x10",
+      "model": "dcim.virtualchassis",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 253.85,
+        "current": 223.23,
+        "delta": -30.62,
+        "pct": -12.06
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 62.4,
+        "current": 55.78,
+        "delta": -6.62,
+        "pct": -10.61
+      },
+      "id": "extras-api:contact-list",
+      "kind": "create.x10",
+      "model": "extras.contact",
+      "queries": {
+        "baseline": 128,
+        "current": 118,
+        "delta": -10,
+        "pct": -7.81
+      },
+      "wall_ms": {
+        "baseline": 258.82,
+        "current": 223.9,
+        "delta": -34.92,
+        "pct": -13.49
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 142.33,
+        "current": 144.25,
+        "delta": 1.92,
+        "pct": 1.35
+      },
+      "id": "extras-api:dynamicgroup-list",
+      "kind": "create.x10",
+      "model": "extras.dynamicgroup",
+      "queries": {
+        "baseline": 198,
+        "current": 188,
+        "delta": -10,
+        "pct": -5.05
+      },
+      "wall_ms": {
+        "baseline": 1123.48,
+        "current": 940.37,
+        "delta": -183.11,
+        "pct": -16.3
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 56.47,
+        "current": 54.25,
+        "delta": -2.22,
+        "pct": -3.93
+      },
+      "id": "extras-api:externalintegration-list",
+      "kind": "create.x10",
+      "model": "extras.externalintegration",
+      "queries": {
+        "baseline": 117,
+        "current": 107,
+        "delta": -10,
+        "pct": -8.55
+      },
+      "wall_ms": {
+        "baseline": 225.81,
+        "current": 195.59,
+        "delta": -30.22,
+        "pct": -13.38
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 76.18,
+        "current": 62.52,
+        "delta": -13.66,
+        "pct": -17.93
+      },
+      "id": "extras-api:gitrepository-list",
+      "kind": "create.x10",
+      "model": "extras.gitrepository",
+      "queries": {
+        "baseline": 148,
+        "current": 138,
+        "delta": -10,
+        "pct": -6.76
+      },
+      "wall_ms": {
+        "baseline": 602.29,
+        "current": 545.37,
+        "delta": -56.92,
+        "pct": -9.45
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 64.72,
+        "current": 49.74,
+        "delta": -14.98,
+        "pct": -23.15
+      },
+      "id": "extras-api:jobqueue-list",
+      "kind": "create.x10",
+      "model": "extras.jobqueue",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 277.24,
+        "current": 213.66,
+        "delta": -63.58,
+        "pct": -22.93
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 56.25,
+        "current": 49.36,
+        "delta": -6.89,
+        "pct": -12.25
+      },
+      "id": "ipam-api:namespace-list",
+      "kind": "create.x10",
+      "model": "ipam.namespace",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 241.29,
+        "current": 205.02,
+        "delta": -36.27,
+        "pct": -15.03
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 174.93,
+        "current": 166.77,
+        "delta": -8.16,
+        "pct": -4.66
+      },
+      "id": "ipam-api:prefix-list",
+      "kind": "create.x10",
+      "model": "ipam.prefix",
+      "queries": {
+        "baseline": 318,
+        "current": 308,
+        "delta": -10,
+        "pct": -3.14
+      },
+      "wall_ms": {
+        "baseline": 686.21,
+        "current": 607.65,
+        "delta": -78.56,
+        "pct": -11.45
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 56.22,
+        "current": 54.03,
+        "delta": -2.19,
+        "pct": -3.9
+      },
+      "id": "ipam-api:routetarget-list",
+      "kind": "create.x10",
+      "model": "ipam.routetarget",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 239.75,
+        "current": 219.6,
+        "delta": -20.15,
+        "pct": -8.4
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 75.13,
+        "current": 75.25,
+        "delta": 0.12,
+        "pct": 0.16
+      },
+      "id": "ipam-api:vlan-list",
+      "kind": "create.x10",
+      "model": "ipam.vlan",
+      "queries": {
+        "baseline": 148,
+        "current": 138,
+        "delta": -10,
+        "pct": -6.76
+      },
+      "wall_ms": {
+        "baseline": 317.18,
+        "current": 281.38,
+        "delta": -35.8,
+        "pct": -11.29
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 62.28,
+        "current": 55.86,
+        "delta": -6.42,
+        "pct": -10.31
+      },
+      "id": "ipam-api:vlangroup-list",
+      "kind": "create.x10",
+      "model": "ipam.vlangroup",
+      "queries": {
+        "baseline": 128,
+        "current": 118,
+        "delta": -10,
+        "pct": -7.81
+      },
+      "wall_ms": {
+        "baseline": 300.64,
+        "current": 265.65,
+        "delta": -34.99,
+        "pct": -11.64
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 57.29,
+        "current": 49.72,
+        "delta": -7.57,
+        "pct": -13.21
+      },
+      "id": "load_balancers-api:certificateprofile-list",
+      "kind": "create.x10",
+      "model": "load_balancers.certificateprofile",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 247.56,
+        "current": 206.47,
+        "delta": -41.09,
+        "pct": -16.6
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 57.29,
+        "current": 54.93,
+        "delta": -2.36,
+        "pct": -4.12
+      },
+      "id": "load_balancers-api:healthcheckmonitor-list",
+      "kind": "create.x10",
+      "model": "load_balancers.healthcheckmonitor",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 248.31,
+        "current": 223.45,
+        "delta": -24.86,
+        "pct": -10.01
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 50.31,
+        "current": 48.48,
+        "delta": -1.83,
+        "pct": -3.64
+      },
+      "id": "load_balancers-api:loadbalancerpool-list",
+      "kind": "create.x10",
+      "model": "load_balancers.loadbalancerpool",
+      "queries": {
+        "baseline": 98,
+        "current": 88,
+        "delta": -10,
+        "pct": -10.2
+      },
+      "wall_ms": {
+        "baseline": 228.15,
+        "current": 207.05,
+        "delta": -21.1,
+        "pct": -9.25
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 56.82,
+        "current": 52.8,
+        "delta": -4.02,
+        "pct": -7.07
+      },
+      "id": "tenancy-api:tenant-list",
+      "kind": "create.x10",
+      "model": "tenancy.tenant",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 251.23,
+        "current": 241.97,
+        "delta": -9.26,
+        "pct": -3.69
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 57.16,
+        "current": 50.37,
+        "delta": -6.79,
+        "pct": -11.88
+      },
+      "id": "vpn-api:vpn-list",
+      "kind": "create.x10",
+      "model": "vpn.vpn",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 251.48,
+        "current": 213.35,
+        "delta": -38.13,
+        "pct": -15.16
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 57.3,
+        "current": 50.0,
+        "delta": -7.3,
+        "pct": -12.74
+      },
+      "id": "vpn-api:vpnphase1policy-list",
+      "kind": "create.x10",
+      "model": "vpn.vpnphase1policy",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 252.44,
+        "current": 210.05,
+        "delta": -42.39,
+        "pct": -16.79
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 56.84,
+        "current": 49.7,
+        "delta": -7.14,
+        "pct": -12.56
+      },
+      "id": "vpn-api:vpnphase2policy-list",
+      "kind": "create.x10",
+      "model": "vpn.vpnphase2policy",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 246.97,
+        "current": 208.01,
+        "delta": -38.96,
+        "pct": -15.78
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 67.34,
+        "current": 59.76,
+        "delta": -7.58,
+        "pct": -11.26
+      },
+      "id": "vpn-api:vpnprofile-list",
+      "kind": "create.x10",
+      "model": "vpn.vpnprofile",
+      "queries": {
+        "baseline": 138,
+        "current": 128,
+        "delta": -10,
+        "pct": -7.25
+      },
+      "wall_ms": {
+        "baseline": 282.77,
+        "current": 238.7,
+        "delta": -44.07,
+        "pct": -15.59
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 20.09,
+        "current": 18.34,
+        "delta": -1.75,
+        "pct": -8.71
+      },
+      "id": "vpn-api:vpntermination-list",
+      "kind": "create.x1",
+      "model": "vpn.vpntermination",
+      "queries": {
+        "baseline": 41,
+        "current": 31,
+        "delta": -10,
+        "pct": -24.39
+      },
+      "wall_ms": {
+        "baseline": 93.58,
+        "current": 76.17,
+        "delta": -17.41,
+        "pct": -18.6
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 77.79,
+        "current": 68.4,
+        "delta": -9.39,
+        "pct": -12.07
+      },
+      "id": "vpn-api:vpntunnel-list",
+      "kind": "create.x10",
+      "model": "vpn.vpntunnel",
+      "queries": {
+        "baseline": 138,
+        "current": 128,
+        "delta": -10,
+        "pct": -7.25
+      },
+      "wall_ms": {
+        "baseline": 329.44,
+        "current": 270.0,
+        "delta": -59.44,
+        "pct": -18.04
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 57.19,
+        "current": 50.08,
+        "delta": -7.11,
+        "pct": -12.43
+      },
+      "id": "wireless-api:wirelessnetwork-list",
+      "kind": "create.x10",
+      "model": "wireless.wirelessnetwork",
+      "queries": {
+        "baseline": 118,
+        "current": 108,
+        "delta": -10,
+        "pct": -8.47
+      },
+      "wall_ms": {
+        "baseline": 250.16,
+        "current": 210.53,
+        "delta": -39.63,
+        "pct": -15.84
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 142.16,
+        "current": 135.53,
+        "delta": -6.63,
+        "pct": -4.66
+      },
+      "id": "ipam-api:ipaddress-list",
+      "kind": "create.x10",
+      "model": "ipam.ipaddress",
+      "queries": {
+        "baseline": 248,
+        "current": 239,
+        "delta": -9,
+        "pct": -3.63
+      },
+      "wall_ms": {
+        "baseline": 612.08,
+        "current": 516.91,
+        "delta": -95.17,
+        "pct": -15.55
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 28.9,
+        "current": 24.15,
+        "delta": -4.75,
+        "pct": -16.44
+      },
+      "id": "ipam-api:ipaddress-list",
+      "kind": "update.x1",
+      "model": "ipam.ipaddress",
+      "queries": {
+        "baseline": 49,
+        "current": 40,
+        "delta": -9,
+        "pct": -18.37
+      },
+      "wall_ms": {
+        "baseline": 175.01,
+        "current": 135.07,
+        "delta": -39.94,
+        "pct": -22.82
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 139.7,
+        "current": 144.85,
+        "delta": 5.15,
+        "pct": 3.69
+      },
+      "id": "ipam-api:ipaddressrange-list",
+      "kind": "create.x10",
+      "model": "ipam.ipaddressrange",
+      "queries": {
+        "baseline": 238,
+        "current": 229,
+        "delta": -9,
+        "pct": -3.78
+      },
+      "wall_ms": {
+        "baseline": 611.5,
+        "current": 553.99,
+        "delta": -57.51,
+        "pct": -9.4
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.57,
+        "current": 13.69,
+        "delta": -0.88,
+        "pct": -6.04
+      },
+      "id": "dcim-api:inventoryitem-list",
+      "kind": "create.x1",
+      "model": "dcim.inventoryitem",
+      "queries": {
+        "baseline": 28,
+        "current": 22,
+        "delta": -6,
+        "pct": -21.43
+      },
+      "wall_ms": {
+        "baseline": 73.2,
+        "current": 63.02,
+        "delta": -10.18,
+        "pct": -13.91
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.42,
+        "current": 14.16,
+        "delta": -0.26,
+        "pct": -1.8
+      },
+      "id": "ipam-api:service-list",
+      "kind": "create.x1",
+      "model": "ipam.service",
+      "queries": {
+        "baseline": 30,
+        "current": 24,
+        "delta": -6,
+        "pct": -20.0
+      },
+      "wall_ms": {
+        "baseline": 92.95,
+        "current": 62.23,
+        "delta": -30.72,
+        "pct": -33.05
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 15.79,
+        "current": 11.9,
+        "delta": -3.89,
+        "pct": -24.64
+      },
+      "id": "users-api:objectpermission-list",
+      "kind": "create.x1",
+      "model": "users.objectpermission",
+      "queries": {
+        "baseline": 33,
+        "current": 27,
+        "delta": -6,
+        "pct": -18.18
+      },
+      "wall_ms": {
+        "baseline": 55.65,
+        "current": 41.09,
+        "delta": -14.56,
+        "pct": -26.16
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 50.39,
+        "current": 50.01,
+        "delta": -0.38,
+        "pct": -0.75
+      },
+      "id": "dcim-api:consoleport-list",
+      "kind": "update.x1",
+      "model": "dcim.consoleport",
+      "queries": {
+        "baseline": 42,
+        "current": 37,
+        "delta": -5,
+        "pct": -11.9
+      },
+      "wall_ms": {
+        "baseline": 213.16,
+        "current": 170.86,
+        "delta": -42.3,
+        "pct": -19.84
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 49.98,
+        "current": 47.72,
+        "delta": -2.26,
+        "pct": -4.52
+      },
+      "id": "dcim-api:consoleserverport-list",
+      "kind": "update.x1",
+      "model": "dcim.consoleserverport",
+      "queries": {
+        "baseline": 42,
+        "current": 37,
+        "delta": -5,
+        "pct": -11.9
+      },
+      "wall_ms": {
+        "baseline": 209.41,
+        "current": 158.02,
+        "delta": -51.39,
+        "pct": -24.54
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 111.08,
+        "current": 95.15,
+        "delta": -15.93,
+        "pct": -14.34
+      },
+      "id": "dcim-api:interface-list",
+      "kind": "update.x1",
+      "model": "dcim.interface",
+      "queries": {
+        "baseline": 62,
+        "current": 57,
+        "delta": -5,
+        "pct": -8.06
+      },
+      "wall_ms": {
+        "baseline": 406.23,
+        "current": 315.54,
+        "delta": -90.69,
+        "pct": -22.32
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 16.66,
+        "current": 15.86,
+        "delta": -0.8,
+        "pct": -4.8
+      },
+      "id": "dcim-api:inventoryitem-list",
+      "kind": "update.x1",
+      "model": "dcim.inventoryitem",
+      "queries": {
+        "baseline": 29,
+        "current": 24,
+        "delta": -5,
+        "pct": -17.24
+      },
+      "wall_ms": {
+        "baseline": 118.03,
+        "current": 98.02,
+        "delta": -20.01,
+        "pct": -16.95
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.69,
+        "current": 14.09,
+        "delta": -0.6,
+        "pct": -4.08
+      },
+      "id": "dcim-api:modulebay-list",
+      "kind": "create.x1",
+      "model": "dcim.modulebay",
+      "queries": {
+        "baseline": 29,
+        "current": 24,
+        "delta": -5,
+        "pct": -17.24
+      },
+      "wall_ms": {
+        "baseline": 70.22,
+        "current": 61.74,
+        "delta": -8.48,
+        "pct": -12.08
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 50.18,
+        "current": 48.77,
+        "delta": -1.41,
+        "pct": -2.81
+      },
+      "id": "dcim-api:poweroutlet-list",
+      "kind": "update.x1",
+      "model": "dcim.poweroutlet",
+      "queries": {
+        "baseline": 42,
+        "current": 37,
+        "delta": -5,
+        "pct": -11.9
+      },
+      "wall_ms": {
+        "baseline": 216.51,
+        "current": 164.45,
+        "delta": -52.06,
+        "pct": -24.05
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 53.37,
+        "current": 48.04,
+        "delta": -5.33,
+        "pct": -9.99
+      },
+      "id": "dcim-api:powerport-list",
+      "kind": "update.x1",
+      "model": "dcim.powerport",
+      "queries": {
+        "baseline": 42,
+        "current": 37,
+        "delta": -5,
+        "pct": -11.9
+      },
+      "wall_ms": {
+        "baseline": 231.82,
+        "current": 162.2,
+        "delta": -69.62,
+        "pct": -30.03
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 16.12,
+        "current": 15.8,
+        "delta": -0.32,
+        "pct": -1.99
+      },
+      "id": "dcim-api:virtualdevicecontext-list",
+      "kind": "create.x1",
+      "model": "dcim.virtualdevicecontext",
+      "queries": {
+        "baseline": 31,
+        "current": 26,
+        "delta": -5,
+        "pct": -16.13
+      },
+      "wall_ms": {
+        "baseline": 102.56,
+        "current": 72.57,
+        "delta": -29.99,
+        "pct": -29.24
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 13.29,
+        "current": 10.24,
+        "delta": -3.05,
+        "pct": -22.95
+      },
+      "id": "users-api:objectpermission-list",
+      "kind": "update.x1",
+      "model": "users.objectpermission",
+      "queries": {
+        "baseline": 27,
+        "current": 22,
+        "delta": -5,
+        "pct": -18.52
+      },
+      "wall_ms": {
+        "baseline": 66.17,
+        "current": 51.73,
+        "delta": -14.44,
+        "pct": -21.82
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 16.79,
+        "current": 14.4,
+        "delta": -2.39,
+        "pct": -14.23
+      },
+      "id": "cloud-api:cloudresourcetype-list",
+      "kind": "create.x1",
+      "model": "cloud.cloudresourcetype",
+      "queries": {
+        "baseline": 35,
+        "current": 31,
+        "delta": -4,
+        "pct": -11.43
+      },
+      "wall_ms": {
+        "baseline": 68.4,
+        "current": 57.38,
+        "delta": -11.02,
+        "pct": -16.11
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 15.29,
+        "current": 15.19,
+        "delta": -0.1,
+        "pct": -0.65
+      },
+      "id": "dcim-api:rearport-list",
+      "kind": "create.x1",
+      "model": "dcim.rearport",
+      "queries": {
+        "baseline": 31,
+        "current": 27,
+        "delta": -4,
+        "pct": -12.9
+      },
+      "wall_ms": {
+        "baseline": 95.95,
+        "current": 65.76,
+        "delta": -30.19,
+        "pct": -31.46
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 16.6,
+        "current": 14.23,
+        "delta": -2.37,
+        "pct": -14.28
+      },
+      "id": "extras-api:metadatatype-list",
+      "kind": "create.x1",
+      "model": "extras.metadatatype",
+      "queries": {
+        "baseline": 34,
+        "current": 30,
+        "delta": -4,
+        "pct": -11.76
+      },
+      "wall_ms": {
+        "baseline": 90.37,
+        "current": 81.27,
+        "delta": -9.1,
+        "pct": -10.07
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 24.98,
+        "current": 18.98,
+        "delta": -6.0,
+        "pct": -24.02
+      },
+      "id": "ipam-api:prefix-list",
+      "kind": "update.x1",
+      "model": "ipam.prefix",
+      "queries": {
+        "baseline": 31,
+        "current": 35,
+        "delta": 4,
+        "pct": 12.9
+      },
+      "wall_ms": {
+        "baseline": 144.1,
+        "current": 119.54,
+        "delta": -24.56,
+        "pct": -17.04
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 25.02,
+        "current": 21.8,
+        "delta": -3.22,
+        "pct": -12.87
+      },
+      "id": "ipam-api:prefixlocationassignment-list",
+      "kind": "create.x1",
+      "model": "ipam.prefixlocationassignment",
+      "queries": {
+        "baseline": 45,
+        "current": 41,
+        "delta": -4,
+        "pct": -8.89
+      },
+      "wall_ms": {
+        "baseline": 126.23,
+        "current": 103.48,
+        "delta": -22.75,
+        "pct": -18.02
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 19.33,
+        "current": 18.73,
+        "delta": -0.6,
+        "pct": -3.1
+      },
+      "id": "ipam-api:vlanlocationassignment-list",
+      "kind": "create.x1",
+      "model": "ipam.vlanlocationassignment",
+      "queries": {
+        "baseline": 39,
+        "current": 35,
+        "delta": -4,
+        "pct": -10.26
+      },
+      "wall_ms": {
+        "baseline": 101.4,
+        "current": 87.68,
+        "delta": -13.72,
+        "pct": -13.53
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 41.43,
+        "current": 40.42,
+        "delta": -1.01,
+        "pct": -2.44
+      },
+      "id": "ipam-api:vrfprefixassignment-list",
+      "kind": "create.x1",
+      "model": "ipam.vrfprefixassignment",
+      "queries": {
+        "baseline": 79,
+        "current": 75,
+        "delta": -4,
+        "pct": -5.06
+      },
+      "wall_ms": {
+        "baseline": 185.63,
+        "current": 167.25,
+        "delta": -18.38,
+        "pct": -9.9
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 19.86,
+        "current": 14.11,
+        "delta": -5.75,
+        "pct": -28.95
+      },
+      "id": "vpn-api:vpntunnel-list",
+      "kind": "update.x1",
+      "model": "vpn.vpntunnel",
+      "queries": {
+        "baseline": 24,
+        "current": 28,
+        "delta": 4,
+        "pct": 16.67
+      },
+      "wall_ms": {
+        "baseline": 126.11,
+        "current": 107.19,
+        "delta": -18.92,
+        "pct": -15.0
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 51.73,
+        "current": 51.6,
+        "delta": -0.13,
+        "pct": -0.25
+      },
+      "id": "dcim-api:powerfeed-list",
+      "kind": "update.x1",
+      "model": "dcim.powerfeed",
+      "queries": {
+        "baseline": 44,
+        "current": 41,
+        "delta": -3,
+        "pct": -6.82
+      },
+      "wall_ms": {
+        "baseline": 227.99,
+        "current": 195.97,
+        "delta": -32.02,
+        "pct": -14.04
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.7,
+        "current": 12.35,
+        "delta": -2.35,
+        "pct": -15.99
+      },
+      "id": "ipam-api:vrf-list",
+      "kind": "create.x1",
+      "model": "ipam.vrf",
+      "queries": {
+        "baseline": 27,
+        "current": 24,
+        "delta": -3,
+        "pct": -11.11
+      },
+      "wall_ms": {
+        "baseline": 64.49,
+        "current": 58.46,
+        "delta": -6.03,
+        "pct": -9.35
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 17.12,
+        "current": 15.38,
+        "delta": -1.74,
+        "pct": -10.16
+      },
+      "id": "wireless-api:controllermanageddevicegroupradioprofileassignment-list",
+      "kind": "create.x1",
+      "model": "wireless.controllermanageddevicegroupradioprofileassignment",
+      "queries": {
+        "baseline": 33,
+        "current": 30,
+        "delta": -3,
+        "pct": -9.09
+      },
+      "wall_ms": {
+        "baseline": 81.29,
+        "current": 72.42,
+        "delta": -8.87,
+        "pct": -10.91
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.24,
+        "current": 11.65,
+        "delta": -2.59,
+        "pct": -18.19
+      },
+      "id": "dcim-api:cabletype-list",
+      "kind": "update.x1",
+      "model": "dcim.cabletype",
+      "queries": {
+        "baseline": 24,
+        "current": 22,
+        "delta": -2,
+        "pct": -8.33
+      },
+      "wall_ms": {
+        "baseline": 89.64,
+        "current": 73.52,
+        "delta": -16.12,
+        "pct": -17.98
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 22.43,
+        "current": 14.98,
+        "delta": -7.45,
+        "pct": -33.21
+      },
+      "id": "dcim-api:controller-list",
+      "kind": "update.x1",
+      "model": "dcim.controller",
+      "queries": {
+        "baseline": 25,
+        "current": 27,
+        "delta": 2,
+        "pct": 8.0
+      },
+      "wall_ms": {
+        "baseline": 118.85,
+        "current": 95.86,
+        "delta": -22.99,
+        "pct": -19.34
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 74.23,
+        "current": 36.62,
+        "delta": -37.61,
+        "pct": -50.67
+      },
+      "id": "dcim-api:device-list",
+      "kind": "update.x1",
+      "model": "dcim.device",
+      "queries": {
+        "baseline": 50,
+        "current": 52,
+        "delta": 2,
+        "pct": 4.0
+      },
+      "wall_ms": {
+        "baseline": 303.09,
+        "current": 216.53,
+        "delta": -86.56,
+        "pct": -28.56
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 21.33,
+        "current": 17.74,
+        "delta": -3.59,
+        "pct": -16.83
+      },
+      "id": "dcim-api:devicetypetosoftwareimagefile-list",
+      "kind": "create.x1",
+      "model": "dcim.devicetypetosoftwareimagefile",
+      "queries": {
+        "baseline": 39,
+        "current": 37,
+        "delta": -2,
+        "pct": -5.13
+      },
+      "wall_ms": {
+        "baseline": 95.58,
+        "current": 83.95,
+        "delta": -11.63,
+        "pct": -12.17
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 13.97,
+        "current": 12.7,
+        "delta": -1.27,
+        "pct": -9.09
+      },
+      "id": "extras-api:customfield-list",
+      "kind": "create.x1",
+      "model": "extras.customfield",
+      "queries": {
+        "baseline": 29,
+        "current": 27,
+        "delta": -2,
+        "pct": -6.9
+      },
+      "wall_ms": {
+        "baseline": 101.0,
+        "current": 94.87,
+        "delta": -6.13,
+        "pct": -6.07
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.89,
+        "current": 12.34,
+        "delta": -2.55,
+        "pct": -17.13
+      },
+      "id": "extras-api:jobbutton-list",
+      "kind": "create.x1",
+      "model": "extras.jobbutton",
+      "queries": {
+        "baseline": 29,
+        "current": 27,
+        "delta": -2,
+        "pct": -6.9
+      },
+      "wall_ms": {
+        "baseline": 60.82,
+        "current": 48.24,
+        "delta": -12.58,
+        "pct": -20.68
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 12.15,
+        "current": 9.82,
+        "delta": -2.33,
+        "pct": -19.18
+      },
+      "id": "extras-api:jobqueue-list",
+      "kind": "update.x1",
+      "model": "extras.jobqueue",
+      "queries": {
+        "baseline": 22,
+        "current": 20,
+        "delta": -2,
+        "pct": -9.09
+      },
+      "wall_ms": {
+        "baseline": 82.82,
+        "current": 64.92,
+        "delta": -17.9,
+        "pct": -21.61
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 13.49,
+        "current": 14.46,
+        "delta": 0.97,
+        "pct": 7.19
+      },
+      "id": "extras-api:relationship-list",
+      "kind": "update.x1",
+      "model": "extras.relationship",
+      "queries": {
+        "baseline": 29,
+        "current": 31,
+        "delta": 2,
+        "pct": 6.9
+      },
+      "wall_ms": {
+        "baseline": 81.69,
+        "current": 80.65,
+        "delta": -1.04,
+        "pct": -1.27
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 12.89,
+        "current": 12.8,
+        "delta": -0.09,
+        "pct": -0.7
+      },
+      "id": "extras-api:role-list",
+      "kind": "create.x1",
+      "model": "extras.role",
+      "queries": {
+        "baseline": 28,
+        "current": 26,
+        "delta": -2,
+        "pct": -7.14
+      },
+      "wall_ms": {
+        "baseline": 54.93,
+        "current": 52.14,
+        "delta": -2.79,
+        "pct": -5.08
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 13.79,
+        "current": 11.92,
+        "delta": -1.87,
+        "pct": -13.56
+      },
+      "id": "extras-api:status-list",
+      "kind": "create.x1",
+      "model": "extras.status",
+      "queries": {
+        "baseline": 28,
+        "current": 26,
+        "delta": -2,
+        "pct": -7.14
+      },
+      "wall_ms": {
+        "baseline": 57.23,
+        "current": 48.7,
+        "delta": -8.53,
+        "pct": -14.9
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.3,
+        "current": 13.59,
+        "delta": -0.71,
+        "pct": -4.97
+      },
+      "id": "extras-api:tag-list",
+      "kind": "create.x1",
+      "model": "extras.tag",
+      "queries": {
+        "baseline": 27,
+        "current": 25,
+        "delta": -2,
+        "pct": -7.41
+      },
+      "wall_ms": {
+        "baseline": 62.6,
+        "current": 56.34,
+        "delta": -6.26,
+        "pct": -10.0
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.18,
+        "current": 9.1,
+        "delta": -1.08,
+        "pct": -10.61
+      },
+      "id": "extras-api:team-list",
+      "kind": "create.x1",
+      "model": "extras.team",
+      "queries": {
+        "baseline": 21,
+        "current": 19,
+        "delta": -2,
+        "pct": -9.52
+      },
+      "wall_ms": {
+        "baseline": 45.42,
+        "current": 41.7,
+        "delta": -3.72,
+        "pct": -8.19
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 11.74,
+        "current": 10.75,
+        "delta": -0.99,
+        "pct": -8.43
+      },
+      "id": "extras-api:team-list",
+      "kind": "update.x1",
+      "model": "extras.team",
+      "queries": {
+        "baseline": 23,
+        "current": 21,
+        "delta": -2,
+        "pct": -8.7
+      },
+      "wall_ms": {
+        "baseline": 76.38,
+        "current": 70.02,
+        "delta": -6.36,
+        "pct": -8.33
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 11.53,
+        "current": 9.99,
+        "delta": -1.54,
+        "pct": -13.36
+      },
+      "id": "ipam-api:namespace-list",
+      "kind": "update.x1",
+      "model": "ipam.namespace",
+      "queries": {
+        "baseline": 22,
+        "current": 20,
+        "delta": -2,
+        "pct": -9.09
+      },
+      "wall_ms": {
+        "baseline": 74.26,
+        "current": 68.17,
+        "delta": -6.09,
+        "pct": -8.2
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.6,
+        "current": 17.02,
+        "delta": 2.42,
+        "pct": 16.58
+      },
+      "id": "ipam-api:vlan-list",
+      "kind": "update.x1",
+      "model": "ipam.vlan",
+      "queries": {
+        "baseline": 27,
+        "current": 29,
+        "delta": 2,
+        "pct": 7.41
+      },
+      "wall_ms": {
+        "baseline": 104.19,
+        "current": 99.62,
+        "delta": -4.57,
+        "pct": -4.39
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 13.08,
+        "current": 13.96,
+        "delta": 0.88,
+        "pct": 6.73
+      },
+      "id": "load_balancers-api:virtualserver-list",
+      "kind": "create.x1",
+      "model": "load_balancers.virtualserver",
+      "queries": {
+        "baseline": 25,
+        "current": 23,
+        "delta": -2,
+        "pct": -8.0
+      },
+      "wall_ms": {
+        "baseline": 62.02,
+        "current": 69.86,
+        "delta": 7.84,
+        "pct": 12.64
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 11.63,
+        "current": 10.09,
+        "delta": -1.54,
+        "pct": -13.24
+      },
+      "id": "vpn-api:vpnphase1policy-list",
+      "kind": "update.x1",
+      "model": "vpn.vpnphase1policy",
+      "queries": {
+        "baseline": 22,
+        "current": 20,
+        "delta": -2,
+        "pct": -9.09
+      },
+      "wall_ms": {
+        "baseline": 85.74,
+        "current": 72.0,
+        "delta": -13.74,
+        "pct": -16.03
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.16,
+        "current": 12.34,
+        "delta": -1.82,
+        "pct": -12.85
+      },
+      "id": "vpn-api:vpnprofile-list",
+      "kind": "update.x1",
+      "model": "vpn.vpnprofile",
+      "queries": {
+        "baseline": 26,
+        "current": 24,
+        "delta": -2,
+        "pct": -7.69
+      },
+      "wall_ms": {
+        "baseline": 104.83,
+        "current": 83.42,
+        "delta": -21.41,
+        "pct": -20.42
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.19,
+        "current": 9.04,
+        "delta": -1.15,
+        "pct": -11.29
+      },
+      "id": "wireless-api:radioprofile-list",
+      "kind": "create.x1",
+      "model": "wireless.radioprofile",
+      "queries": {
+        "baseline": 21,
+        "current": 19,
+        "delta": -2,
+        "pct": -9.52
+      },
+      "wall_ms": {
+        "baseline": 46.44,
+        "current": 42.87,
+        "delta": -3.57,
+        "pct": -7.69
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 12.95,
+        "current": 11.83,
+        "delta": -1.12,
+        "pct": -8.65
+      },
+      "id": "circuits-api:circuit-list",
+      "kind": "create.x1",
+      "model": "circuits.circuit",
+      "queries": {
+        "baseline": 25,
+        "current": 24,
+        "delta": -1,
+        "pct": -4.0
+      },
+      "wall_ms": {
+        "baseline": 60.81,
+        "current": 56.94,
+        "delta": -3.87,
+        "pct": -6.36
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 22.97,
+        "current": 19.51,
+        "delta": -3.46,
+        "pct": -15.06
+      },
+      "id": "circuits-api:circuit-list",
+      "kind": "update.x1",
+      "model": "circuits.circuit",
+      "queries": {
+        "baseline": 38,
+        "current": 37,
+        "delta": -1,
+        "pct": -2.63
+      },
+      "wall_ms": {
+        "baseline": 138.39,
+        "current": 115.01,
+        "delta": -23.38,
+        "pct": -16.89
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.31,
+        "current": 8.62,
+        "delta": -0.69,
+        "pct": -7.41
+      },
+      "id": "circuits-api:provider-list",
+      "kind": "create.x1",
+      "model": "circuits.provider",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 42.05,
+        "current": 40.05,
+        "delta": -2.0,
+        "pct": -4.76
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.79,
+        "current": 9.35,
+        "delta": -0.44,
+        "pct": -4.49
+      },
+      "id": "circuits-api:provider-list",
+      "kind": "update.x1",
+      "model": "circuits.provider",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 76.61,
+        "current": 69.14,
+        "delta": -7.47,
+        "pct": -9.75
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.76,
+        "current": 10.96,
+        "delta": 0.2,
+        "pct": 1.86
+      },
+      "id": "circuits-api:providernetwork-list",
+      "kind": "create.x1",
+      "model": "circuits.providernetwork",
+      "queries": {
+        "baseline": 23,
+        "current": 22,
+        "delta": -1,
+        "pct": -4.35
+      },
+      "wall_ms": {
+        "baseline": 48.19,
+        "current": 47.96,
+        "delta": -0.23,
+        "pct": -0.48
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.86,
+        "current": 9.17,
+        "delta": -0.69,
+        "pct": -7.0
+      },
+      "id": "cloud-api:cloudaccount-list",
+      "kind": "create.x1",
+      "model": "cloud.cloudaccount",
+      "queries": {
+        "baseline": 21,
+        "current": 20,
+        "delta": -1,
+        "pct": -4.76
+      },
+      "wall_ms": {
+        "baseline": 45.42,
+        "current": 43.15,
+        "delta": -2.27,
+        "pct": -5.0
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 34.05,
+        "current": 33.27,
+        "delta": -0.78,
+        "pct": -2.29
+      },
+      "id": "dcim-api:cable-list",
+      "kind": "create.x1",
+      "model": "dcim.cable",
+      "queries": {
+        "baseline": 55,
+        "current": 54,
+        "delta": -1,
+        "pct": -1.82
+      },
+      "wall_ms": {
+        "baseline": 117.73,
+        "current": 115.62,
+        "delta": -2.11,
+        "pct": -1.79
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.88,
+        "current": 9.13,
+        "delta": -0.75,
+        "pct": -7.59
+      },
+      "id": "dcim-api:cabletype-list",
+      "kind": "create.x1",
+      "model": "dcim.cabletype",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 45.48,
+        "current": 45.48,
+        "delta": 0.0,
+        "pct": 0.0
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 13.99,
+        "current": 13.7,
+        "delta": -0.29,
+        "pct": -2.07
+      },
+      "id": "dcim-api:controller-list",
+      "kind": "create.x1",
+      "model": "dcim.controller",
+      "queries": {
+        "baseline": 26,
+        "current": 25,
+        "delta": -1,
+        "pct": -3.85
+      },
+      "wall_ms": {
+        "baseline": 67.56,
+        "current": 62.84,
+        "delta": -4.72,
+        "pct": -6.99
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 13.26,
+        "current": 11.75,
+        "delta": -1.51,
+        "pct": -11.39
+      },
+      "id": "dcim-api:controllermanageddevicegroup-list",
+      "kind": "create.x1",
+      "model": "dcim.controllermanageddevicegroup",
+      "queries": {
+        "baseline": 26,
+        "current": 25,
+        "delta": -1,
+        "pct": -3.85
+      },
+      "wall_ms": {
+        "baseline": 61.59,
+        "current": 55.65,
+        "delta": -5.94,
+        "pct": -9.64
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 33.47,
+        "current": 35.14,
+        "delta": 1.67,
+        "pct": 4.99
+      },
+      "id": "dcim-api:device-list",
+      "kind": "create.x1",
+      "model": "dcim.device",
+      "queries": {
+        "baseline": 49,
+        "current": 48,
+        "delta": -1,
+        "pct": -2.04
+      },
+      "wall_ms": {
+        "baseline": 146.65,
+        "current": 135.09,
+        "delta": -11.56,
+        "pct": -7.88
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.22,
+        "current": 8.94,
+        "delta": -0.28,
+        "pct": -3.04
+      },
+      "id": "dcim-api:devicefamily-list",
+      "kind": "create.x1",
+      "model": "dcim.devicefamily",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 40.75,
+        "current": 40.38,
+        "delta": -0.37,
+        "pct": -0.91
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.64,
+        "current": 9.65,
+        "delta": 0.01,
+        "pct": 0.1
+      },
+      "id": "dcim-api:devicefamily-list",
+      "kind": "update.x1",
+      "model": "dcim.devicefamily",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 61.82,
+        "current": 58.27,
+        "delta": -3.55,
+        "pct": -5.74
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.41,
+        "current": 10.89,
+        "delta": 0.48,
+        "pct": 4.61
+      },
+      "id": "dcim-api:deviceredundancygroup-list",
+      "kind": "create.x1",
+      "model": "dcim.deviceredundancygroup",
+      "queries": {
+        "baseline": 21,
+        "current": 20,
+        "delta": -1,
+        "pct": -4.76
+      },
+      "wall_ms": {
+        "baseline": 48.68,
+        "current": 52.18,
+        "delta": 3.5,
+        "pct": 7.19
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 12.47,
+        "current": 10.67,
+        "delta": -1.8,
+        "pct": -14.43
+      },
+      "id": "dcim-api:devicetype-list",
+      "kind": "create.x1",
+      "model": "dcim.devicetype",
+      "queries": {
+        "baseline": 23,
+        "current": 22,
+        "delta": -1,
+        "pct": -4.35
+      },
+      "wall_ms": {
+        "baseline": 54.86,
+        "current": 49.85,
+        "delta": -5.01,
+        "pct": -9.13
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 13.29,
+        "current": 12.3,
+        "delta": -0.99,
+        "pct": -7.45
+      },
+      "id": "dcim-api:devicetype-list",
+      "kind": "update.x1",
+      "model": "dcim.devicetype",
+      "queries": {
+        "baseline": 23,
+        "current": 24,
+        "delta": 1,
+        "pct": 4.35
+      },
+      "wall_ms": {
+        "baseline": 124.35,
+        "current": 88.41,
+        "delta": -35.94,
+        "pct": -28.9
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.96,
+        "current": 10.34,
+        "delta": -0.62,
+        "pct": -5.66
+      },
+      "id": "dcim-api:interfaceredundancygroup-list",
+      "kind": "create.x1",
+      "model": "dcim.interfaceredundancygroup",
+      "queries": {
+        "baseline": 22,
+        "current": 21,
+        "delta": -1,
+        "pct": -4.55
+      },
+      "wall_ms": {
+        "baseline": 50.93,
+        "current": 49.39,
+        "delta": -1.54,
+        "pct": -3.02
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 8.5,
+        "current": 8.67,
+        "delta": 0.17,
+        "pct": 2.0
+      },
+      "id": "dcim-api:locationtype-list",
+      "kind": "create.x1",
+      "model": "dcim.locationtype",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 41.15,
+        "current": 40.79,
+        "delta": -0.36,
+        "pct": -0.87
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 12.69,
+        "current": 12.65,
+        "delta": -0.04,
+        "pct": -0.32
+      },
+      "id": "dcim-api:locationtype-list",
+      "kind": "update.x1",
+      "model": "dcim.locationtype",
+      "queries": {
+        "baseline": 29,
+        "current": 28,
+        "delta": -1,
+        "pct": -3.45
+      },
+      "wall_ms": {
+        "baseline": 72.44,
+        "current": 68.12,
+        "delta": -4.32,
+        "pct": -5.96
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 8.49,
+        "current": 7.29,
+        "delta": -1.2,
+        "pct": -14.13
+      },
+      "id": "dcim-api:modulefamily-list",
+      "kind": "create.x1",
+      "model": "dcim.modulefamily",
+      "queries": {
+        "baseline": 17,
+        "current": 16,
+        "delta": -1,
+        "pct": -5.88
+      },
+      "wall_ms": {
+        "baseline": 38.47,
+        "current": 34.74,
+        "delta": -3.73,
+        "pct": -9.7
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.46,
+        "current": 9.35,
+        "delta": -1.11,
+        "pct": -10.61
+      },
+      "id": "dcim-api:moduletype-list",
+      "kind": "create.x1",
+      "model": "dcim.moduletype",
+      "queries": {
+        "baseline": 21,
+        "current": 20,
+        "delta": -1,
+        "pct": -4.76
+      },
+      "wall_ms": {
+        "baseline": 48.23,
+        "current": 44.7,
+        "delta": -3.53,
+        "pct": -7.32
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 8.6,
+        "current": 8.64,
+        "delta": 0.04,
+        "pct": 0.47
+      },
+      "id": "dcim-api:platform-list",
+      "kind": "update.x1",
+      "model": "dcim.platform",
+      "queries": {
+        "baseline": 16,
+        "current": 17,
+        "delta": 1,
+        "pct": 6.25
+      },
+      "wall_ms": {
+        "baseline": 67.55,
+        "current": 65.88,
+        "delta": -1.67,
+        "pct": -2.47
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.53,
+        "current": 10.0,
+        "delta": -0.53,
+        "pct": -5.03
+      },
+      "id": "dcim-api:rackreservation-list",
+      "kind": "create.x1",
+      "model": "dcim.rackreservation",
+      "queries": {
+        "baseline": 22,
+        "current": 21,
+        "delta": -1,
+        "pct": -4.55
+      },
+      "wall_ms": {
+        "baseline": 77.1,
+        "current": 51.79,
+        "delta": -25.31,
+        "pct": -32.83
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 11.84,
+        "current": 11.25,
+        "delta": -0.59,
+        "pct": -4.98
+      },
+      "id": "dcim-api:softwareimagefile-list",
+      "kind": "create.x1",
+      "model": "dcim.softwareimagefile",
+      "queries": {
+        "baseline": 24,
+        "current": 23,
+        "delta": -1,
+        "pct": -4.17
+      },
+      "wall_ms": {
+        "baseline": 57.36,
+        "current": 55.2,
+        "delta": -2.16,
+        "pct": -3.77
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 12.63,
+        "current": 10.67,
+        "delta": -1.96,
+        "pct": -15.52
+      },
+      "id": "dcim-api:softwareversion-list",
+      "kind": "create.x1",
+      "model": "dcim.softwareversion",
+      "queries": {
+        "baseline": 23,
+        "current": 22,
+        "delta": -1,
+        "pct": -4.35
+      },
+      "wall_ms": {
+        "baseline": 60.51,
+        "current": 53.87,
+        "delta": -6.64,
+        "pct": -10.97
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.0,
+        "current": 8.65,
+        "delta": -1.35,
+        "pct": -13.5
+      },
+      "id": "dcim-api:virtualchassis-list",
+      "kind": "create.x1",
+      "model": "dcim.virtualchassis",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 44.44,
+        "current": 40.08,
+        "delta": -4.36,
+        "pct": -9.81
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.22,
+        "current": 8.98,
+        "delta": -0.24,
+        "pct": -2.6
+      },
+      "id": "extras-api:approvalworkflowdefinition-list",
+      "kind": "create.x1",
+      "model": "extras.approvalworkflowdefinition",
+      "queries": {
+        "baseline": 21,
+        "current": 20,
+        "delta": -1,
+        "pct": -4.76
+      },
+      "wall_ms": {
+        "baseline": 41.15,
+        "current": 40.49,
+        "delta": -0.66,
+        "pct": -1.6
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 8.0,
+        "current": 9.02,
+        "delta": 1.02,
+        "pct": 12.75
+      },
+      "id": "extras-api:computedfield-list",
+      "kind": "update.x1",
+      "model": "extras.computedfield",
+      "queries": {
+        "baseline": 16,
+        "current": 17,
+        "delta": 1,
+        "pct": 6.25
+      },
+      "wall_ms": {
+        "baseline": 63.47,
+        "current": 62.8,
+        "delta": -0.67,
+        "pct": -1.06
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.67,
+        "current": 9.18,
+        "delta": -0.49,
+        "pct": -5.07
+      },
+      "id": "extras-api:contact-list",
+      "kind": "create.x1",
+      "model": "extras.contact",
+      "queries": {
+        "baseline": 20,
+        "current": 19,
+        "delta": -1,
+        "pct": -5.0
+      },
+      "wall_ms": {
+        "baseline": 43.04,
+        "current": 42.16,
+        "delta": -0.88,
+        "pct": -2.04
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.26,
+        "current": 9.6,
+        "delta": -0.66,
+        "pct": -6.43
+      },
+      "id": "extras-api:contact-list",
+      "kind": "update.x1",
+      "model": "extras.contact",
+      "queries": {
+        "baseline": 20,
+        "current": 19,
+        "delta": -1,
+        "pct": -5.0
+      },
+      "wall_ms": {
+        "baseline": 71.45,
+        "current": 65.75,
+        "delta": -5.7,
+        "pct": -7.98
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 18.63,
+        "current": 16.9,
+        "delta": -1.73,
+        "pct": -9.29
+      },
+      "id": "extras-api:dynamicgroup-list",
+      "kind": "create.x1",
+      "model": "extras.dynamicgroup",
+      "queries": {
+        "baseline": 27,
+        "current": 26,
+        "delta": -1,
+        "pct": -3.7
+      },
+      "wall_ms": {
+        "baseline": 139.53,
+        "current": 112.37,
+        "delta": -27.16,
+        "pct": -19.47
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 8.09,
+        "current": 8.9,
+        "delta": 0.81,
+        "pct": 10.01
+      },
+      "id": "extras-api:exporttemplate-list",
+      "kind": "update.x1",
+      "model": "extras.exporttemplate",
+      "queries": {
+        "baseline": 16,
+        "current": 17,
+        "delta": 1,
+        "pct": 6.25
+      },
+      "wall_ms": {
+        "baseline": 47.33,
+        "current": 47.36,
+        "delta": 0.03,
+        "pct": 0.06
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 8.69,
+        "current": 8.93,
+        "delta": 0.24,
+        "pct": 2.76
+      },
+      "id": "extras-api:externalintegration-list",
+      "kind": "create.x1",
+      "model": "extras.externalintegration",
+      "queries": {
+        "baseline": 18,
+        "current": 17,
+        "delta": -1,
+        "pct": -5.56
+      },
+      "wall_ms": {
+        "baseline": 39.44,
+        "current": 42.38,
+        "delta": 2.94,
+        "pct": 7.45
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.46,
+        "current": 9.92,
+        "delta": -0.54,
+        "pct": -5.16
+      },
+      "id": "extras-api:gitrepository-list",
+      "kind": "create.x1",
+      "model": "extras.gitrepository",
+      "queries": {
+        "baseline": 22,
+        "current": 21,
+        "delta": -1,
+        "pct": -4.55
+      },
+      "wall_ms": {
+        "baseline": 77.27,
+        "current": 75.46,
+        "delta": -1.81,
+        "pct": -2.34
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.55,
+        "current": 8.47,
+        "delta": -1.08,
+        "pct": -11.31
+      },
+      "id": "extras-api:jobqueue-list",
+      "kind": "create.x1",
+      "model": "extras.jobqueue",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 44.0,
+        "current": 40.32,
+        "delta": -3.68,
+        "pct": -8.36
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 11.1,
+        "current": 10.33,
+        "delta": -0.77,
+        "pct": -6.94
+      },
+      "id": "extras-api:metadatatype-list",
+      "kind": "update.x1",
+      "model": "extras.metadatatype",
+      "queries": {
+        "baseline": 23,
+        "current": 22,
+        "delta": -1,
+        "pct": -4.35
+      },
+      "wall_ms": {
+        "baseline": 77.99,
+        "current": 72.23,
+        "delta": -5.76,
+        "pct": -7.39
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.71,
+        "current": 9.95,
+        "delta": 0.24,
+        "pct": 2.47
+      },
+      "id": "extras-api:role-list",
+      "kind": "update.x1",
+      "model": "extras.role",
+      "queries": {
+        "baseline": 21,
+        "current": 20,
+        "delta": -1,
+        "pct": -4.76
+      },
+      "wall_ms": {
+        "baseline": 63.6,
+        "current": 62.5,
+        "delta": -1.1,
+        "pct": -1.73
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.97,
+        "current": 12.99,
+        "delta": -1.98,
+        "pct": -13.23
+      },
+      "id": "extras-api:secretsgroupassociation-list",
+      "kind": "create.x1",
+      "model": "extras.secretsgroupassociation",
+      "queries": {
+        "baseline": 30,
+        "current": 29,
+        "delta": -1,
+        "pct": -3.33
+      },
+      "wall_ms": {
+        "baseline": 59.99,
+        "current": 53.03,
+        "delta": -6.96,
+        "pct": -11.6
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.29,
+        "current": 9.9,
+        "delta": -0.39,
+        "pct": -3.79
+      },
+      "id": "extras-api:status-list",
+      "kind": "update.x1",
+      "model": "extras.status",
+      "queries": {
+        "baseline": 21,
+        "current": 20,
+        "delta": -1,
+        "pct": -4.76
+      },
+      "wall_ms": {
+        "baseline": 64.91,
+        "current": 57.76,
+        "delta": -7.15,
+        "pct": -11.02
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.07,
+        "current": 8.46,
+        "delta": -0.61,
+        "pct": -6.73
+      },
+      "id": "ipam-api:namespace-list",
+      "kind": "create.x1",
+      "model": "ipam.namespace",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 41.18,
+        "current": 39.17,
+        "delta": -2.01,
+        "pct": -4.88
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 21.07,
+        "current": 20.26,
+        "delta": -0.81,
+        "pct": -3.84
+      },
+      "id": "ipam-api:prefix-list",
+      "kind": "create.x1",
+      "model": "ipam.prefix",
+      "queries": {
+        "baseline": 39,
+        "current": 38,
+        "delta": -1,
+        "pct": -2.56
+      },
+      "wall_ms": {
+        "baseline": 89.76,
+        "current": 87.89,
+        "delta": -1.87,
+        "pct": -2.08
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.14,
+        "current": 9.19,
+        "delta": 0.05,
+        "pct": 0.55
+      },
+      "id": "ipam-api:routetarget-list",
+      "kind": "create.x1",
+      "model": "ipam.routetarget",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 41.29,
+        "current": 41.79,
+        "delta": 0.5,
+        "pct": 1.21
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.7,
+        "current": 9.38,
+        "delta": -0.32,
+        "pct": -3.3
+      },
+      "id": "ipam-api:routetarget-list",
+      "kind": "update.x1",
+      "model": "ipam.routetarget",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 67.15,
+        "current": 58.36,
+        "delta": -8.79,
+        "pct": -13.09
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 11.14,
+        "current": 10.9,
+        "delta": -0.24,
+        "pct": -2.15
+      },
+      "id": "ipam-api:vlan-list",
+      "kind": "create.x1",
+      "model": "ipam.vlan",
+      "queries": {
+        "baseline": 22,
+        "current": 21,
+        "delta": -1,
+        "pct": -4.55
+      },
+      "wall_ms": {
+        "baseline": 52.16,
+        "current": 51.07,
+        "delta": -1.09,
+        "pct": -2.09
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.9,
+        "current": 9.95,
+        "delta": 0.05,
+        "pct": 0.51
+      },
+      "id": "ipam-api:vlangroup-list",
+      "kind": "create.x1",
+      "model": "ipam.vlangroup",
+      "queries": {
+        "baseline": 20,
+        "current": 19,
+        "delta": -1,
+        "pct": -5.0
+      },
+      "wall_ms": {
+        "baseline": 47.79,
+        "current": 48.78,
+        "delta": 0.99,
+        "pct": 2.07
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 32.23,
+        "current": 28.04,
+        "delta": -4.19,
+        "pct": -13.0
+      },
+      "id": "ipam-api:vrf-list",
+      "kind": "update.x1",
+      "model": "ipam.vrf",
+      "queries": {
+        "baseline": 53,
+        "current": 52,
+        "delta": -1,
+        "pct": -1.89
+      },
+      "wall_ms": {
+        "baseline": 184.83,
+        "current": 144.57,
+        "delta": -40.26,
+        "pct": -21.78
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.22,
+        "current": 8.45,
+        "delta": -0.77,
+        "pct": -8.35
+      },
+      "id": "load_balancers-api:certificateprofile-list",
+      "kind": "create.x1",
+      "model": "load_balancers.certificateprofile",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 42.36,
+        "current": 40.32,
+        "delta": -2.04,
+        "pct": -4.82
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.14,
+        "current": 8.52,
+        "delta": -0.62,
+        "pct": -6.78
+      },
+      "id": "load_balancers-api:healthcheckmonitor-list",
+      "kind": "create.x1",
+      "model": "load_balancers.healthcheckmonitor",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 42.44,
+        "current": 40.4,
+        "delta": -2.04,
+        "pct": -4.81
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 8.46,
+        "current": 8.44,
+        "delta": -0.02,
+        "pct": -0.24
+      },
+      "id": "load_balancers-api:loadbalancerpool-list",
+      "kind": "create.x1",
+      "model": "load_balancers.loadbalancerpool",
+      "queries": {
+        "baseline": 17,
+        "current": 16,
+        "delta": -1,
+        "pct": -5.88
+      },
+      "wall_ms": {
+        "baseline": 39.91,
+        "current": 40.03,
+        "delta": 0.12,
+        "pct": 0.3
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.16,
+        "current": 10.11,
+        "delta": -0.05,
+        "pct": -0.49
+      },
+      "id": "tenancy-api:tenant-list",
+      "kind": "create.x1",
+      "model": "tenancy.tenant",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 45.64,
+        "current": 45.29,
+        "delta": -0.35,
+        "pct": -0.77
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.12,
+        "current": 8.58,
+        "delta": -0.54,
+        "pct": -5.92
+      },
+      "id": "vpn-api:vpn-list",
+      "kind": "create.x1",
+      "model": "vpn.vpn",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 44.21,
+        "current": 42.73,
+        "delta": -1.48,
+        "pct": -3.35
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.43,
+        "current": 9.02,
+        "delta": -1.41,
+        "pct": -13.52
+      },
+      "id": "vpn-api:vpn-list",
+      "kind": "update.x1",
+      "model": "vpn.vpn",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 80.02,
+        "current": 68.95,
+        "delta": -11.07,
+        "pct": -13.83
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.15,
+        "current": 8.56,
+        "delta": -0.59,
+        "pct": -6.45
+      },
+      "id": "vpn-api:vpnphase1policy-list",
+      "kind": "create.x1",
+      "model": "vpn.vpnphase1policy",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 43.32,
+        "current": 41.37,
+        "delta": -1.95,
+        "pct": -4.5
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.19,
+        "current": 8.53,
+        "delta": -0.66,
+        "pct": -7.18
+      },
+      "id": "vpn-api:vpnphase2policy-list",
+      "kind": "create.x1",
+      "model": "vpn.vpnphase2policy",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 42.46,
+        "current": 40.69,
+        "delta": -1.77,
+        "pct": -4.17
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.74,
+        "current": 8.89,
+        "delta": -0.85,
+        "pct": -8.73
+      },
+      "id": "vpn-api:vpnphase2policy-list",
+      "kind": "update.x1",
+      "model": "vpn.vpnphase2policy",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 69.84,
+        "current": 61.33,
+        "delta": -8.51,
+        "pct": -12.18
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.24,
+        "current": 9.59,
+        "delta": -0.65,
+        "pct": -6.35
+      },
+      "id": "vpn-api:vpnprofile-list",
+      "kind": "create.x1",
+      "model": "vpn.vpnprofile",
+      "queries": {
+        "baseline": 21,
+        "current": 20,
+        "delta": -1,
+        "pct": -4.76
+      },
+      "wall_ms": {
+        "baseline": 47.18,
+        "current": 45.33,
+        "delta": -1.85,
+        "pct": -3.92
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 11.77,
+        "current": 10.86,
+        "delta": -0.91,
+        "pct": -7.73
+      },
+      "id": "vpn-api:vpntunnel-list",
+      "kind": "create.x1",
+      "model": "vpn.vpntunnel",
+      "queries": {
+        "baseline": 21,
+        "current": 20,
+        "delta": -1,
+        "pct": -4.76
+      },
+      "wall_ms": {
+        "baseline": 55.94,
+        "current": 51.84,
+        "delta": -4.1,
+        "pct": -7.33
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.1,
+        "current": 8.47,
+        "delta": -0.63,
+        "pct": -6.92
+      },
+      "id": "wireless-api:supporteddatarate-list",
+      "kind": "create.x1",
+      "model": "wireless.supporteddatarate",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 41.02,
+        "current": 39.46,
+        "delta": -1.56,
+        "pct": -3.8
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.27,
+        "current": 8.45,
+        "delta": -0.82,
+        "pct": -8.85
+      },
+      "id": "wireless-api:wirelessnetwork-list",
+      "kind": "create.x1",
+      "model": "wireless.wirelessnetwork",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 43.0,
+        "current": 40.74,
+        "delta": -2.26,
+        "pct": -5.26
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.86,
+        "current": 8.9,
+        "delta": -0.96,
+        "pct": -9.74
+      },
+      "id": "wireless-api:wirelessnetwork-list",
+      "kind": "update.x1",
+      "model": "wireless.wirelessnetwork",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 82.21,
+        "current": 69.04,
+        "delta": -13.17,
+        "pct": -16.02
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 6.91,
+        "current": 7.09,
+        "delta": 0.18,
+        "pct": 2.6
+      },
+      "id": "circuits-api:circuittype-list",
+      "kind": "create.x1",
+      "model": "circuits.circuittype",
+      "queries": {
+        "baseline": 15,
+        "current": 15,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 32.78,
+        "current": 33.6,
+        "delta": 0.82,
+        "pct": 2.5
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 36.18,
+        "current": 35.19,
+        "delta": -0.99,
+        "pct": -2.74
+      },
+      "id": "circuits-api:circuittype-list",
+      "kind": "create.x10",
+      "model": "circuits.circuittype",
+      "queries": {
+        "baseline": 87,
+        "current": 87,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 177.21,
+        "current": 161.23,
+        "delta": -15.98,
+        "pct": -9.02
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 7.2,
+        "current": 7.07,
+        "delta": -0.13,
+        "pct": -1.81
+      },
+      "id": "circuits-api:circuittype-list",
+      "kind": "update.x1",
+      "model": "circuits.circuittype",
+      "queries": {
+        "baseline": 15,
+        "current": 15,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 48.25,
+        "current": 45.28,
+        "delta": -2.97,
+        "pct": -6.16
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 63.71,
+        "current": 62.64,
+        "delta": -1.07,
+        "pct": -1.68
+      },
+      "id": "dcim-api:cable-list",
+      "kind": "update.x1",
+      "model": "dcim.cable",
+      "queries": {
+        "baseline": 77,
+        "current": 77,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 212.64,
+        "current": 193.61,
+        "delta": -19.03,
+        "pct": -8.95
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.25,
+        "current": 10.01,
+        "delta": 0.76,
+        "pct": 8.22
+      },
+      "id": "dcim-api:consoleporttemplate-list",
+      "kind": "create.x1",
+      "model": "dcim.consoleporttemplate",
+      "queries": {
+        "baseline": 19,
+        "current": 19,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 44.65,
+        "current": 46.35,
+        "delta": 1.7,
+        "pct": 3.81
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 50.51,
+        "current": 55.52,
+        "delta": 5.01,
+        "pct": 9.92
+      },
+      "id": "dcim-api:consoleporttemplate-list",
+      "kind": "create.x10",
+      "model": "dcim.consoleporttemplate",
+      "queries": {
+        "baseline": 118,
+        "current": 118,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 259.71,
+        "current": 239.71,
+        "delta": -20.0,
+        "pct": -7.7
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.81,
+        "current": 9.09,
+        "delta": -0.72,
+        "pct": -7.34
+      },
+      "id": "dcim-api:consoleserverporttemplate-list",
+      "kind": "create.x1",
+      "model": "dcim.consoleserverporttemplate",
+      "queries": {
+        "baseline": 19,
+        "current": 19,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 47.24,
+        "current": 43.81,
+        "delta": -3.43,
+        "pct": -7.26
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 56.01,
+        "current": 49.7,
+        "delta": -6.31,
+        "pct": -11.27
+      },
+      "id": "dcim-api:consoleserverporttemplate-list",
+      "kind": "create.x10",
+      "model": "dcim.consoleserverporttemplate",
+      "queries": {
+        "baseline": 118,
+        "current": 118,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 277.98,
+        "current": 220.27,
+        "delta": -57.71,
+        "pct": -20.76
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.32,
+        "current": 13.39,
+        "delta": -0.93,
+        "pct": -6.49
+      },
+      "id": "dcim-api:controllermanageddevicegroup-list",
+      "kind": "update.x1",
+      "model": "dcim.controllermanageddevicegroup",
+      "queries": {
+        "baseline": 26,
+        "current": 26,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 111.04,
+        "current": 88.76,
+        "delta": -22.28,
+        "pct": -20.06
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 11.39,
+        "current": 10.02,
+        "delta": -1.37,
+        "pct": -12.03
+      },
+      "id": "dcim-api:deviceredundancygroup-list",
+      "kind": "update.x1",
+      "model": "dcim.deviceredundancygroup",
+      "queries": {
+        "baseline": 20,
+        "current": 20,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 73.74,
+        "current": 64.95,
+        "delta": -8.79,
+        "pct": -11.92
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.3,
+        "current": 9.56,
+        "delta": 0.26,
+        "pct": 2.8
+      },
+      "id": "dcim-api:interfacetemplate-list",
+      "kind": "create.x1",
+      "model": "dcim.interfacetemplate",
+      "queries": {
+        "baseline": 19,
+        "current": 19,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 45.79,
+        "current": 46.24,
+        "delta": 0.45,
+        "pct": 0.98
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 51.65,
+        "current": 53.94,
+        "delta": 2.29,
+        "pct": 4.43
+      },
+      "id": "dcim-api:interfacetemplate-list",
+      "kind": "create.x10",
+      "model": "dcim.interfacetemplate",
+      "queries": {
+        "baseline": 118,
+        "current": 118,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 267.84,
+        "current": 236.4,
+        "delta": -31.44,
+        "pct": -11.74
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 7.4,
+        "current": 7.43,
+        "delta": 0.03,
+        "pct": 0.41
+      },
+      "id": "dcim-api:manufacturer-list",
+      "kind": "create.x1",
+      "model": "dcim.manufacturer",
+      "queries": {
+        "baseline": 16,
+        "current": 16,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 35.35,
+        "current": 35.37,
+        "delta": 0.02,
+        "pct": 0.06
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 36.23,
+        "current": 35.37,
+        "delta": -0.86,
+        "pct": -2.37
+      },
+      "id": "dcim-api:manufacturer-list",
+      "kind": "create.x10",
+      "model": "dcim.manufacturer",
+      "queries": {
+        "baseline": 88,
+        "current": 88,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 182.4,
+        "current": 163.76,
+        "delta": -18.64,
+        "pct": -10.22
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 8.15,
+        "current": 8.11,
+        "delta": -0.04,
+        "pct": -0.49
+      },
+      "id": "dcim-api:manufacturer-list",
+      "kind": "update.x1",
+      "model": "dcim.manufacturer",
+      "queries": {
+        "baseline": 16,
+        "current": 16,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 58.31,
+        "current": 52.09,
+        "delta": -6.22,
+        "pct": -10.67
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.06,
+        "current": 9.12,
+        "delta": -0.94,
+        "pct": -9.34
+      },
+      "id": "dcim-api:modulebaytemplate-list",
+      "kind": "create.x1",
+      "model": "dcim.modulebaytemplate",
+      "queries": {
+        "baseline": 19,
+        "current": 19,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 48.28,
+        "current": 44.58,
+        "delta": -3.7,
+        "pct": -7.66
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 55.68,
+        "current": 49.96,
+        "delta": -5.72,
+        "pct": -10.27
+      },
+      "id": "dcim-api:modulebaytemplate-list",
+      "kind": "create.x10",
+      "model": "dcim.modulebaytemplate",
+      "queries": {
+        "baseline": 118,
+        "current": 118,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 279.93,
+        "current": 224.65,
+        "delta": -55.28,
+        "pct": -19.75
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 7.66,
+        "current": 6.98,
+        "delta": -0.68,
+        "pct": -8.88
+      },
+      "id": "dcim-api:platform-list",
+      "kind": "create.x1",
+      "model": "dcim.platform",
+      "queries": {
+        "baseline": 15,
+        "current": 15,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 39.1,
+        "current": 36.33,
+        "delta": -2.77,
+        "pct": -7.08
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 36.55,
+        "current": 35.54,
+        "delta": -1.01,
+        "pct": -2.76
+      },
+      "id": "dcim-api:platform-list",
+      "kind": "create.x10",
+      "model": "dcim.platform",
+      "queries": {
+        "baseline": 87,
+        "current": 87,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 200.74,
+        "current": 175.62,
+        "delta": -25.12,
+        "pct": -12.51
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.66,
+        "current": 9.62,
+        "delta": -0.04,
+        "pct": -0.41
+      },
+      "id": "dcim-api:poweroutlettemplate-list",
+      "kind": "create.x1",
+      "model": "dcim.poweroutlettemplate",
+      "queries": {
+        "baseline": 19,
+        "current": 19,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 47.27,
+        "current": 45.63,
+        "delta": -1.64,
+        "pct": -3.47
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 56.19,
+        "current": 52.9,
+        "delta": -3.29,
+        "pct": -5.86
+      },
+      "id": "dcim-api:poweroutlettemplate-list",
+      "kind": "create.x10",
+      "model": "dcim.poweroutlettemplate",
+      "queries": {
+        "baseline": 118,
+        "current": 118,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 282.82,
+        "current": 234.27,
+        "delta": -48.55,
+        "pct": -17.17
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.33,
+        "current": 9.2,
+        "delta": -0.13,
+        "pct": -1.39
+      },
+      "id": "dcim-api:powerporttemplate-list",
+      "kind": "create.x1",
+      "model": "dcim.powerporttemplate",
+      "queries": {
+        "baseline": 19,
+        "current": 19,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 46.21,
+        "current": 45.5,
+        "delta": -0.71,
+        "pct": -1.54
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 51.47,
+        "current": 50.69,
+        "delta": -0.78,
+        "pct": -1.52
+      },
+      "id": "dcim-api:powerporttemplate-list",
+      "kind": "create.x10",
+      "model": "dcim.powerporttemplate",
+      "queries": {
+        "baseline": 118,
+        "current": 118,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 269.07,
+        "current": 230.23,
+        "delta": -38.84,
+        "pct": -14.43
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.11,
+        "current": 9.11,
+        "delta": 0.0,
+        "pct": 0.0
+      },
+      "id": "dcim-api:rearporttemplate-list",
+      "kind": "create.x1",
+      "model": "dcim.rearporttemplate",
+      "queries": {
+        "baseline": 19,
+        "current": 19,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 44.84,
+        "current": 44.35,
+        "delta": -0.49,
+        "pct": -1.09
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 51.41,
+        "current": 50.04,
+        "delta": -1.37,
+        "pct": -2.66
+      },
+      "id": "dcim-api:rearporttemplate-list",
+      "kind": "create.x10",
+      "model": "dcim.rearporttemplate",
+      "queries": {
+        "baseline": 118,
+        "current": 118,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 263.85,
+        "current": 224.86,
+        "delta": -38.99,
+        "pct": -14.78
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 8.31,
+        "current": 8.73,
+        "delta": 0.42,
+        "pct": 5.05
+      },
+      "id": "extras-api:computedfield-list",
+      "kind": "create.x1",
+      "model": "extras.computedfield",
+      "queries": {
+        "baseline": 17,
+        "current": 17,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 43.97,
+        "current": 47.04,
+        "delta": 3.07,
+        "pct": 6.98
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 53.79,
+        "current": 57.75,
+        "delta": 3.96,
+        "pct": 7.36
+      },
+      "id": "extras-api:computedfield-list",
+      "kind": "create.x10",
+      "model": "extras.computedfield",
+      "queries": {
+        "baseline": 107,
+        "current": 107,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 311.02,
+        "current": 306.93,
+        "delta": -4.09,
+        "pct": -1.32
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.26,
+        "current": 14.22,
+        "delta": -0.04,
+        "pct": -0.28
+      },
+      "id": "extras-api:contactassociation-list",
+      "kind": "create.x1",
+      "model": "extras.contactassociation",
+      "queries": {
+        "baseline": 29,
+        "current": 29,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 65.52,
+        "current": 64.71,
+        "delta": -0.81,
+        "pct": -1.24
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.92,
+        "current": 9.45,
+        "delta": -0.47,
+        "pct": -4.74
+      },
+      "id": "extras-api:customfield-list",
+      "kind": "update.x1",
+      "model": "extras.customfield",
+      "queries": {
+        "baseline": 21,
+        "current": 21,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 76.84,
+        "current": 72.9,
+        "delta": -3.94,
+        "pct": -5.13
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 7.41,
+        "current": 7.02,
+        "delta": -0.39,
+        "pct": -5.26
+      },
+      "id": "extras-api:customfieldchoice-list",
+      "kind": "create.x1",
+      "model": "extras.customfieldchoice",
+      "queries": {
+        "baseline": 16,
+        "current": 16,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 32.07,
+        "current": 30.58,
+        "delta": -1.49,
+        "pct": -4.65
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 38.55,
+        "current": 36.01,
+        "delta": -2.54,
+        "pct": -6.59
+      },
+      "id": "extras-api:customfieldchoice-list",
+      "kind": "create.x10",
+      "model": "extras.customfieldchoice",
+      "queries": {
+        "baseline": 88,
+        "current": 88,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 178.19,
+        "current": 138.81,
+        "delta": -39.38,
+        "pct": -22.1
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 7.84,
+        "current": 7.42,
+        "delta": -0.42,
+        "pct": -5.36
+      },
+      "id": "extras-api:customlink-list",
+      "kind": "create.x1",
+      "model": "extras.customlink",
+      "queries": {
+        "baseline": 15,
+        "current": 15,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 31.97,
+        "current": 31.23,
+        "delta": -0.74,
+        "pct": -2.31
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 49.11,
+        "current": 44.17,
+        "delta": -4.94,
+        "pct": -10.06
+      },
+      "id": "extras-api:customlink-list",
+      "kind": "create.x10",
+      "model": "extras.customlink",
+      "queries": {
+        "baseline": 87,
+        "current": 87,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 202.84,
+        "current": 162.84,
+        "delta": -40.0,
+        "pct": -19.72
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 19.97,
+        "current": 20.47,
+        "delta": 0.5,
+        "pct": 2.5
+      },
+      "id": "extras-api:dynamicgroup-list",
+      "kind": "update.x1",
+      "model": "extras.dynamicgroup",
+      "queries": {
+        "baseline": 33,
+        "current": 33,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 238.99,
+        "current": 186.57,
+        "delta": -52.42,
+        "pct": -21.93
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 7.95,
+        "current": 8.35,
+        "delta": 0.4,
+        "pct": 5.03
+      },
+      "id": "extras-api:exporttemplate-list",
+      "kind": "create.x1",
+      "model": "extras.exporttemplate",
+      "queries": {
+        "baseline": 16,
+        "current": 16,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 34.79,
+        "current": 35.89,
+        "delta": 1.1,
+        "pct": 3.16
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 49.79,
+        "current": 51.85,
+        "delta": 2.06,
+        "pct": 4.14
+      },
+      "id": "extras-api:exporttemplate-list",
+      "kind": "create.x10",
+      "model": "extras.exporttemplate",
+      "queries": {
+        "baseline": 97,
+        "current": 97,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 207.47,
+        "current": 199.43,
+        "delta": -8.04,
+        "pct": -3.88
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 6.57,
+        "current": 7.27,
+        "delta": 0.7,
+        "pct": 10.65
+      },
+      "id": "extras-api:note-list",
+      "kind": "create.x1",
+      "model": "extras.note",
+      "queries": {
+        "baseline": 14,
+        "current": 14,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 31.75,
+        "current": 33.23,
+        "delta": 1.48,
+        "pct": 4.66
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 40.0,
+        "current": 42.32,
+        "delta": 2.32,
+        "pct": 5.8
+      },
+      "id": "extras-api:note-list",
+      "kind": "create.x10",
+      "model": "extras.note",
+      "queries": {
+        "baseline": 95,
+        "current": 95,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 190.91,
+        "current": 165.95,
+        "delta": -24.96,
+        "pct": -13.07
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 10.21,
+        "current": 10.91,
+        "delta": 0.7,
+        "pct": 6.86
+      },
+      "id": "extras-api:relationship-list",
+      "kind": "create.x1",
+      "model": "extras.relationship",
+      "queries": {
+        "baseline": 19,
+        "current": 19,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 55.19,
+        "current": 58.48,
+        "delta": 3.29,
+        "pct": 5.96
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 72.68,
+        "current": 76.47,
+        "delta": 3.79,
+        "pct": 5.21
+      },
+      "id": "extras-api:relationship-list",
+      "kind": "create.x10",
+      "model": "extras.relationship",
+      "queries": {
+        "baseline": 127,
+        "current": 127,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 410.89,
+        "current": 397.0,
+        "delta": -13.89,
+        "pct": -3.38
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 5.63,
+        "current": 6.34,
+        "delta": 0.71,
+        "pct": 12.61
+      },
+      "id": "extras-api:savedview-list",
+      "kind": "create.x1",
+      "model": "extras.savedview",
+      "queries": {
+        "baseline": 13,
+        "current": 13,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 29.94,
+        "current": 31.51,
+        "delta": 1.57,
+        "pct": 5.24
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 30.8,
+        "current": 30.15,
+        "delta": -0.65,
+        "pct": -2.11
+      },
+      "id": "extras-api:savedview-list",
+      "kind": "create.x10",
+      "model": "extras.savedview",
+      "queries": {
+        "baseline": 67,
+        "current": 67,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 185.55,
+        "current": 148.74,
+        "delta": -36.81,
+        "pct": -19.84
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 8.12,
+        "current": 7.97,
+        "delta": -0.15,
+        "pct": -1.85
+      },
+      "id": "extras-api:secretsgroup-list",
+      "kind": "create.x1",
+      "model": "extras.secretsgroup",
+      "queries": {
+        "baseline": 17,
+        "current": 17,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 39.09,
+        "current": 38.48,
+        "delta": -0.61,
+        "pct": -1.56
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 45.0,
+        "current": 39.5,
+        "delta": -5.5,
+        "pct": -12.22
+      },
+      "id": "extras-api:secretsgroup-list",
+      "kind": "create.x10",
+      "model": "extras.secretsgroup",
+      "queries": {
+        "baseline": 98,
+        "current": 98,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 213.27,
+        "current": 179.42,
+        "delta": -33.85,
+        "pct": -15.87
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.44,
+        "current": 8.59,
+        "delta": -0.85,
+        "pct": -9.0
+      },
+      "id": "extras-api:secretsgroup-list",
+      "kind": "update.x1",
+      "model": "extras.secretsgroup",
+      "queries": {
+        "baseline": 19,
+        "current": 19,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 62.15,
+        "current": 51.37,
+        "delta": -10.78,
+        "pct": -17.35
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 18.26,
+        "current": 18.08,
+        "delta": -0.18,
+        "pct": -0.99
+      },
+      "id": "ipam-api:ipaddress-list",
+      "kind": "create.x1",
+      "model": "ipam.ipaddress",
+      "queries": {
+        "baseline": 32,
+        "current": 32,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 83.43,
+        "current": 82.4,
+        "delta": -1.03,
+        "pct": -1.23
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 17.56,
+        "current": 18.93,
+        "delta": 1.37,
+        "pct": 7.8
+      },
+      "id": "ipam-api:ipaddressrange-list",
+      "kind": "create.x1",
+      "model": "ipam.ipaddressrange",
+      "queries": {
+        "baseline": 31,
+        "current": 31,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 81.91,
+        "current": 87.28,
+        "delta": 5.37,
+        "pct": 6.56
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 7.68,
+        "current": 7.15,
+        "delta": -0.53,
+        "pct": -6.9
+      },
+      "id": "ipam-api:rir-list",
+      "kind": "create.x1",
+      "model": "ipam.rir",
+      "queries": {
+        "baseline": 15,
+        "current": 15,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 36.64,
+        "current": 34.86,
+        "delta": -1.78,
+        "pct": -4.86
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 39.44,
+        "current": 38.5,
+        "delta": -0.94,
+        "pct": -2.38
+      },
+      "id": "ipam-api:rir-list",
+      "kind": "create.x10",
+      "model": "ipam.rir",
+      "queries": {
+        "baseline": 87,
+        "current": 87,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 195.7,
+        "current": 175.59,
+        "delta": -20.11,
+        "pct": -10.28
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 12.62,
+        "current": 13.86,
+        "delta": 1.24,
+        "pct": 9.83
+      },
+      "id": "ipam-api:vlangroup-list",
+      "kind": "update.x1",
+      "model": "ipam.vlangroup",
+      "queries": {
+        "baseline": 24,
+        "current": 24,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 80.87,
+        "current": 80.57,
+        "delta": -0.3,
+        "pct": -0.37
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 13.09,
+        "current": 12.92,
+        "delta": -0.17,
+        "pct": -1.3
+      },
+      "id": "tenancy-api:tenant-list",
+      "kind": "update.x1",
+      "model": "tenancy.tenant",
+      "queries": {
+        "baseline": 20,
+        "current": 20,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 104.64,
+        "current": 81.38,
+        "delta": -23.26,
+        "pct": -22.23
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 7.24,
+        "current": 7.16,
+        "delta": -0.08,
+        "pct": -1.1
+      },
+      "id": "tenancy-api:tenantgroup-list",
+      "kind": "create.x1",
+      "model": "tenancy.tenantgroup",
+      "queries": {
+        "baseline": 15,
+        "current": 15,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 37.71,
+        "current": 36.33,
+        "delta": -1.38,
+        "pct": -3.66
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 40.6,
+        "current": 40.25,
+        "delta": -0.35,
+        "pct": -0.86
+      },
+      "id": "tenancy-api:tenantgroup-list",
+      "kind": "create.x10",
+      "model": "tenancy.tenantgroup",
+      "queries": {
+        "baseline": 87,
+        "current": 87,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 219.12,
+        "current": 190.52,
+        "delta": -28.6,
+        "pct": -13.05
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 8.38,
+        "current": 8.11,
+        "delta": -0.27,
+        "pct": -3.22
+      },
+      "id": "tenancy-api:tenantgroup-list",
+      "kind": "update.x1",
+      "model": "tenancy.tenantgroup",
+      "queries": {
+        "baseline": 16,
+        "current": 16,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 60.52,
+        "current": 53.17,
+        "delta": -7.35,
+        "pct": -12.14
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 4.03,
+        "current": 3.94,
+        "delta": -0.09,
+        "pct": -2.23
+      },
+      "id": "users-api:group-list",
+      "kind": "create.x1",
+      "model": "auth.group",
+      "queries": {
+        "baseline": 9,
+        "current": 9,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 14.14,
+        "current": 13.75,
+        "delta": -0.39,
+        "pct": -2.76
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 12.78,
+        "current": 12.5,
+        "delta": -0.28,
+        "pct": -2.19
+      },
+      "id": "users-api:group-list",
+      "kind": "create.x10",
+      "model": "auth.group",
+      "queries": {
+        "baseline": 36,
+        "current": 36,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 37.11,
+        "current": 36.46,
+        "delta": -0.65,
+        "pct": -1.75
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 4.28,
+        "current": 4.1,
+        "delta": -0.18,
+        "pct": -4.21
+      },
+      "id": "users-api:token-list",
+      "kind": "create.x1",
+      "model": "users.token",
+      "queries": {
+        "baseline": 10,
+        "current": 10,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 16.02,
+        "current": 15.36,
+        "delta": -0.66,
+        "pct": -4.12
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 15.99,
+        "current": 15.62,
+        "delta": -0.37,
+        "pct": -2.31
+      },
+      "id": "users-api:token-list",
+      "kind": "create.x10",
+      "model": "users.token",
+      "queries": {
+        "baseline": 46,
+        "current": 46,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 50.43,
+        "current": 46.7,
+        "delta": -3.73,
+        "pct": -7.4
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 4.6,
+        "current": 4.42,
+        "delta": -0.18,
+        "pct": -3.91
+      },
+      "id": "users-api:user-list",
+      "kind": "create.x1",
+      "model": "users.user",
+      "queries": {
+        "baseline": 11,
+        "current": 11,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 19.61,
+        "current": 18.54,
+        "delta": -1.07,
+        "pct": -5.46
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 21.6,
+        "current": 20.18,
+        "delta": -1.42,
+        "pct": -6.57
+      },
+      "id": "users-api:user-list",
+      "kind": "create.x10",
+      "model": "users.user",
+      "queries": {
+        "baseline": 56,
+        "current": 56,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 66.35,
+        "current": 60.84,
+        "delta": -5.51,
+        "pct": -8.3
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 7.1,
+        "current": 6.94,
+        "delta": -0.16,
+        "pct": -2.25
+      },
+      "id": "virtualization-api:clustergroup-list",
+      "kind": "create.x1",
+      "model": "virtualization.clustergroup",
+      "queries": {
+        "baseline": 15,
+        "current": 15,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 34.5,
+        "current": 33.5,
+        "delta": -1.0,
+        "pct": -2.9
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 41.74,
+        "current": 35.47,
+        "delta": -6.27,
+        "pct": -15.02
+      },
+      "id": "virtualization-api:clustergroup-list",
+      "kind": "create.x10",
+      "model": "virtualization.clustergroup",
+      "queries": {
+        "baseline": 87,
+        "current": 87,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 201.76,
+        "current": 164.65,
+        "delta": -37.11,
+        "pct": -18.39
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 7.1,
+        "current": 6.7,
+        "delta": -0.4,
+        "pct": -5.63
+      },
+      "id": "virtualization-api:clustertype-list",
+      "kind": "create.x1",
+      "model": "virtualization.clustertype",
+      "queries": {
+        "baseline": 15,
+        "current": 15,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 34.63,
+        "current": 32.79,
+        "delta": -1.84,
+        "pct": -5.31
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 35.83,
+        "current": 35.31,
+        "delta": -0.52,
+        "pct": -1.45
+      },
+      "id": "virtualization-api:clustertype-list",
+      "kind": "create.x10",
+      "model": "virtualization.clustertype",
+      "queries": {
+        "baseline": 87,
+        "current": 87,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 182.33,
+        "current": 164.67,
+        "delta": -17.66,
+        "pct": -9.69
+      }
+    }
+  ],
+  "models": [
+    {
+      "db_ms": {
+        "baseline": 556.85,
+        "current": 350.12,
+        "delta": -206.73,
+        "pct": -37.12
+      },
+      "measurements": 2,
+      "model": "ipam.ipaddresstointerface",
+      "queries": {
+        "baseline": 1088,
+        "current": 661,
+        "delta": -427,
+        "pct": -39.25
+      },
+      "wall_ms": {
+        "baseline": 2764.8,
+        "current": 1232.23,
+        "delta": -1532.57,
+        "pct": -55.43
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 437.01,
+        "current": 270.4,
+        "delta": -166.61,
+        "pct": -38.12
+      },
+      "measurements": 2,
+      "model": "dcim.interfaceredundancygroupassociation",
+      "queries": {
+        "baseline": 880,
+        "current": 486,
+        "delta": -394,
+        "pct": -44.77
+      },
+      "wall_ms": {
+        "baseline": 3002.32,
+        "current": 998.06,
+        "delta": -2004.26,
+        "pct": -66.76
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 187.64,
+        "current": 120.09,
+        "delta": -67.55,
+        "pct": -36.0
+      },
+      "measurements": 3,
+      "model": "extras.configcontext",
+      "queries": {
+        "baseline": 382,
+        "current": 239,
+        "delta": -143,
+        "pct": -37.43
+      },
+      "wall_ms": {
+        "baseline": 707.8,
+        "current": 420.71,
+        "delta": -287.09,
+        "pct": -40.56
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 199.02,
+        "current": 152.77,
+        "delta": -46.25,
+        "pct": -23.24
+      },
+      "measurements": 3,
+      "model": "dcim.consoleport",
+      "queries": {
+        "baseline": 368,
+        "current": 235,
+        "delta": -133,
+        "pct": -36.14
+      },
+      "wall_ms": {
+        "baseline": 1106.81,
+        "current": 575.0,
+        "delta": -531.81,
+        "pct": -48.05
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 196.48,
+        "current": 146.1,
+        "delta": -50.38,
+        "pct": -25.64
+      },
+      "measurements": 3,
+      "model": "dcim.consoleserverport",
+      "queries": {
+        "baseline": 368,
+        "current": 235,
+        "delta": -133,
+        "pct": -36.14
+      },
+      "wall_ms": {
+        "baseline": 1091.66,
+        "current": 553.08,
+        "delta": -538.58,
+        "pct": -49.34
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 197.19,
+        "current": 155.87,
+        "delta": -41.32,
+        "pct": -20.95
+      },
+      "measurements": 3,
+      "model": "dcim.poweroutlet",
+      "queries": {
+        "baseline": 368,
+        "current": 235,
+        "delta": -133,
+        "pct": -36.14
+      },
+      "wall_ms": {
+        "baseline": 1103.67,
+        "current": 595.32,
+        "delta": -508.35,
+        "pct": -46.06
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 213.03,
+        "current": 154.39,
+        "delta": -58.64,
+        "pct": -27.53
+      },
+      "measurements": 3,
+      "model": "dcim.powerport",
+      "queries": {
+        "baseline": 368,
+        "current": 235,
+        "delta": -133,
+        "pct": -36.14
+      },
+      "wall_ms": {
+        "baseline": 1177.2,
+        "current": 585.14,
+        "delta": -592.06,
+        "pct": -50.29
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 199.95,
+        "current": 137.54,
+        "delta": -62.41,
+        "pct": -31.21
+      },
+      "measurements": 2,
+      "model": "vpn.vpntunnelendpoint",
+      "queries": {
+        "baseline": 372,
+        "current": 246,
+        "delta": -126,
+        "pct": -33.87
+      },
+      "wall_ms": {
+        "baseline": 983.35,
+        "current": 521.21,
+        "delta": -462.14,
+        "pct": -47.0
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 309.19,
+        "current": 246.95,
+        "delta": -62.24,
+        "pct": -20.13
+      },
+      "measurements": 3,
+      "model": "dcim.interface",
+      "queries": {
+        "baseline": 454,
+        "current": 330,
+        "delta": -124,
+        "pct": -27.31
+      },
+      "wall_ms": {
+        "baseline": 1485.28,
+        "current": 884.98,
+        "delta": -600.3,
+        "pct": -40.42
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 202.33,
+        "current": 159.22,
+        "delta": -43.11,
+        "pct": -21.31
+      },
+      "measurements": 3,
+      "model": "dcim.powerfeed",
+      "queries": {
+        "baseline": 370,
+        "current": 248,
+        "delta": -122,
+        "pct": -32.97
+      },
+      "wall_ms": {
+        "baseline": 993.2,
+        "current": 614.59,
+        "delta": -378.61,
+        "pct": -38.12
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 261.72,
+        "current": 192.25,
+        "delta": -69.47,
+        "pct": -26.54
+      },
+      "measurements": 2,
+      "model": "ipam.prefixlocationassignment",
+      "queries": {
+        "baseline": 487,
+        "current": 383,
+        "delta": -104,
+        "pct": -21.36
+      },
+      "wall_ms": {
+        "baseline": 1315.15,
+        "current": 728.19,
+        "delta": -586.96,
+        "pct": -44.63
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 164.44,
+        "current": 121.54,
+        "delta": -42.9,
+        "pct": -26.09
+      },
+      "measurements": 2,
+      "model": "vpn.vpntermination",
+      "queries": {
+        "baseline": 339,
+        "current": 235,
+        "delta": -104,
+        "pct": -30.68
+      },
+      "wall_ms": {
+        "baseline": 815.13,
+        "current": 461.25,
+        "delta": -353.88,
+        "pct": -43.41
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 223.9,
+        "current": 160.43,
+        "delta": -63.47,
+        "pct": -28.35
+      },
+      "measurements": 2,
+      "model": "ipam.vlanlocationassignment",
+      "queries": {
+        "baseline": 417,
+        "current": 322,
+        "delta": -95,
+        "pct": -22.78
+      },
+      "wall_ms": {
+        "baseline": 1110.92,
+        "current": 610.88,
+        "delta": -500.04,
+        "pct": -45.01
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 140.74,
+        "current": 109.07,
+        "delta": -31.67,
+        "pct": -22.5
+      },
+      "measurements": 3,
+      "model": "dcim.inventoryitem",
+      "queries": {
+        "baseline": 265,
+        "current": 176,
+        "delta": -89,
+        "pct": -33.58
+      },
+      "wall_ms": {
+        "baseline": 736.61,
+        "current": 480.0,
+        "delta": -256.61,
+        "pct": -34.84
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 124.17,
+        "current": 94.49,
+        "delta": -29.68,
+        "pct": -23.9
+      },
+      "measurements": 2,
+      "model": "ipam.service",
+      "queries": {
+        "baseline": 258,
+        "current": 174,
+        "delta": -84,
+        "pct": -32.56
+      },
+      "wall_ms": {
+        "baseline": 795.82,
+        "current": 378.41,
+        "delta": -417.41,
+        "pct": -52.45
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 123.92,
+        "current": 84.16,
+        "delta": -39.76,
+        "pct": -32.09
+      },
+      "measurements": 2,
+      "model": "dcim.modulebay",
+      "queries": {
+        "baseline": 237,
+        "current": 164,
+        "delta": -73,
+        "pct": -30.8
+      },
+      "wall_ms": {
+        "baseline": 589.78,
+        "current": 343.19,
+        "delta": -246.59,
+        "pct": -41.81
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 124.79,
+        "current": 96.99,
+        "delta": -27.8,
+        "pct": -22.28
+      },
+      "measurements": 2,
+      "model": "dcim.rearport",
+      "queries": {
+        "baseline": 269,
+        "current": 197,
+        "delta": -72,
+        "pct": -26.77
+      },
+      "wall_ms": {
+        "baseline": 799.4,
+        "current": 387.32,
+        "delta": -412.08,
+        "pct": -51.55
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 153.53,
+        "current": 111.05,
+        "delta": -42.48,
+        "pct": -27.67
+      },
+      "measurements": 3,
+      "model": "users.objectpermission",
+      "queries": {
+        "baseline": 327,
+        "current": 256,
+        "delta": -71,
+        "pct": -21.71
+      },
+      "wall_ms": {
+        "baseline": 539.64,
+        "current": 360.64,
+        "delta": -179.0,
+        "pct": -33.17
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 135.95,
+        "current": 112.33,
+        "delta": -23.62,
+        "pct": -17.37
+      },
+      "measurements": 2,
+      "model": "dcim.virtualdevicecontext",
+      "queries": {
+        "baseline": 263,
+        "current": 196,
+        "delta": -67,
+        "pct": -25.48
+      },
+      "wall_ms": {
+        "baseline": 852.65,
+        "current": 439.54,
+        "delta": -413.11,
+        "pct": -48.45
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 159.4,
+        "current": 135.71,
+        "delta": -23.69,
+        "pct": -14.86
+      },
+      "measurements": 3,
+      "model": "extras.metadatatype",
+      "queries": {
+        "baseline": 325,
+        "current": 280,
+        "delta": -45,
+        "pct": -13.85
+      },
+      "wall_ms": {
+        "baseline": 886.68,
+        "current": 770.02,
+        "delta": -116.66,
+        "pct": -13.16
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 149.39,
+        "current": 123.13,
+        "delta": -26.26,
+        "pct": -17.58
+      },
+      "measurements": 2,
+      "model": "cloud.cloudresourcetype",
+      "queries": {
+        "baseline": 313,
+        "current": 269,
+        "delta": -44,
+        "pct": -14.06
+      },
+      "wall_ms": {
+        "baseline": 571.78,
+        "current": 423.8,
+        "delta": -147.98,
+        "pct": -25.88
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 161.55,
+        "current": 125.68,
+        "delta": -35.87,
+        "pct": -22.2
+      },
+      "measurements": 3,
+      "model": "ipam.vrf",
+      "queries": {
+        "baseline": 278,
+        "current": 244,
+        "delta": -34,
+        "pct": -12.23
+      },
+      "wall_ms": {
+        "baseline": 707.92,
+        "current": 528.77,
+        "delta": -179.15,
+        "pct": -25.31
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 163.38,
+        "current": 141.13,
+        "delta": -22.25,
+        "pct": -13.62
+      },
+      "measurements": 2,
+      "model": "wireless.controllermanageddevicegroupradioprofileassignment",
+      "queries": {
+        "baseline": 309,
+        "current": 276,
+        "delta": -33,
+        "pct": -10.68
+      },
+      "wall_ms": {
+        "baseline": 762.78,
+        "current": 553.54,
+        "delta": -209.24,
+        "pct": -27.43
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 107.9,
+        "current": 100.07,
+        "delta": -7.83,
+        "pct": -7.26
+      },
+      "measurements": 2,
+      "model": "load_balancers.virtualserver",
+      "queries": {
+        "baseline": 203,
+        "current": 172,
+        "delta": -31,
+        "pct": -15.27
+      },
+      "wall_ms": {
+        "baseline": 480.97,
+        "current": 411.73,
+        "delta": -69.24,
+        "pct": -14.4
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 89.66,
+        "current": 75.72,
+        "delta": -13.94,
+        "pct": -15.55
+      },
+      "measurements": 3,
+      "model": "extras.team",
+      "queries": {
+        "baseline": 182,
+        "current": 158,
+        "delta": -24,
+        "pct": -13.19
+      },
+      "wall_ms": {
+        "baseline": 400.41,
+        "current": 336.42,
+        "delta": -63.99,
+        "pct": -15.98
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 118.07,
+        "current": 114.76,
+        "delta": -3.31,
+        "pct": -2.8
+      },
+      "measurements": 3,
+      "model": "extras.role",
+      "queries": {
+        "baseline": 257,
+        "current": 234,
+        "delta": -23,
+        "pct": -8.95
+      },
+      "wall_ms": {
+        "baseline": 492.22,
+        "current": 438.98,
+        "delta": -53.24,
+        "pct": -10.82
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 126.33,
+        "current": 109.17,
+        "delta": -17.16,
+        "pct": -13.58
+      },
+      "measurements": 3,
+      "model": "extras.status",
+      "queries": {
+        "baseline": 257,
+        "current": 234,
+        "delta": -23,
+        "pct": -8.95
+      },
+      "wall_ms": {
+        "baseline": 514.6,
+        "current": 413.27,
+        "delta": -101.33,
+        "pct": -19.69
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 137.01,
+        "current": 112.53,
+        "delta": -24.48,
+        "pct": -17.87
+      },
+      "measurements": 3,
+      "model": "extras.customfield",
+      "queries": {
+        "baseline": 268,
+        "current": 246,
+        "delta": -22,
+        "pct": -8.21
+      },
+      "wall_ms": {
+        "baseline": 1055.1,
+        "current": 913.98,
+        "delta": -141.12,
+        "pct": -13.38
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 128.3,
+        "current": 105.32,
+        "delta": -22.98,
+        "pct": -17.91
+      },
+      "measurements": 2,
+      "model": "extras.jobbutton",
+      "queries": {
+        "baseline": 256,
+        "current": 234,
+        "delta": -22,
+        "pct": -8.59
+      },
+      "wall_ms": {
+        "baseline": 505.57,
+        "current": 343.99,
+        "delta": -161.58,
+        "pct": -31.96
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 125.66,
+        "current": 107.09,
+        "delta": -18.57,
+        "pct": -14.78
+      },
+      "measurements": 2,
+      "model": "extras.tag",
+      "queries": {
+        "baseline": 234,
+        "current": 212,
+        "delta": -22,
+        "pct": -9.4
+      },
+      "wall_ms": {
+        "baseline": 509.83,
+        "current": 399.2,
+        "delta": -110.63,
+        "pct": -21.7
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 77.12,
+        "current": 63.69,
+        "delta": -13.43,
+        "pct": -17.41
+      },
+      "measurements": 2,
+      "model": "wireless.radioprofile",
+      "queries": {
+        "baseline": 159,
+        "current": 137,
+        "delta": -22,
+        "pct": -13.84
+      },
+      "wall_ms": {
+        "baseline": 327.8,
+        "current": 266.8,
+        "delta": -61.0,
+        "pct": -18.61
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 103.22,
+        "current": 92.42,
+        "delta": -10.8,
+        "pct": -10.46
+      },
+      "measurements": 3,
+      "model": "dcim.interfaceredundancygroup",
+      "queries": {
+        "baseline": 207,
+        "current": 186,
+        "delta": -21,
+        "pct": -10.14
+      },
+      "wall_ms": {
+        "baseline": 503.52,
+        "current": 394.78,
+        "delta": -108.74,
+        "pct": -21.6
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 51.32,
+        "current": 44.55,
+        "delta": -6.77,
+        "pct": -13.19
+      },
+      "measurements": 1,
+      "model": "ipam.vrfdeviceassignment",
+      "queries": {
+        "baseline": 100,
+        "current": 80,
+        "delta": -20,
+        "pct": -20.0
+      },
+      "wall_ms": {
+        "baseline": 245.01,
+        "current": 191.84,
+        "delta": -53.17,
+        "pct": -21.7
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 138.46,
+        "current": 111.66,
+        "delta": -26.8,
+        "pct": -19.36
+      },
+      "measurements": 3,
+      "model": "dcim.controller",
+      "queries": {
+        "baseline": 239,
+        "current": 221,
+        "delta": -18,
+        "pct": -7.53
+      },
+      "wall_ms": {
+        "baseline": 637.07,
+        "current": 467.1,
+        "delta": -169.97,
+        "pct": -26.68
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 392.44,
+        "current": 374.59,
+        "delta": -17.85,
+        "pct": -4.55
+      },
+      "measurements": 3,
+      "model": "dcim.device",
+      "queries": {
+        "baseline": 517,
+        "current": 499,
+        "delta": -18,
+        "pct": -3.48
+      },
+      "wall_ms": {
+        "baseline": 1612.87,
+        "current": 1317.59,
+        "delta": -295.28,
+        "pct": -18.31
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 189.32,
+        "current": 177.76,
+        "delta": -11.56,
+        "pct": -6.11
+      },
+      "measurements": 3,
+      "model": "ipam.ipaddress",
+      "queries": {
+        "baseline": 329,
+        "current": 311,
+        "delta": -18,
+        "pct": -5.47
+      },
+      "wall_ms": {
+        "baseline": 870.52,
+        "current": 734.38,
+        "delta": -136.14,
+        "pct": -15.64
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 86.63,
+        "current": 76.49,
+        "delta": -10.14,
+        "pct": -11.7
+      },
+      "measurements": 3,
+      "model": "dcim.cabletype",
+      "queries": {
+        "baseline": 161,
+        "current": 148,
+        "delta": -13,
+        "pct": -8.07
+      },
+      "wall_ms": {
+        "baseline": 402.02,
+        "current": 350.55,
+        "delta": -51.47,
+        "pct": -12.8
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 86.42,
+        "current": 68.03,
+        "delta": -18.39,
+        "pct": -21.28
+      },
+      "measurements": 3,
+      "model": "extras.jobqueue",
+      "queries": {
+        "baseline": 159,
+        "current": 146,
+        "delta": -13,
+        "pct": -8.18
+      },
+      "wall_ms": {
+        "baseline": 404.06,
+        "current": 318.9,
+        "delta": -85.16,
+        "pct": -21.08
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 76.85,
+        "current": 67.81,
+        "delta": -9.04,
+        "pct": -11.76
+      },
+      "measurements": 3,
+      "model": "ipam.namespace",
+      "queries": {
+        "baseline": 159,
+        "current": 146,
+        "delta": -13,
+        "pct": -8.18
+      },
+      "wall_ms": {
+        "baseline": 356.73,
+        "current": 312.36,
+        "delta": -44.37,
+        "pct": -12.44
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 78.08,
+        "current": 68.65,
+        "delta": -9.43,
+        "pct": -12.08
+      },
+      "measurements": 3,
+      "model": "vpn.vpnphase1policy",
+      "queries": {
+        "baseline": 159,
+        "current": 146,
+        "delta": -13,
+        "pct": -8.18
+      },
+      "wall_ms": {
+        "baseline": 381.5,
+        "current": 323.42,
+        "delta": -58.08,
+        "pct": -15.22
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 91.74,
+        "current": 81.69,
+        "delta": -10.05,
+        "pct": -10.95
+      },
+      "measurements": 3,
+      "model": "vpn.vpnprofile",
+      "queries": {
+        "baseline": 185,
+        "current": 172,
+        "delta": -13,
+        "pct": -7.03
+      },
+      "wall_ms": {
+        "baseline": 434.78,
+        "current": 367.45,
+        "delta": -67.33,
+        "pct": -15.49
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 131.45,
+        "current": 114.38,
+        "delta": -17.07,
+        "pct": -12.99
+      },
+      "measurements": 3,
+      "model": "circuits.circuit",
+      "queries": {
+        "baseline": 241,
+        "current": 229,
+        "delta": -12,
+        "pct": -4.98
+      },
+      "wall_ms": {
+        "baseline": 625.24,
+        "current": 487.52,
+        "delta": -137.72,
+        "pct": -22.03
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 75.73,
+        "current": 67.51,
+        "delta": -8.22,
+        "pct": -10.85
+      },
+      "measurements": 3,
+      "model": "circuits.provider",
+      "queries": {
+        "baseline": 156,
+        "current": 144,
+        "delta": -12,
+        "pct": -7.69
+      },
+      "wall_ms": {
+        "baseline": 360.87,
+        "current": 312.84,
+        "delta": -48.03,
+        "pct": -13.31
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 74.76,
+        "current": 69.86,
+        "delta": -4.9,
+        "pct": -6.55
+      },
+      "measurements": 3,
+      "model": "dcim.devicefamily",
+      "queries": {
+        "baseline": 156,
+        "current": 144,
+        "delta": -12,
+        "pct": -7.69
+      },
+      "wall_ms": {
+        "baseline": 338.04,
+        "current": 307.67,
+        "delta": -30.37,
+        "pct": -8.98
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 71.56,
+        "current": 66.39,
+        "delta": -5.17,
+        "pct": -7.22
+      },
+      "measurements": 3,
+      "model": "dcim.locationtype",
+      "queries": {
+        "baseline": 166,
+        "current": 154,
+        "delta": -12,
+        "pct": -7.23
+      },
+      "wall_ms": {
+        "baseline": 360.74,
+        "current": 311.33,
+        "delta": -49.41,
+        "pct": -13.7
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 82.33,
+        "current": 74.56,
+        "delta": -7.77,
+        "pct": -9.44
+      },
+      "measurements": 3,
+      "model": "extras.contact",
+      "queries": {
+        "baseline": 168,
+        "current": 156,
+        "delta": -12,
+        "pct": -7.14
+      },
+      "wall_ms": {
+        "baseline": 373.31,
+        "current": 331.81,
+        "delta": -41.5,
+        "pct": -11.12
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 75.06,
+        "current": 72.6,
+        "delta": -2.46,
+        "pct": -3.28
+      },
+      "measurements": 3,
+      "model": "ipam.routetarget",
+      "queries": {
+        "baseline": 156,
+        "current": 144,
+        "delta": -12,
+        "pct": -7.69
+      },
+      "wall_ms": {
+        "baseline": 348.19,
+        "current": 319.75,
+        "delta": -28.44,
+        "pct": -8.17
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 76.71,
+        "current": 67.97,
+        "delta": -8.74,
+        "pct": -11.39
+      },
+      "measurements": 3,
+      "model": "vpn.vpn",
+      "queries": {
+        "baseline": 156,
+        "current": 144,
+        "delta": -12,
+        "pct": -7.69
+      },
+      "wall_ms": {
+        "baseline": 375.71,
+        "current": 325.03,
+        "delta": -50.68,
+        "pct": -13.49
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 75.77,
+        "current": 67.12,
+        "delta": -8.65,
+        "pct": -11.42
+      },
+      "measurements": 3,
+      "model": "vpn.vpnphase2policy",
+      "queries": {
+        "baseline": 156,
+        "current": 144,
+        "delta": -12,
+        "pct": -7.69
+      },
+      "wall_ms": {
+        "baseline": 359.27,
+        "current": 310.03,
+        "delta": -49.24,
+        "pct": -13.71
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 76.32,
+        "current": 67.43,
+        "delta": -8.89,
+        "pct": -11.65
+      },
+      "measurements": 3,
+      "model": "wireless.wirelessnetwork",
+      "queries": {
+        "baseline": 156,
+        "current": 144,
+        "delta": -12,
+        "pct": -7.69
+      },
+      "wall_ms": {
+        "baseline": 375.37,
+        "current": 320.31,
+        "delta": -55.06,
+        "pct": -14.67
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 83.51,
+        "current": 76.15,
+        "delta": -7.36,
+        "pct": -8.81
+      },
+      "measurements": 2,
+      "model": "circuits.providernetwork",
+      "queries": {
+        "baseline": 181,
+        "current": 170,
+        "delta": -11,
+        "pct": -6.08
+      },
+      "wall_ms": {
+        "baseline": 354.01,
+        "current": 300.19,
+        "delta": -53.82,
+        "pct": -15.2
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 73.93,
+        "current": 65.89,
+        "delta": -8.04,
+        "pct": -10.88
+      },
+      "measurements": 2,
+      "model": "cloud.cloudaccount",
+      "queries": {
+        "baseline": 159,
+        "current": 148,
+        "delta": -11,
+        "pct": -6.92
+      },
+      "wall_ms": {
+        "baseline": 324.22,
+        "current": 270.53,
+        "delta": -53.69,
+        "pct": -16.56
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 335.69,
+        "current": 309.14,
+        "delta": -26.55,
+        "pct": -7.91
+      },
+      "measurements": 3,
+      "model": "dcim.cable",
+      "queries": {
+        "baseline": 600,
+        "current": 589,
+        "delta": -11,
+        "pct": -1.83
+      },
+      "wall_ms": {
+        "baseline": 1254.2,
+        "current": 1099.12,
+        "delta": -155.08,
+        "pct": -12.36
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 129.52,
+        "current": 107.83,
+        "delta": -21.69,
+        "pct": -16.75
+      },
+      "measurements": 3,
+      "model": "dcim.controllermanageddevicegroup",
+      "queries": {
+        "baseline": 240,
+        "current": 229,
+        "delta": -11,
+        "pct": -4.58
+      },
+      "wall_ms": {
+        "baseline": 615.85,
+        "current": 457.88,
+        "delta": -157.97,
+        "pct": -25.65
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 91.83,
+        "current": 88.82,
+        "delta": -3.01,
+        "pct": -3.28
+      },
+      "measurements": 3,
+      "model": "dcim.deviceredundancygroup",
+      "queries": {
+        "baseline": 179,
+        "current": 168,
+        "delta": -11,
+        "pct": -6.15
+      },
+      "wall_ms": {
+        "baseline": 418.55,
+        "current": 377.28,
+        "delta": -41.27,
+        "pct": -9.86
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 54.46,
+        "current": 43.29,
+        "delta": -11.17,
+        "pct": -20.51
+      },
+      "measurements": 2,
+      "model": "dcim.modulefamily",
+      "queries": {
+        "baseline": 115,
+        "current": 104,
+        "delta": -11,
+        "pct": -9.57
+      },
+      "wall_ms": {
+        "baseline": 247.14,
+        "current": 201.0,
+        "delta": -46.14,
+        "pct": -18.67
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 86.28,
+        "current": 66.92,
+        "delta": -19.36,
+        "pct": -22.44
+      },
+      "measurements": 2,
+      "model": "dcim.moduletype",
+      "queries": {
+        "baseline": 159,
+        "current": 148,
+        "delta": -11,
+        "pct": -6.92
+      },
+      "wall_ms": {
+        "baseline": 376.92,
+        "current": 281.72,
+        "delta": -95.2,
+        "pct": -25.26
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 82.12,
+        "current": 79.67,
+        "delta": -2.45,
+        "pct": -2.98
+      },
+      "measurements": 2,
+      "model": "dcim.rackreservation",
+      "queries": {
+        "baseline": 170,
+        "current": 159,
+        "delta": -11,
+        "pct": -6.47
+      },
+      "wall_ms": {
+        "baseline": 635.14,
+        "current": 329.82,
+        "delta": -305.32,
+        "pct": -48.07
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 102.7,
+        "current": 87.01,
+        "delta": -15.69,
+        "pct": -15.28
+      },
+      "measurements": 2,
+      "model": "dcim.softwareimagefile",
+      "queries": {
+        "baseline": 192,
+        "current": 181,
+        "delta": -11,
+        "pct": -5.73
+      },
+      "wall_ms": {
+        "baseline": 454.26,
+        "current": 347.92,
+        "delta": -106.34,
+        "pct": -23.41
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 99.18,
+        "current": 82.03,
+        "delta": -17.15,
+        "pct": -17.29
+      },
+      "measurements": 2,
+      "model": "dcim.softwareversion",
+      "queries": {
+        "baseline": 181,
+        "current": 170,
+        "delta": -11,
+        "pct": -6.08
+      },
+      "wall_ms": {
+        "baseline": 444.83,
+        "current": 340.66,
+        "delta": -104.17,
+        "pct": -23.42
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 70.61,
+        "current": 64.2,
+        "delta": -6.41,
+        "pct": -9.08
+      },
+      "measurements": 2,
+      "model": "dcim.virtualchassis",
+      "queries": {
+        "baseline": 137,
+        "current": 126,
+        "delta": -11,
+        "pct": -8.03
+      },
+      "wall_ms": {
+        "baseline": 298.29,
+        "current": 263.31,
+        "delta": -34.98,
+        "pct": -11.73
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 180.93,
+        "current": 181.62,
+        "delta": 0.69,
+        "pct": 0.38
+      },
+      "measurements": 3,
+      "model": "extras.dynamicgroup",
+      "queries": {
+        "baseline": 258,
+        "current": 247,
+        "delta": -11,
+        "pct": -4.26
+      },
+      "wall_ms": {
+        "baseline": 1502.0,
+        "current": 1239.31,
+        "delta": -262.69,
+        "pct": -17.49
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 65.16,
+        "current": 63.18,
+        "delta": -1.98,
+        "pct": -3.04
+      },
+      "measurements": 2,
+      "model": "extras.externalintegration",
+      "queries": {
+        "baseline": 135,
+        "current": 124,
+        "delta": -11,
+        "pct": -8.15
+      },
+      "wall_ms": {
+        "baseline": 265.25,
+        "current": 237.97,
+        "delta": -27.28,
+        "pct": -10.28
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 86.64,
+        "current": 72.44,
+        "delta": -14.2,
+        "pct": -16.39
+      },
+      "measurements": 2,
+      "model": "extras.gitrepository",
+      "queries": {
+        "baseline": 170,
+        "current": 159,
+        "delta": -11,
+        "pct": -6.47
+      },
+      "wall_ms": {
+        "baseline": 679.56,
+        "current": 620.83,
+        "delta": -58.73,
+        "pct": -8.64
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 84.8,
+        "current": 79.67,
+        "delta": -5.13,
+        "pct": -6.05
+      },
+      "measurements": 3,
+      "model": "ipam.vlangroup",
+      "queries": {
+        "baseline": 172,
+        "current": 161,
+        "delta": -11,
+        "pct": -6.4
+      },
+      "wall_ms": {
+        "baseline": 429.3,
+        "current": 395.0,
+        "delta": -34.3,
+        "pct": -7.99
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 66.51,
+        "current": 58.17,
+        "delta": -8.34,
+        "pct": -12.54
+      },
+      "measurements": 2,
+      "model": "load_balancers.certificateprofile",
+      "queries": {
+        "baseline": 137,
+        "current": 126,
+        "delta": -11,
+        "pct": -8.03
+      },
+      "wall_ms": {
+        "baseline": 289.92,
+        "current": 246.79,
+        "delta": -43.13,
+        "pct": -14.88
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 66.43,
+        "current": 63.45,
+        "delta": -2.98,
+        "pct": -4.49
+      },
+      "measurements": 2,
+      "model": "load_balancers.healthcheckmonitor",
+      "queries": {
+        "baseline": 137,
+        "current": 126,
+        "delta": -11,
+        "pct": -8.03
+      },
+      "wall_ms": {
+        "baseline": 290.75,
+        "current": 263.85,
+        "delta": -26.9,
+        "pct": -9.25
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 58.77,
+        "current": 56.92,
+        "delta": -1.85,
+        "pct": -3.15
+      },
+      "measurements": 2,
+      "model": "load_balancers.loadbalancerpool",
+      "queries": {
+        "baseline": 115,
+        "current": 104,
+        "delta": -11,
+        "pct": -9.57
+      },
+      "wall_ms": {
+        "baseline": 268.06,
+        "current": 247.08,
+        "delta": -20.98,
+        "pct": -7.83
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 80.07,
+        "current": 75.83,
+        "delta": -4.24,
+        "pct": -5.3
+      },
+      "measurements": 3,
+      "model": "tenancy.tenant",
+      "queries": {
+        "baseline": 157,
+        "current": 146,
+        "delta": -11,
+        "pct": -7.01
+      },
+      "wall_ms": {
+        "baseline": 401.51,
+        "current": 368.64,
+        "delta": -32.87,
+        "pct": -8.19
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 110.22,
+        "current": 92.69,
+        "delta": -17.53,
+        "pct": -15.9
+      },
+      "measurements": 3,
+      "model": "dcim.devicetype",
+      "queries": {
+        "baseline": 204,
+        "current": 194,
+        "delta": -10,
+        "pct": -4.9
+      },
+      "wall_ms": {
+        "baseline": 530.58,
+        "current": 410.81,
+        "delta": -119.77,
+        "pct": -22.57
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 157.26,
+        "current": 163.78,
+        "delta": 6.52,
+        "pct": 4.15
+      },
+      "measurements": 2,
+      "model": "ipam.ipaddressrange",
+      "queries": {
+        "baseline": 269,
+        "current": 260,
+        "delta": -9,
+        "pct": -3.35
+      },
+      "wall_ms": {
+        "baseline": 693.41,
+        "current": 641.27,
+        "delta": -52.14,
+        "pct": -7.52
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 100.87,
+        "current": 103.17,
+        "delta": 2.3,
+        "pct": 2.28
+      },
+      "measurements": 3,
+      "model": "ipam.vlan",
+      "queries": {
+        "baseline": 197,
+        "current": 188,
+        "delta": -9,
+        "pct": -4.57
+      },
+      "wall_ms": {
+        "baseline": 473.53,
+        "current": 432.07,
+        "delta": -41.46,
+        "pct": -8.76
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 220.98,
+        "current": 206.01,
+        "delta": -14.97,
+        "pct": -6.77
+      },
+      "measurements": 3,
+      "model": "ipam.prefix",
+      "queries": {
+        "baseline": 388,
+        "current": 381,
+        "delta": -7,
+        "pct": -1.8
+      },
+      "wall_ms": {
+        "baseline": 920.07,
+        "current": 815.08,
+        "delta": -104.99,
+        "pct": -11.41
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 109.42,
+        "current": 93.37,
+        "delta": -16.05,
+        "pct": -14.67
+      },
+      "measurements": 3,
+      "model": "vpn.vpntunnel",
+      "queries": {
+        "baseline": 183,
+        "current": 176,
+        "delta": -7,
+        "pct": -3.83
+      },
+      "wall_ms": {
+        "baseline": 511.49,
+        "current": 429.03,
+        "delta": -82.46,
+        "pct": -16.12
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 41.43,
+        "current": 40.42,
+        "delta": -1.01,
+        "pct": -2.44
+      },
+      "measurements": 1,
+      "model": "ipam.vrfprefixassignment",
+      "queries": {
+        "baseline": 79,
+        "current": 75,
+        "delta": -4,
+        "pct": -5.06
+      },
+      "wall_ms": {
+        "baseline": 185.63,
+        "current": 167.25,
+        "delta": -18.38,
+        "pct": -9.9
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 21.33,
+        "current": 17.74,
+        "delta": -3.59,
+        "pct": -16.83
+      },
+      "measurements": 1,
+      "model": "dcim.devicetypetosoftwareimagefile",
+      "queries": {
+        "baseline": 39,
+        "current": 37,
+        "delta": -2,
+        "pct": -5.13
+      },
+      "wall_ms": {
+        "baseline": 95.58,
+        "current": 83.95,
+        "delta": -11.63,
+        "pct": -12.17
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 96.38,
+        "current": 101.84,
+        "delta": 5.46,
+        "pct": 5.67
+      },
+      "measurements": 3,
+      "model": "extras.relationship",
+      "queries": {
+        "baseline": 175,
+        "current": 177,
+        "delta": 2,
+        "pct": 1.14
+      },
+      "wall_ms": {
+        "baseline": 547.77,
+        "current": 536.13,
+        "delta": -11.64,
+        "pct": -2.12
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 52.81,
+        "current": 51.16,
+        "delta": -1.65,
+        "pct": -3.12
+      },
+      "measurements": 3,
+      "model": "dcim.platform",
+      "queries": {
+        "baseline": 118,
+        "current": 119,
+        "delta": 1,
+        "pct": 0.85
+      },
+      "wall_ms": {
+        "baseline": 307.39,
+        "current": 277.83,
+        "delta": -29.56,
+        "pct": -9.62
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.22,
+        "current": 8.98,
+        "delta": -0.24,
+        "pct": -2.6
+      },
+      "measurements": 1,
+      "model": "extras.approvalworkflowdefinition",
+      "queries": {
+        "baseline": 21,
+        "current": 20,
+        "delta": -1,
+        "pct": -4.76
+      },
+      "wall_ms": {
+        "baseline": 41.15,
+        "current": 40.49,
+        "delta": -0.66,
+        "pct": -1.6
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 70.1,
+        "current": 75.5,
+        "delta": 5.4,
+        "pct": 7.7
+      },
+      "measurements": 3,
+      "model": "extras.computedfield",
+      "queries": {
+        "baseline": 140,
+        "current": 141,
+        "delta": 1,
+        "pct": 0.71
+      },
+      "wall_ms": {
+        "baseline": 418.46,
+        "current": 416.77,
+        "delta": -1.69,
+        "pct": -0.4
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 65.83,
+        "current": 69.1,
+        "delta": 3.27,
+        "pct": 4.97
+      },
+      "measurements": 3,
+      "model": "extras.exporttemplate",
+      "queries": {
+        "baseline": 129,
+        "current": 130,
+        "delta": 1,
+        "pct": 0.78
+      },
+      "wall_ms": {
+        "baseline": 289.59,
+        "current": 282.68,
+        "delta": -6.91,
+        "pct": -2.39
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.97,
+        "current": 12.99,
+        "delta": -1.98,
+        "pct": -13.23
+      },
+      "measurements": 1,
+      "model": "extras.secretsgroupassociation",
+      "queries": {
+        "baseline": 30,
+        "current": 29,
+        "delta": -1,
+        "pct": -3.33
+      },
+      "wall_ms": {
+        "baseline": 59.99,
+        "current": 53.03,
+        "delta": -6.96,
+        "pct": -11.6
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 9.1,
+        "current": 8.47,
+        "delta": -0.63,
+        "pct": -6.92
+      },
+      "measurements": 1,
+      "model": "wireless.supporteddatarate",
+      "queries": {
+        "baseline": 19,
+        "current": 18,
+        "delta": -1,
+        "pct": -5.26
+      },
+      "wall_ms": {
+        "baseline": 41.02,
+        "current": 39.46,
+        "delta": -1.56,
+        "pct": -3.8
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 16.81,
+        "current": 16.44,
+        "delta": -0.37,
+        "pct": -2.2
+      },
+      "measurements": 2,
+      "model": "auth.group",
+      "queries": {
+        "baseline": 45,
+        "current": 45,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 51.25,
+        "current": 50.21,
+        "delta": -1.04,
+        "pct": -2.03
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 50.29,
+        "current": 49.35,
+        "delta": -0.94,
+        "pct": -1.87
+      },
+      "measurements": 3,
+      "model": "circuits.circuittype",
+      "queries": {
+        "baseline": 117,
+        "current": 117,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 258.24,
+        "current": 240.11,
+        "delta": -18.13,
+        "pct": -7.02
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 59.76,
+        "current": 65.53,
+        "delta": 5.77,
+        "pct": 9.66
+      },
+      "measurements": 2,
+      "model": "dcim.consoleporttemplate",
+      "queries": {
+        "baseline": 137,
+        "current": 137,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 304.36,
+        "current": 286.06,
+        "delta": -18.3,
+        "pct": -6.01
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 65.82,
+        "current": 58.79,
+        "delta": -7.03,
+        "pct": -10.68
+      },
+      "measurements": 2,
+      "model": "dcim.consoleserverporttemplate",
+      "queries": {
+        "baseline": 137,
+        "current": 137,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 325.22,
+        "current": 264.08,
+        "delta": -61.14,
+        "pct": -18.8
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 60.95,
+        "current": 63.5,
+        "delta": 2.55,
+        "pct": 4.18
+      },
+      "measurements": 2,
+      "model": "dcim.interfacetemplate",
+      "queries": {
+        "baseline": 137,
+        "current": 137,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 313.63,
+        "current": 282.64,
+        "delta": -30.99,
+        "pct": -9.88
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 51.78,
+        "current": 50.91,
+        "delta": -0.87,
+        "pct": -1.68
+      },
+      "measurements": 3,
+      "model": "dcim.manufacturer",
+      "queries": {
+        "baseline": 120,
+        "current": 120,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 276.06,
+        "current": 251.22,
+        "delta": -24.84,
+        "pct": -9.0
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 65.74,
+        "current": 59.08,
+        "delta": -6.66,
+        "pct": -10.13
+      },
+      "measurements": 2,
+      "model": "dcim.modulebaytemplate",
+      "queries": {
+        "baseline": 137,
+        "current": 137,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 328.21,
+        "current": 269.23,
+        "delta": -58.98,
+        "pct": -17.97
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 65.85,
+        "current": 62.52,
+        "delta": -3.33,
+        "pct": -5.06
+      },
+      "measurements": 2,
+      "model": "dcim.poweroutlettemplate",
+      "queries": {
+        "baseline": 137,
+        "current": 137,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 330.09,
+        "current": 279.9,
+        "delta": -50.19,
+        "pct": -15.2
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 60.8,
+        "current": 59.89,
+        "delta": -0.91,
+        "pct": -1.5
+      },
+      "measurements": 2,
+      "model": "dcim.powerporttemplate",
+      "queries": {
+        "baseline": 137,
+        "current": 137,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 315.28,
+        "current": 275.73,
+        "delta": -39.55,
+        "pct": -12.54
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 60.52,
+        "current": 59.15,
+        "delta": -1.37,
+        "pct": -2.26
+      },
+      "measurements": 2,
+      "model": "dcim.rearporttemplate",
+      "queries": {
+        "baseline": 137,
+        "current": 137,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 308.69,
+        "current": 269.21,
+        "delta": -39.48,
+        "pct": -12.79
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 14.26,
+        "current": 14.22,
+        "delta": -0.04,
+        "pct": -0.28
+      },
+      "measurements": 1,
+      "model": "extras.contactassociation",
+      "queries": {
+        "baseline": 29,
+        "current": 29,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 65.52,
+        "current": 64.71,
+        "delta": -0.81,
+        "pct": -1.24
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 45.96,
+        "current": 43.03,
+        "delta": -2.93,
+        "pct": -6.38
+      },
+      "measurements": 2,
+      "model": "extras.customfieldchoice",
+      "queries": {
+        "baseline": 104,
+        "current": 104,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 210.26,
+        "current": 169.39,
+        "delta": -40.87,
+        "pct": -19.44
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 56.95,
+        "current": 51.59,
+        "delta": -5.36,
+        "pct": -9.41
+      },
+      "measurements": 2,
+      "model": "extras.customlink",
+      "queries": {
+        "baseline": 102,
+        "current": 102,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 234.81,
+        "current": 194.07,
+        "delta": -40.74,
+        "pct": -17.35
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 46.57,
+        "current": 49.59,
+        "delta": 3.02,
+        "pct": 6.48
+      },
+      "measurements": 2,
+      "model": "extras.note",
+      "queries": {
+        "baseline": 109,
+        "current": 109,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 222.66,
+        "current": 199.18,
+        "delta": -23.48,
+        "pct": -10.55
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 36.43,
+        "current": 36.49,
+        "delta": 0.06,
+        "pct": 0.16
+      },
+      "measurements": 2,
+      "model": "extras.savedview",
+      "queries": {
+        "baseline": 80,
+        "current": 80,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 215.49,
+        "current": 180.25,
+        "delta": -35.24,
+        "pct": -16.35
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 62.56,
+        "current": 56.06,
+        "delta": -6.5,
+        "pct": -10.39
+      },
+      "measurements": 3,
+      "model": "extras.secretsgroup",
+      "queries": {
+        "baseline": 134,
+        "current": 134,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 314.51,
+        "current": 269.27,
+        "delta": -45.24,
+        "pct": -14.38
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 47.12,
+        "current": 45.65,
+        "delta": -1.47,
+        "pct": -3.12
+      },
+      "measurements": 2,
+      "model": "ipam.rir",
+      "queries": {
+        "baseline": 102,
+        "current": 102,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 232.34,
+        "current": 210.45,
+        "delta": -21.89,
+        "pct": -9.42
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 56.22,
+        "current": 55.52,
+        "delta": -0.7,
+        "pct": -1.25
+      },
+      "measurements": 3,
+      "model": "tenancy.tenantgroup",
+      "queries": {
+        "baseline": 118,
+        "current": 118,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 317.35,
+        "current": 280.02,
+        "delta": -37.33,
+        "pct": -11.76
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 20.27,
+        "current": 19.72,
+        "delta": -0.55,
+        "pct": -2.71
+      },
+      "measurements": 2,
+      "model": "users.token",
+      "queries": {
+        "baseline": 56,
+        "current": 56,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 66.45,
+        "current": 62.06,
+        "delta": -4.39,
+        "pct": -6.61
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 26.2,
+        "current": 24.6,
+        "delta": -1.6,
+        "pct": -6.11
+      },
+      "measurements": 2,
+      "model": "users.user",
+      "queries": {
+        "baseline": 67,
+        "current": 67,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 85.96,
+        "current": 79.38,
+        "delta": -6.58,
+        "pct": -7.65
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 48.84,
+        "current": 42.41,
+        "delta": -6.43,
+        "pct": -13.17
+      },
+      "measurements": 2,
+      "model": "virtualization.clustergroup",
+      "queries": {
+        "baseline": 102,
+        "current": 102,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 236.26,
+        "current": 198.15,
+        "delta": -38.11,
+        "pct": -16.13
+      }
+    },
+    {
+      "db_ms": {
+        "baseline": 42.93,
+        "current": 42.01,
+        "delta": -0.92,
+        "pct": -2.14
+      },
+      "measurements": 2,
+      "model": "virtualization.clustertype",
+      "queries": {
+        "baseline": 102,
+        "current": 102,
+        "delta": 0,
+        "pct": 0.0
+      },
+      "wall_ms": {
+        "baseline": 216.96,
+        "current": 197.46,
+        "delta": -19.5,
+        "pct": -8.99
+      }
+    }
+  ],
+  "only_in_baseline": [],
+  "only_in_current": [],
+  "query_movement": {
+    "improved": 180,
+    "unchanged": 64,
+    "unstable_query_count": 0,
+    "worse": 10
+  },
+  "schema": 1,
+  "screen": "write",
+  "totals": {
+    "db_ms": {
+      "baseline": 11771.48,
+      "current": 9914.73,
+      "delta": -1856.75,
+      "pct": -15.77
+    },
+    "queries": {
+      "baseline": 22578,
+      "current": 19083,
+      "delta": -3495,
+      "pct": -15.48
+    },
+    "wall_ms": {
+      "baseline": 58446.69,
+      "current": 41862.43,
+      "delta": -16584.26,
+      "pct": -28.38
+    }
+  }
+}
