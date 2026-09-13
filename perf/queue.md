@@ -236,11 +236,13 @@ and the second depends on the first's answer.
 whether a page's cost is chrome or per-model machinery, and asked for a quiet-box re-run
 before ranking. That re-run happened.
 
-Chrome is **64–66ms**, measured twice independently (`ui.chrome.404` 66.3ms, `ui.search`
-64.7ms). `ui.device.list` is **283ms**. So the per-model term is ~218ms and dominates by
-3.4×. The ~274ms chrome reading was contention inflation — taken with the suite running
-inside the nautobot container on the same cpuset as uwsgi. **The target is list-view
-machinery, not every page in the application.**
+Chrome was **64–66ms** when this was written (`ui.chrome.404` 66.3ms, `ui.search` 64.7ms)
+against `ui.device.list` at **283ms**, so the per-model term was ~218ms and dominated by 3.4×.
+**Both halves have since moved and the ratio moved with them** (finding 82, 2026-09-13):
+chrome is now **19.6ms** and `ui.device.list` **181ms**, so list-view machinery is ~161ms and
+dominates by 8×. Findings 51, 52, 57 and 58 took roughly 70% out of chrome; `inc/nav_menu.html`
+is 0.7–1.3ms exclusive, from ~20.4ms. **The target is list-view machinery, and it is now the
+target by a much wider margin than this entry originally claimed.**
 
 What the 218ms is made of, with the instrument validated first (+1.6% overhead; stubbing
 a template removes 45.6ms against 48ms attributed):
@@ -308,9 +310,23 @@ is 7.6% of the page. They are not the cost. Rendering is.
    between two users who see nearly the same menu. Neither is an experiment this branch can run as
    scoped; both are design changes.
 
-4. **The filter drawer — ~46.5ms, list views only.** 33 select widgets and 156 renders of
-   `django/forms/widgets/attrs.html`, on a drawer that is closed until clicked. So the fixed
-   cost is ~47ms on every full HTML page and ~95ms on a list view, not ~95ms everywhere.
+4. **The filter drawer — and it is now the largest fixed cost on the read side.**
+   Re-measured by finding 82: **36.2ms of 181ms on `ui.device.list` (20%)** and **46.0ms of
+   143ms on `ui.prefix.list` (32%)**, on a drawer that is closed until clicked. Two costs inside
+   it, and they are separate levers:
+
+   - **One field.** `prefix_length` is a single `StaticSelect2` with **133 options for 26.1ms**,
+     64% of that page's widget time. `ipaddress_list` is the same shape with 141. Ranked
+     separately below as "one filter field renders 130 invisible options".
+   - **Empty API-backed selects, which nobody had costed.** `APISelectMultiple` renders *no*
+     options and still costs **~400us each** — 19 of them for 7.6ms on the device list, 12 for
+     4.8ms on the prefix list. The cost is attribute rendering, not options:
+     `attrs.html` renders 156 times on the device list and 207 on the prefix list. This scales
+     with how many filter fields a model has, where the 133-option field scales with how many
+     choices one field offers.
+
+   Finding 81 makes this a surface-wide number rather than a two-page one: the document is a
+   near-constant 90ms median across **127** UI list views.
 5. **~7.6KB/page of discarded JSON.** `inc/javascript.html` re-emits the whole menu via
    `json_script` (12,841 bytes, 3.2% of a 401KB page); `ui/src/js/search.js:26` reads it but
    flattens tabs and groups away and uses only `item_link -> name` (5,231 bytes). Costs at

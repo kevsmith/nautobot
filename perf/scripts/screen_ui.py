@@ -152,8 +152,10 @@ def screen_one(client, name, app, per_page, reps):
     try:
         path = reverse(name)
     except NoReverseMatch:
-        return [{"id": name, "app": app, "kind": k, "skipped": "does not reverse without arguments"}
-                for k in ("document", "rows")]
+        return [
+            {"id": name, "app": app, "kind": k, "skipped": "does not reverse without arguments"}
+            for k in ("document", "rows")
+        ]
 
     url = f"{path}?per_page={per_page}"
     records = []
@@ -167,13 +169,21 @@ def screen_one(client, name, app, per_page, reps):
             records.append({"id": name, "app": app, "kind": kind, "skipped": f"raised {type(exc).__name__}"})
             continue
         if response.status_code != 200:
-            records.append({"id": name, "app": app, "kind": kind, "status": response.status_code,
-                            "skipped": f"status {response.status_code}"})
+            records.append(
+                {
+                    "id": name,
+                    "app": app,
+                    "kind": kind,
+                    "status": response.status_code,
+                    "skipped": f"status {response.status_code}",
+                }
+            )
             continue
         rows = row_count(response)
         summary = repeated(client, url, reps, headers)
-        summary.update({"id": name, "app": app, "kind": kind, "url": url, "rows": rows,
-                        "objects": rows, "skipped": None})
+        summary.update(
+            {"id": name, "app": app, "kind": kind, "url": url, "rows": rows, "objects": rows, "skipped": None}
+        )
         records.append(summary)
     return records
 
@@ -201,17 +211,20 @@ def print_rankings(records, top):
     populated = [r for r in rows_only if (r.get("rows") or 0) >= FULL_PAGE_ROWS]
     ranked = [(per_row(r), r) for r in populated if per_row(r) is not None]
     ranked.sort(key=lambda pair: -pair[0])
-    print(f"\n{'top by queries per rendered row (tables with %d+ rows)' % FULL_PAGE_ROWS:46s} "
-          f"{'rows':>5} {'q':>6} {'q/row':>7} {'db_ms':>8} {'wall_ms':>8}")
+    print(
+        f"\n{'top by queries per rendered row (tables with %d+ rows)' % FULL_PAGE_ROWS:46s} "
+        f"{'rows':>5} {'q':>6} {'q/row':>7} {'db_ms':>8} {'wall_ms':>8}"
+    )
     for value, r in ranked[:top]:
-        print(f"{r['id']:46s} {r.get('rows') or 0:>5} {r['query_count']:>6} "
-              f"{value:>7.3f} {r['db_ms']:>8.1f} {r['wall_ms']:>8.1f}")
+        print(
+            f"{r['id']:46s} {r.get('rows') or 0:>5} {r['query_count']:>6} "
+            f"{value:>7.3f} {r['db_ms']:>8.1f} {r['wall_ms']:>8.1f}"
+        )
 
     by_wall = sorted(rows_only, key=lambda r: -(r.get("wall_ms") or 0))
     print(f"\n{'top by wall clock, row request':46s} {'rows':>5} {'q':>6} {'db_ms':>8} {'wall_ms':>8}")
     for r in by_wall[:top]:
-        print(f"{r['id']:46s} {r.get('rows') or 0:>5} {r['query_count']:>6} "
-              f"{r['db_ms']:>8.1f} {r['wall_ms']:>8.1f}")
+        print(f"{r['id']:46s} {r.get('rows') or 0:>5} {r['query_count']:>6} {r['db_ms']:>8.1f} {r['wall_ms']:>8.1f}")
 
     # The split is the point of measuring both requests, so it is reported rather
     # than left for someone to compute from the JSON.
@@ -233,8 +246,10 @@ def print_rankings(records, top):
         if big:
             bd = sum(d["wall_ms"] for _, d in big)
             br = sum(r["wall_ms"] for r, _ in big)
-            print(f"  over the {len(big)} tables rendering {FULL_PAGE_ROWS}+ rows: "
-                  f"document {bd / (bd + br) * 100:4.1f}%, rows {br / (bd + br) * 100:4.1f}%")
+            print(
+                f"  over the {len(big)} tables rendering {FULL_PAGE_ROWS}+ rows: "
+                f"document {bd / (bd + br) * 100:4.1f}%, rows {br / (bd + br) * 100:4.1f}%"
+            )
         q_doc = sum(d["query_count"] for _, d in pairs)
         q_row = sum(r["query_count"] for r, _ in pairs)
         print(f"  queries: document {q_doc}, rows {q_row}")
@@ -243,8 +258,9 @@ def print_rankings(records, top):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
-    ap.add_argument("--per-page", type=int, default=25,
-                    help="UI page size; the UI paginates on per_page, never on limit")
+    ap.add_argument(
+        "--per-page", type=int, default=25, help="UI page size; the UI paginates on per_page, never on limit"
+    )
     ap.add_argument("--reps", type=int, default=3, help="measured reps after one discarded warmup")
     ap.add_argument("--only", help="substring filter on view name, for a quick pass")
     ap.add_argument("--max-endpoints", type=int, default=0)
@@ -272,20 +288,33 @@ def main():
         if rows.get("skipped"):
             print(f"[{i}/{len(targets)}] {name:46s} skipped: {rows['skipped']}")
         else:
-            print(f"[{i}/{len(targets)}] {name:46s} rows={rows.get('rows')} "
-                  f"q={rows.get('query_count')} {rows.get('wall_ms')}ms")
+            print(
+                f"[{i}/{len(targets)}] {name:46s} rows={rows.get('rows')} "
+                f"q={rows.get('query_count')} {rows.get('wall_ms')}ms"
+            )
         # Written as we go, so a run killed partway still yields what it measured.
         os.makedirs(os.path.dirname(args.out), exist_ok=True)
         with open(args.out, "w") as fh:
-            json.dump({"schema": 1, "per_page": args.per_page, "reps": args.reps,
-                       "elapsed_s": round(time.perf_counter() - started, 1),
-                       "coverage": coverage_summary(all_endpoints, targets, records),
-                       "endpoints": records}, fh, indent=2, sort_keys=True)
+            json.dump(
+                {
+                    "schema": 1,
+                    "per_page": args.per_page,
+                    "reps": args.reps,
+                    "elapsed_s": round(time.perf_counter() - started, 1),
+                    "coverage": coverage_summary(all_endpoints, targets, records),
+                    "endpoints": records,
+                },
+                fh,
+                indent=2,
+                sort_keys=True,
+            )
 
     cov = coverage_summary(all_endpoints, targets, records)
-    print(f"\ncoverage: {cov['attempted']} attempted / {cov['measured']} measured / "
-          f"{cov['exercised']} rendered a row / {cov['full_page']} rendered {FULL_PAGE_ROWS}+ / "
-          f"{cov['empty']} rendered none / {cov['skipped']} skipped")
+    print(
+        f"\ncoverage: {cov['attempted']} attempted / {cov['measured']} measured / "
+        f"{cov['exercised']} rendered a row / {cov['full_page']} rendered {FULL_PAGE_ROWS}+ / "
+        f"{cov['empty']} rendered none / {cov['skipped']} skipped"
+    )
     print_rankings(records, args.top)
     print(f"\nwrote {args.out} -- {len(records)} measurements in {round(time.perf_counter() - started, 1)}s")
 
