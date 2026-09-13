@@ -1,6 +1,18 @@
 #!/usr/bin/env python3
 """Generate perf/recommended -- the upstream-facing replay of perf/verified.
 
+**This script bootstrapped perf/recommended and cannot regenerate it today.** It maps a
+source commit to a finding by reading the commit *message* -- "Application-code portion of
+<sha> from perf/experiments", or "Finding NN" -- and anything matching neither, while touching
+nautobot/, is an error rather than a skip. Only perf/verified ever carried those messages.
+Given perf/experiments as a source it fails on the first product commit, because experiments'
+commits are the originals and reference nothing. perf/recommended has been maintained by
+cherry-pick with composed messages since, and was moved onto a newer `next` by rebase, which
+is what preserves those messages.
+
+perf/verified itself was deleted once superseded and is preserved as the tag
+`perf/archive-verified`, which is what --source now defaults to so the default still resolves.
+
 perf/verified is the measurement arm of record. It carries the application-code
 half of every accepted change, in the order the changes were made, and its commit
 messages point back at perf/experiments by SHA:
@@ -482,7 +494,7 @@ def write_findings(built):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--target", default="perf/recommended", help="branch to build (default: %(default)s)")
-    ap.add_argument("--source", default="perf/verified", help="branch to replay (default: %(default)s)")
+    ap.add_argument("--source", default="perf/archive-verified", help="ref to replay (default: %(default)s)")
     ap.add_argument("--base", default="next", help="commit to build on (default: %(default)s)")
     ap.add_argument(
         "--worktree",
