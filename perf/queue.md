@@ -467,8 +467,10 @@ single field:
       3 options  StaticSelect2Multiple    type
       3 options  StaticSelect2            ip_version
 
-`prefix_length` enumerates every possible prefix length across both IP versions.
-`ui.ipaddress.list` is the same shape with 129 (mask length). Both land inside the filter
+`prefix_length` offers `range(0, 129)` plus a blank: `PREFIX_LENGTH_MAX` is 128, sized for
+IPv6, so IPv4's 0-32 is a subset of that range rather than a second range added to it.
+`ui.ipaddress.list` is the same shape as `mask_length`, `range(1, 129)` plus a blank, 129
+options on a `StaticSelect2Multiple`, measured at 25.4ms (finding 82). Both land inside the filter
 drawer, which is closed until clicked — so this is ~27ms per page spent on markup nobody sees
 until they open the drawer, and most users never do.
 
