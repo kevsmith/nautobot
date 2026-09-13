@@ -1,0 +1,82 @@
+---
+seq: 85
+id: null
+commit: 958a14eaa
+recommended_commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: Render a static choice list's options once per process instead of per request
+site: nautobot/core/forms/widgets.py CachedStaticOptionsMixin - nautobot/core/templates/widgets/cached_options_select.html
+summary: 'Django''s `select.html` includes the option template once per option, and Nautobot''s
+  `selectwithdisabled_option.html` then includes `attrs.html` itself, so **every option costs two
+  template renders**. `PrefixFilterForm.prefix_length` offers 130 choices from a module-level
+  constant -- `range(0, 129)` plus a blank, sized for IPv6 -- and re-rendered identical markup on
+  every request, into a drawer that is closed until the user opens it.
+
+
+  The rendered markup for an option is a pure function of `(value, label, selected)`, so both of
+  its renderings are produced once and cached.'
+result:
+  where_the_cost_is: '`probe_select_options.py` varies the option count and fits, rather than
+    subtracting one whole-widget figure from another: **`StaticSelect2` is 0.305ms fixed +
+    190.4us per option**, `StaticSelect2Multiple` 0.308ms + 190.3us. The two are
+    indistinguishable, so multiple selection costs nothing extra. At 130 options that is 25.1ms
+    of which **24.8ms is the options and 0.3ms the `<select>` wrapper** -- 98.8% addressable.
+    The per-option cost is flat rather than amortizing: it reads 351us at one option and 192us
+    at 130 only because the fixed cost is spreading.'
+  the_fit_cross_checks: '`probe_form_widgets.py` measures `mask_length` at **25.4ms inside a real
+    request**; the fitted line predicts 24.9ms at its 129 options. Two instruments, one synthetic
+    and one in a live page, agreeing within 2%.'
+  what_is_replaced: 'only the per-option template rendering. `optgroups()` is 0.9% of `render()`
+    and template rendering is 99.1%, so django keeps building the option dictionaries and
+    deciding selection -- reimplementing that would buy under 1% and risk diverging from it.'
+  ab: 'three alternating rounds per arm: **-18.7% `ui.prefix.list`** (142.5 -> 115.9ms),
+    **-16.3% `ui.ipaddress.list`** (140.4 -> 117.5ms), **-3.0% `ui.device.list`** (178.3 ->
+    172.9ms). Every round of the branch arm beat every round of the baseline on both IPAM pages.
+    An independent run reproduced prefix at -19.5%.'
+  why_device_moves_least: 'the saving is 190us per option on `SelectWithDisabled`-derived widgets
+    only. `ui.prefix.list` has 138 such options and `ui.device.list` 37, with 75 more on plain
+    `forms.Select`, which does not inherit the mixin. Predicted saving against measured: prefix
+    26.2 against 26.6ms, ipaddress 26.8 against 22.9, device 7.0 against 5.4.'
+wall_clock: "−18.7% ui.prefix.list, −16.3% ui.ipaddress.list, −3.0% ui.device.list"
+basis: byte-identical output, proved against django's own Select.render, with the cost fitted
+controls: '`probe_static_options_equivalence.py`: **15 comparisons, 0 failures** -- no selection,
+  single selection, multiple selection with up to four values, a value matching no option, and
+  the three cases the fast path must decline. Arms proved distinct by content hash. Query counts
+  identical on both arms throughout, which is the deterministic gate correctly seeing nothing:
+  this changes no SQL.'
+tests: '5 in `nautobot.core.tests.test_forms.CachedStaticOptionsTest`, OK. One per property the
+  cache rests on rather than one per code path: byte-identity across every selection state,
+  selection still varying once the cache is warm, two fields sharing a choice list not colliding,
+  grouped choices falling back, and the attribute assumption itself -- `option_inherits_attrs` is
+  False and `selected` is the only per-option attribute django sets. That last one fails loudly
+  if a future django or Nautobot adds another, which is the assumption the whole design rests on.'
+caveat: '**This is worth much less once finding 86 lands, and the headline figures above are
+  measured without it.** The cached options'' entire win is the 130-option `prefix_length` field,
+  which the deferred drawer removes from page load altogether. On the combined arm the page-load
+  saving is almost all deferral: prefix reads -31.9% deferred against -33.4% combined, and
+  `ui.device.list` is inside noise between them. What the cache buys after finding 86 is a faster
+  *drawer fetch* -- roughly 25ms off the first open -- rather than a faster page.
+
+
+  Worth taking anyway: it is tier A, byte-identical, tested, and it makes every static choice
+  list cheaper wherever one renders, including the drawer fetch that now carries them.'
+note: '**The queue declined a general Python option-builder for this, and that reasoning still
+  stands.** It would have been a whitespace-exact rewrite of HTML generation for the most widely
+  used widget class in the product, for 3% on the main list view, with four subclasses overriding
+  `option_template_name` needing a fallback.
+
+
+  This is not that. Nothing here formats HTML: each option is rendered through its own template
+  and the result is kept, so byte-identity holds by construction rather than by inspection. The
+  subclasses that override the option template are simply cached under a different key.
+
+
+  **Two traps found while building it, both recorded in the code.** `Widget._render` calls the
+  form renderer, and the renderer calls `.strip()` on what it returns, while `select.html` reaches
+  the option template through `{% include %}`, which does not -- so rendering options through
+  `_render` drops one byte per option. And django''s form templates live in the renderer''s engine
+  rather than the project''s, so `django.template.loader.get_template` cannot find `attrs.html` at
+  all. The equivalence probe caught the first on its first run; neither was visible by reading.'
