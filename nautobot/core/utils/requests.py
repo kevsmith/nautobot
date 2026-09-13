@@ -12,6 +12,7 @@ from nautobot.core import exceptions
 from nautobot.core.utils.filtering import get_filterset_field
 
 NON_FILTER_PARAMS = (
+    "_drawer",  # which deferred drawer an HTMX request is fetching; see NautobotHTMLRenderer
     "all_filters_removed",  # indicator for if all filters have been removed from the saved view
     "clear_view",  # indicator for if the clear view button is clicked or not
     "export",  # trigger for CSV/export-template/YAML export # 3.0 TODO: remove, irrelevant after #4746
