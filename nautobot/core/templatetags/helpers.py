@@ -1205,15 +1205,16 @@ def table_config_form(table, table_name=None):
     }
 
 
-@register.inclusion_tag("utilities/templatetags/filter_form_drawer.html")
-def filter_form_drawer(
+def _filter_form_drawer_context(
     filter_form,
     dynamic_filter_form,
     model_plural_name,
     filter_params,
     filter_form_name="FilterForm",
     dynamic_filter_form_name="DynamicFilterForm",
+    deferred=False,
 ):
+    """Context shared by the drawer and its contents, so the two cannot drift apart."""
     return {
         "model_plural_name": model_plural_name,
         "filter_form": filter_form,
@@ -1221,7 +1222,48 @@ def filter_form_drawer(
         "filter_params": filter_params,
         "dynamic_filter_form": dynamic_filter_form,
         "dynamic_filter_form_name": dynamic_filter_form_name,
+        "deferred": deferred,
     }
+
+
+@register.inclusion_tag("utilities/templatetags/filter_form_drawer.html", takes_context=True)
+def filter_form_drawer(
+    context,
+    filter_form,
+    dynamic_filter_form,
+    model_plural_name,
+    filter_params,
+    filter_form_name="FilterForm",
+    dynamic_filter_form_name="DynamicFilterForm",
+    deferred=False,
+):
+    """The filter drawer. With `deferred`, renders the shell and fetches its contents on open.
+
+    Takes the parent context for `request`: a deferred drawer fetches its contents from the
+    current URL, which it can only name if it can see the request.
+    """
+    drawer_context = _filter_form_drawer_context(
+        filter_form, dynamic_filter_form, model_plural_name, filter_params,
+        filter_form_name, dynamic_filter_form_name, deferred,
+    )
+    drawer_context["request"] = context.get("request")
+    return drawer_context
+
+
+@register.inclusion_tag("utilities/templatetags/filter_form_drawer_content.html")
+def filter_form_drawer_content(
+    filter_form,
+    dynamic_filter_form,
+    model_plural_name,
+    filter_params,
+    filter_form_name="FilterForm",
+    dynamic_filter_form_name="DynamicFilterForm",
+):
+    """The drawer's contents without its `<section>` wrapper, for the deferred HTMX fetch."""
+    return _filter_form_drawer_context(
+        filter_form, dynamic_filter_form, model_plural_name, filter_params,
+        filter_form_name, dynamic_filter_form_name,
+    )
 
 
 @register.inclusion_tag("utilities/templatetags/saved_view_modal.html")
