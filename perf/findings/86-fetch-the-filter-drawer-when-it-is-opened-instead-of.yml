@@ -1,0 +1,96 @@
+---
+seq: 86
+id: null
+commit: 7dda0bef7
+recommended_commit: null
+status: accepted
+behaviour: C
+migration: '-'
+flags: []
+title: Fetch the filter drawer when it is opened instead of rendering it into every page
+site: nautobot/core/views/renderers.py - nautobot/core/templates/generic/object_list.html - nautobot/core/templatetags/helpers.py filter_form_drawer
+summary: 'Finding 82 attributed 36-46ms of a list view document to a filter drawer that is closed
+  until clicked, and finding 83 priced removing it. This defers it instead: the document carries
+  the drawer''s shell and the contents arrive on first open, which is what Nautobot already does
+  with table rows. Kevin''s idea, and it beats the change it displaces on every page.
+
+
+  **Both IPAM list views now render in under 100ms in-process**, from ~140ms.'
+result:
+  ab: 'three arms, three alternating rounds each, arms proved distinct by content hash
+    (baseline `066de3e628910b30`, deferred `6b38d1fe5cab44d4`, combined `912c6c61fb04a594`):
+
+      ui.prefix.list     140.0 -> 95.4ms   -44.6ms  -31.9%
+      ui.ipaddress.list  142.1 -> 95.6ms   -46.5ms  -32.7%
+      ui.device.list     182.8 -> 145.4ms  -37.4ms  -20.5%
+      ui.chrome.404       19.8 -> 19.7ms    -0.1ms   -0.5%   (inert control)
+
+    Within-arm spread 0.7-8.1% against effects of 20-33%.'
+  it_lands_at_the_ceiling: 'finding 83 measured the ceiling by deleting the drawer outright:
+    -46.0ms on prefix and -33.0ms on device. Deferring returns -44.6ms and -37.4ms. **Deferring
+    recovers what removing did**, so the fetch machinery costs essentially nothing on the
+    page-load path -- the thing that could have gone wrong and did not.'
+  browser: 'measured in Firefox over the LAN, warm runs only, as the only instrument here that
+    can see the client half: HTML **402,666 -> 378,201 bytes (-24,465)**, full page load 421 ->
+    368ms, options in the document 118 -> 6. Indicative rather than a branch result -- four and
+    five reps, not three alternating rounds, and a network the rig deliberately excludes -- but
+    the payload figure is deterministic and identical every rep.'
+  one_fetch_per_page_load: 'verified in a browser: open, close, open fires **exactly one**
+    request. The trigger carries `once` and the swapped contents stay in the DOM. 31 select2
+    containers initialize on arrival, and a filtered URL arrives with its value selected.'
+wall_clock: "−31.9% ui.prefix.list, −32.7% ui.ipaddress.list, −20.5% ui.device.list"
+basis: three arms over three alternating rounds, against an inert control that moved −0.5%
+controls: '`ui.chrome.404` renders no drawer and is CPU-bound at 3 queries: -0.5% on the deferred
+  arm, +2.0% on the combined arm, against its own 2.0% baseline spread. That is the control
+  `ui.home` failed to be -- a database-bound page makes a poor inert control, because with no
+  effect to detect, warm-up is the only signal left and alternation does not cancel a monotonic
+  trend.
+
+
+  Equivalence was proved before any timing: the fetched drawer is byte-identical to what
+  rendered inline, across four filter states, after normalising the per-request CSRF token.'
+tests: '6 in `nautobot.core.tests.test_views.DeferredFilterDrawerTestCase`, OK. The document
+  carries the shell and not the contents, asserted on the drawer''s own tab strip rather than on
+  the absence of a `<select>` -- a page whose filter form has no selects would pass that by
+  accident. The fetch returns contents without the shell, since the swap is innerHTML and
+  returning the section would nest a drawer inside itself. The marker alone does not trigger a
+  fetch. The marker is not read as a filter. The fetch keeps the page''s filters. And the
+  response varies on `HX-Request`.'
+caveat: '**Tier C: this is a behaviour change, not a transparent optimisation.** The filter form
+  is absent from the document until opened, and unavailable without JavaScript. That last part is
+  nearly free as positions go -- a list view already renders zero rows without JavaScript
+  (`queryset if htmx_request else queryset.none()`), so the page is already non-functional there
+  and this inherits the position rather than taking it.
+
+
+  **The saving is deferral, not removal.** Whoever opens the drawer pays the ~46ms then. The
+  value rests on most users never opening filters, which nobody here has measured and no
+  instrument on this branch can. The template also executes once per page load, not once per
+  session, so navigating between list views pays it again on each first open.
+
+
+  **The measured combined arm is not byte-identical to what landed.** It carries both product
+  changes and neither test suite, because it was branched before the tests were written. Test
+  code never executes during page rendering, so the timing is unaffected.'
+note: '**Six defects, and every one was invisible to the checks I had written.** Byte-equality
+  proved the fetched HTML matched the inline HTML and could not see that the markup was inert;
+  HTTP status and byte counts proved a response arrived and could not see that a `TemplateSyntaxError`
+  had made it a 500. In order: multi-line `{# #}` comments rendering into the output, since that
+  tag is single-line only; the `htmx` global not yet defined when the inline script runs, which
+  aborted the block so the listener never registered; a page-load
+  IIFE dereferencing a form that no longer exists at load; the re-init listener registered in a
+  scope that could not see its callee, found only by reading the *rendered* page rather than the
+  template; a `deferred` kwarg the tag did not accept; and `hx-get` rendering empty because an
+  inclusion tag does not receive the parent context without `takes_context=True`.
+
+
+  That last one worked anyway -- htmx treats an empty `hx-get` as the current URL, which is what
+  the table''s row fetch relies on deliberately -- so it was right by accident until it was made
+  right on purpose.
+
+
+  **What found them was a person opening the page in a browser and reading the console.** The
+  lesson is not that the checks were bad; byte-identity is exactly the right check for "does the
+  fetch return the same markup". It is that a change which moves work from page load to a later
+  fetch moves it across a boundary no server-side instrument observes, and the harness has no
+  instrument on the far side of it.'

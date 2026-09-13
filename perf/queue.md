@@ -66,7 +66,40 @@ First step is cheap and settles the shape: add depth-2 scenarios to `workload.ym
 `probe_query_slope.py` with `PERF_SHAPES=1` at two page sizes to get the slope and the
 repeated query shapes behind it.
 
-### 2. The per-row utilization aggregates
+### 2. The REST surface ranked by absolute latency, over 500ms and over 250ms
+
+**Queued 2026-09-13. No new machine time needed** -- both screens already record per-request
+`wall_ms`, and `kind` separates single operations from bulk, so this is a filter over committed
+data rather than a run:
+
+    perf/baselines/screen-reads-ab-next.json    kinds: list, list.depth1, detail, detail.depth1
+    perf/baselines/screen-writes-ab-next.json   kinds: create.x1, update.x1, create.x10
+
+Excluding bulk means dropping `create.x10` and keeping `create.x1` and `update.x1`. On the read
+side nothing is bulk, though `list.depth1` is the expensive kind and should be labelled rather
+than hidden. Produce two lists, over 500ms and over 250ms, each naming endpoint, kind, and
+whether the figure is the branch or stock arm.
+
+**Report the `current` figure, not `baseline`.** Each record carries both arms plus the delta;
+the question "what is still slow" is about the branch as it stands, and quoting the stock column
+would name endpoints this branch has already fixed.
+
+Three things that will otherwise be got wrong:
+
+- **These are in-process timings.** A user waits longer -- the same page reads about 1.08x over
+  HTTP at concurrency 1, and more in a browser once assets and JavaScript are counted. A 250ms
+  threshold on this instrument is not a 250ms threshold for a user.
+- **The dataset bounds it.** 70 of the 166 read endpoints return no rows and 49 return ten or
+  more (`perf/dataset-gaps.md`), so an endpoint can look fast because it has nothing to serve.
+  Report row counts beside the times or the list will quietly mislead.
+- **The write screen measures a minimal payload** (finding 47): median understatement 1.00x,
+  mean 1.31x, max 4.96x, and 27 models could not be measured with populated payloads at all.
+  A write endpoint over the threshold is over it; one under may not be.
+
+Worth pairing with the per-object normalisation the screens already rank on. Absolute latency
+says what a user notices; cost per object says whether it is the endpoint or the dataset.
+
+### 3. The per-row utilization aggregates
 
 The residue of the column audit, and the one place both this branch and the imported series
 stopped by design:
@@ -87,7 +120,7 @@ Four further columns of the audit's remaining 18 are the audit's own blind spot:
 call `paginate()`, so it misses the hierarchy prefill that makes `/ipam/prefixes/` read 17
 queries flat. Those need no fix, only a correction to the audit.
 
-### 3. Does HTML minification help, and which kind
+### 4. Does HTML minification help, and which kind
 
 **Raised 2026-09-13, not yet measured.** Two mechanisms get called "minification" and they
 behave oppositely, so this entry is about telling them apart rather than about a yes or no.
@@ -274,7 +307,7 @@ them apart:
 | `ui.status.list.rows` | 30 q | 8 q |
 
 Finding 11's `wall_clock` field no longer reads "not measured"; the row requests are in the
-read loop and carry real numbers. What it left behind is item 2 above.
+read loop and carry real numbers. What it left behind is item 3 above.
 
 ---
 
@@ -357,7 +390,7 @@ is 7.6% of the page. They are not the cost. Rendering is.
    **There is no hot spot, so the only levers are fewer nodes or fewer renders.** Fewer nodes is a
    product decision about menu size. Fewer renders means not rendering it per request, and the
    interesting shape there is that **the data is already in the page twice**: `inc/javascript.html`
-   emits the whole menu as JSON (12,841 bytes, item 6 below), so the browser gets a rendered HTML
+   emits the whole menu as JSON (12,841 bytes, item 7 below), so the browser gets a rendered HTML
    menu costing ~20.4ms of server time *and* a JSON copy of the same structure. Caching the HTML
    instead is risk B2 with a permission-set cache key, which finding 52 showed is not uniform even
    between two users who see nearly the same menu. Neither is an experiment this branch can run as
@@ -790,7 +823,7 @@ prize to collect, whatever its risk profile.
 ### Nested transactions on the write path, and whether any of them earn their SQL
 
 A single REST cable create with one termination issues **6 SAVEPOINT/RELEASE pairs**
-— 12 statements of ~125, measured by diffing the SQL of the two arms of queue item 6's
+— 12 statements of ~125, measured by diffing the SQL of the two arms of queue item 7's
 A/B on the one-ended control. They come from functions that each open
 `transaction.atomic()` without knowing whether a caller already did: DRF's
 `perform_create`, `Cable.save()`, `defer_cable_path_rebuilds()`, `rebuild_paths()`,
@@ -857,7 +890,7 @@ exception handler.
 
 Items 3 to 6 are write-path work, ordered by the reasoning in *Why the write path sets the bar* further down. Items 7 to 9 follow it.
 
-### 4. `full_clean()` re-validates every foreign key
+### 5. `full_clean()` re-validates every foreign key
 
 **18 of 178 queries per cable created (10%)**, and 4 of 64 on
 `ipam.ipaddresstointerface`. Django's `ForeignKey.validate()` issues one
@@ -878,7 +911,7 @@ hack. **Universal — every `validated_save()` in the product.**
 `validate_unique` against `validate_constraints`. `perf/scripts/probe_full_clean.py`
 already counts the phases; it needs to attribute queries to them.
 
-### 5. Change-log serialization
+### 6. Change-log serialization
 
 **6% of a cable create, 15% of an `ipam.ipaddresstointerface` create.** Already
 three findings deep (13, 22, 31), and it is the same API serializer the response
@@ -888,7 +921,7 @@ uses, at depth 1, per object.
 Findings 16 and 22 attacked what is *written*; nothing has attacked how deeply it
 is *serialized*.
 
-### 6. The REST create path does not defer cable path rebuilds
+### 7. The REST create path does not defer cable path rebuilds
 
 `defer_cable_path_rebuilds()` exists, is documented "for use when making multiple
 CableToCableTermination table updates", and coalesces per-row signals into one
@@ -899,7 +932,7 @@ Bounded to ~3% by the attribution above, but it is one line and it is the **four
 instance** of the same shape on this branch (findings 7/11, 34, 36). *Cheapest
 item on the list.*
 
-### 7. `django-tree-queries` is already a dependency and `natural_key()` ignores it
+### 8. `django-tree-queries` is already a dependency and `natural_key()` ignores it
 
 Location is a `TreeModel`; the library answers "this node and its ancestors" with
 one recursive CTE. `natural_key()` walks `val = getattr(val, lookup)` instead, one
@@ -914,7 +947,7 @@ a page of 100.
 
 *Next step:* probe it before believing it.
 
-### 8. Affordance-adoption screen
+### 9. Affordance-adoption screen
 
 **Kevin's reframing, and it is better than the one it replaced.** I had called
 `Cable._get_termination_attr` a case of code diverging from its docstring. It
@@ -945,7 +978,7 @@ work had a ranked list pointing at specific endpoints where this has none.** On
 expected value per hour this may still beat it, and it is cheaper. Reasonable to
 swap.
 
-### 9. Finding 35 audit — undecided, needs a call
+### 10. Finding 35 audit — undecided, needs a call
 
 Finding 35 established that a container restart biases the in-process
 measurement that follows it: bimodal ~99ms or ~165ms, set at process start and
@@ -966,7 +999,7 @@ may move.
 **Decision needed:** pay it down, or note it in the report and defer. It is
 currently noted in finding 35 and nowhere else.
 
-### 10. Read-side leftovers — the ranking here is now unsupported
+### 11. Read-side leftovers — the ranking here is now unsupported
 
 **Read "Screen the UI surface" before using this ordering.** This section was ranked below the
 write path on the strength of finding 37, whose screen covers REST only, taken
@@ -1056,7 +1089,7 @@ four fixes are surgical and the residual list is the old list with its top two
 removed. The four highest per-object costs sit on tables of 20–38 rows. Only two
 residuals sit on tables large enough to compound, both the same per-row N+1
 shape fixed four times already. **The order below stands.** What is left on the
-read side is collected as item 6.
+read side is collected as item 7.
 
 Two things the run found that the ranking method cannot see are in that item as
 well, and they are worth more than the residual list.
@@ -1285,7 +1318,7 @@ re-deriving it.
 than listed again here, because a candidate described in two places drifts in one of them:
 
 - the four `depth=1`/`depth=2` endpoints are **Next up item 1**, `?depth=2`
-- the three per-row utilization aggregates are **Next up item 2**
+- the three per-row utilization aggregates are **Next up item 3**
 
 Each would be its own experiment. Nothing else came out of that assessment unfixed.
 
