@@ -1,7 +1,7 @@
 ---
 seq: 1
 id: F-03
-commit: 1974922f0
+commit: c6d487148
 recommended_commit: 559cabf72
 status: accepted
 behaviour: A
