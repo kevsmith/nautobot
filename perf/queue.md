@@ -87,6 +87,59 @@ Four further columns of the audit's remaining 18 are the audit's own blind spot:
 call `paginate()`, so it misses the hierarchy prefill that makes `/ipam/prefixes/` read 17
 queries flat. Those need no fix, only a correction to the audit.
 
+### 3. Does HTML minification help, and which kind
+
+**Raised 2026-09-13, not yet measured.** Two mechanisms get called "minification" and they
+behave oppositely, so this entry is about telling them apart rather than about a yes or no.
+
+**Response-level minification cannot help server time and should cost it.** It is a pass over
+already-rendered output, so every option is still rendered at its full ~190us and a scan is
+added on top. The cost this branch has been chasing is node traversal, not byte emission:
+finding 57 measured `inc/nav_menu.html` as 3,629 node renders at ~7us each, with `VariableNode`
+and `IfNode` 65% of it. Whitespace lives in `TextNode`s, the cheapest thing the engine does --
+appending a precomputed string. Stripping it changes that string's length, not the node count.
+
+**Compile-time minification is the interesting one.** Collapsing whitespace in template *source*
+can merge adjacent text nodes and shrink the nodelist, and node count is precisely what finding
+57 named as one of only two levers ("fewer nodes or fewer renders"). Whether Django's parser
+merges them at all, and whether a merge survives `{% %}` tags interleaved with the text, is an
+open question nothing here has looked at.
+
+**Payload is real but probably small after compression.** The whitespace is highly repetitive --
+`\n        ` repeated 130 times inside one `<select>` -- which is the best case for gzip. One
+`prefix_length` select is 6,946 bytes, roughly 20 of every 53 being padding.
+
+**`django-minify-html` is the concrete candidate** (github.com/adamchainz/django-minify-html).
+It is `MinifyHtmlMiddleware`, so response-level, and the analysis above applies: the page is
+still built at full cost and a pass is added after it. What it changes is the size of that
+pass -- it wraps **minify-html, a Rust library**, where the older `django-htmlmin` did the work
+in Python. So the added CPU may be small enough that a payload win dominates, which is exactly
+why this needs measuring rather than reasoning about.
+
+Details that matter for how it would be measured here: it processes non-streaming, non-encoded
+HTML responses only; it must sit *below* `GZipMiddleware`, so it shrinks what gzip then
+compresses rather than competing with it; and it minifies even when `DEBUG` is True, on the
+grounds that minification surfaces template bugs. A `@no_html_minification` decorator and a
+`should_minify()` override exist for exempting views.
+
+**It would read as a regression on every instrument this branch owns, and might still be worth
+taking.** Every gate here measures server time, and this adds server time to remove bytes. That
+is the mirror image of finding 62, where queries rose by design and wall clock fell; here wall
+clock rises by design and payload falls. Judging it on the wall-clock gate alone would reject it
+for doing exactly what it is for -- so if it is evaluated, the metric has to be agreed first.
+
+Three measurements settle it, none expensive:
+
+- page size raw against gzipped, and the whitespace fraction of each, which bounds the payload win
+- `probe_template_nodes.py` before and after collapsing whitespace in one hot template, which
+  says whether node count drops at all
+- the cost of the minify pass itself per response, which has to be subtracted from any win, and
+  which is the number that decides whether the Rust implementation changes the answer
+
+**Do not let a payload win be quoted as a time win.** Client-side transfer cost is already a
+section of this queue and is explicitly outside what any instrument here can measure; a byte
+saving belongs there rather than in the wall-clock ranking.
+
 ---
 
 ## Queued: `perf/ez-review`, a review-ordered cut of `perf/recommended`
@@ -304,7 +357,7 @@ is 7.6% of the page. They are not the cost. Rendering is.
    **There is no hot spot, so the only levers are fewer nodes or fewer renders.** Fewer nodes is a
    product decision about menu size. Fewer renders means not rendering it per request, and the
    interesting shape there is that **the data is already in the page twice**: `inc/javascript.html`
-   emits the whole menu as JSON (12,841 bytes, item 5 below), so the browser gets a rendered HTML
+   emits the whole menu as JSON (12,841 bytes, item 6 below), so the browser gets a rendered HTML
    menu costing ~20.4ms of server time *and* a JSON copy of the same structure. Caching the HTML
    instead is risk B2 with a permission-set cache key, which finding 52 showed is not uniform even
    between two users who see nearly the same menu. Neither is an experiment this branch can run as
@@ -737,7 +790,7 @@ prize to collect, whatever its risk profile.
 ### Nested transactions on the write path, and whether any of them earn their SQL
 
 A single REST cable create with one termination issues **6 SAVEPOINT/RELEASE pairs**
-— 12 statements of ~125, measured by diffing the SQL of the two arms of queue item 5's
+— 12 statements of ~125, measured by diffing the SQL of the two arms of queue item 6's
 A/B on the one-ended control. They come from functions that each open
 `transaction.atomic()` without knowing whether a caller already did: DRF's
 `perform_create`, `Cable.save()`, `defer_cable_path_rebuilds()`, `rebuild_paths()`,
@@ -804,7 +857,7 @@ exception handler.
 
 Items 3 to 6 are write-path work, ordered by the reasoning in *Why the write path sets the bar* further down. Items 7 to 9 follow it.
 
-### 3. `full_clean()` re-validates every foreign key
+### 4. `full_clean()` re-validates every foreign key
 
 **18 of 178 queries per cable created (10%)**, and 4 of 64 on
 `ipam.ipaddresstointerface`. Django's `ForeignKey.validate()` issues one
@@ -825,7 +878,7 @@ hack. **Universal — every `validated_save()` in the product.**
 `validate_unique` against `validate_constraints`. `perf/scripts/probe_full_clean.py`
 already counts the phases; it needs to attribute queries to them.
 
-### 4. Change-log serialization
+### 5. Change-log serialization
 
 **6% of a cable create, 15% of an `ipam.ipaddresstointerface` create.** Already
 three findings deep (13, 22, 31), and it is the same API serializer the response
@@ -835,7 +888,7 @@ uses, at depth 1, per object.
 Findings 16 and 22 attacked what is *written*; nothing has attacked how deeply it
 is *serialized*.
 
-### 5. The REST create path does not defer cable path rebuilds
+### 6. The REST create path does not defer cable path rebuilds
 
 `defer_cable_path_rebuilds()` exists, is documented "for use when making multiple
 CableToCableTermination table updates", and coalesces per-row signals into one
@@ -846,7 +899,7 @@ Bounded to ~3% by the attribution above, but it is one line and it is the **four
 instance** of the same shape on this branch (findings 7/11, 34, 36). *Cheapest
 item on the list.*
 
-### 6. `django-tree-queries` is already a dependency and `natural_key()` ignores it
+### 7. `django-tree-queries` is already a dependency and `natural_key()` ignores it
 
 Location is a `TreeModel`; the library answers "this node and its ancestors" with
 one recursive CTE. `natural_key()` walks `val = getattr(val, lookup)` instead, one
@@ -861,7 +914,7 @@ a page of 100.
 
 *Next step:* probe it before believing it.
 
-### 7. Affordance-adoption screen
+### 8. Affordance-adoption screen
 
 **Kevin's reframing, and it is better than the one it replaced.** I had called
 `Cable._get_termination_attr` a case of code diverging from its docstring. It
@@ -892,7 +945,7 @@ work had a ranked list pointing at specific endpoints where this has none.** On
 expected value per hour this may still beat it, and it is cheaper. Reasonable to
 swap.
 
-### 8. Finding 35 audit — undecided, needs a call
+### 9. Finding 35 audit — undecided, needs a call
 
 Finding 35 established that a container restart biases the in-process
 measurement that follows it: bimodal ~99ms or ~165ms, set at process start and
@@ -913,7 +966,7 @@ may move.
 **Decision needed:** pay it down, or note it in the report and defer. It is
 currently noted in finding 35 and nowhere else.
 
-### 9. Read-side leftovers — the ranking here is now unsupported
+### 10. Read-side leftovers — the ranking here is now unsupported
 
 **Read "Screen the UI surface" before using this ordering.** This section was ranked below the
 write path on the strength of finding 37, whose screen covers REST only, taken
@@ -1003,7 +1056,7 @@ four fixes are surgical and the residual list is the old list with its top two
 removed. The four highest per-object costs sit on tables of 20–38 rows. Only two
 residuals sit on tables large enough to compound, both the same per-row N+1
 shape fixed four times already. **The order below stands.** What is left on the
-read side is collected as item 5.
+read side is collected as item 6.
 
 Two things the run found that the ranking method cannot see are in that item as
 well, and they are worth more than the residual list.
