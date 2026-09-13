@@ -36,12 +36,81 @@ a tag rather than simply gone.
 
 ## Next up
 
-### 1. Row-scaling cost on list views — largely done, residue named
+### 1. `?depth=2`, the largest unexplored surface on the read side
 
-**Closed in substance by findings 76-79.** This entry opened because finding 44 showed the
-harness had never issued the XHR that renders a list view's rows, so an entire request class
-was unprofiled. The 18 `ui.*.list.rows` scenarios now carry `HX-Request`, and the table work
-that followed took them apart:
+**No finding on this branch has ever measured a depth-2 endpoint.** `workload.yml` names depth
+0 and depth 1 only, so the read loop cannot see this, and `screen_reads.py` enumerates
+`list.depth1` as its deepest kind. Measured 2026-09-12 while assessing the imported series, all
+still open:
+
+| endpoint | cost | note |
+|---|---|---|
+| `/api/circuits/circuits/?depth=2` | **28.0 q/row** (710 at 25 rows) | The imported series claims ~1,100 -> ~340 here; ours did not move, so the cause differs from theirs |
+| `/api/dcim/interfaces/?depth=2` | **14.84 q/row** (1,491 at 100 rows) | Untouched by everything the branch has done; finding 79's enrichment left the slope unchanged |
+| `/api/dcim/cables/?depth=1` | **6.027 q/row** (611 at 100 rows) | A Cable's nested termination serialization walks each termination's parent: 200 `dcim_cablepath`, 199 `dcim_device`, 173 `dcim_interface` on one page. `Cable` is not a `CableTermination`, so finding 79's rejected commit does not reach it |
+| `/api/dcim/console-ports/?depth=1` | **1.000 q/row** | Pre-existing; found while measuring finding 79 |
+
+Why this is first:
+
+- **It is the only read surface with a measured per-row slope and no finding against it.**
+  Everything else in this queue is either done, ranked on data that omits it, or per-row by
+  design.
+- **Finding 62 does not reach it.** That change prefetches FK fields at `?depth=0`, where a
+  `RelatedField` never reads the joined columns. At `depth>=1` the nested serializer renders
+  the whole related object, so the JOIN stays and both `depth>=1` rows in its own by-action
+  table are flat by construction.
+- **28 q/row is the worst slope on record here.** For comparison, the read loop's heaviest
+  scenario, `api.interface.depth1`, now runs 1,162 ms against stock's 6,992.
+
+First step is cheap and settles the shape: add depth-2 scenarios to `workload.yml`, then
+`probe_query_slope.py` with `PERF_SHAPES=1` at two page sizes to get the slope and the
+repeated query shapes behind it.
+
+### 2. The per-row utilization aggregates
+
+The residue of the column audit, and the one place both this branch and the imported series
+stopped by design:
+
+| column | cost |
+|---|---|
+| `PowerFeedTable.utilization` | 8.0 q/row |
+| `RackDetailTable.get_power_utilization` | 3.0 q/row |
+| `PrefixDetailTable.utilization` | 2.0 q/row |
+
+These are genuinely per-row rather than repeated work, which is why the table series did not
+take them: each row's utilization is a distinct aggregate over that row's children. Taking them
+means computing the aggregate set-wise and attaching it to the queryset, not memoizing a
+repeated call — a different shape of fix from findings 76-79, and the reason it is its own
+entry rather than their leftover.
+
+Four further columns of the audit's remaining 18 are the audit's own blind spot: it does not
+call `paginate()`, so it misses the hierarchy prefill that makes `/ipam/prefixes/` read 17
+queries flat. Those need no fix, only a correction to the audit.
+
+### 3. Screen the UI surface
+
+`screen_reads.py` filters for namespaces ending in `-api`, so **the UI surface
+has never been screened at all.** 166 REST endpoints ranked; zero UI endpoints.
+The inner loop's 27 hand-picked UI scenarios are the only UI coverage there has
+ever been, and 20 of them were measuring shells.
+
+This is what makes item 10's ranking honest. That section is titled "ranked below
+the write path" on the strength of finding 37, which screened REST only — so the
+read side was ranked low on data that omitted half of every list request. Until
+the UI surface is screened with rows rendered, **the read-versus-write ordering
+in this queue is unsupported rather than wrong.**
+
+Cheap: the enumeration logic already exists, the header plumbing already exists,
+and a run is minutes.
+
+---
+
+## Done: the row-rendering request on every list view (findings 44, 76-79)
+
+This was item 1 until 2026-09-13. It opened because finding 44 showed the harness had never
+issued the XHR that renders a list view's rows, so an entire request class was unprofiled. The
+18 `ui.*.list.rows` scenarios now carry `HX-Request`, and the table work that followed took
+them apart:
 
 | scenario | before | after |
 |---|---:|---:|
@@ -53,30 +122,7 @@ that followed took them apart:
 | `ui.status.list.rows` | 30 q | 8 q |
 
 Finding 11's `wall_clock` field no longer reads "not measured"; the row requests are in the
-read loop and carry real numbers.
-
-**What is left is the residue the column audit named and did not take**, and it is genuinely
-per-row by design rather than repeated work: `PowerFeedTable.utilization` at 8.0 q/row,
-`RackDetailTable.get_power_utilization` at 3.0, `PrefixDetailTable.utilization` at 2.0. The
-imported series stopped at the same three. Four more of the audit's 18 remaining columns are
-its own blind spot, since it does not call `paginate()` and so misses the hierarchy prefill
-that makes `/ipam/prefixes/` read 17 queries flat.
-
-### 2. Screen the UI surface
-
-`screen_reads.py` filters for namespaces ending in `-api`, so **the UI surface
-has never been screened at all.** 166 REST endpoints ranked; zero UI endpoints.
-The inner loop's 27 hand-picked UI scenarios are the only UI coverage there has
-ever been, and 20 of them were measuring shells.
-
-This is what makes item 9's ranking honest. That section is titled "ranked below
-the write path" on the strength of finding 37, which screened REST only — so the
-read side was ranked low on data that omitted half of every list request. Until
-the UI surface is screened with rows rendered, **the read-versus-write ordering
-in this queue is unsupported rather than wrong.**
-
-Cheap: the enumeration logic already exists, the header plumbing already exists,
-and a run is minutes.
+read loop and carry real numbers. What it left behind is item 2 above.
 
 ---
 
@@ -157,7 +203,7 @@ is 7.6% of the page. They are not the cost. Rendering is.
    **There is no hot spot, so the only levers are fewer nodes or fewer renders.** Fewer nodes is a
    product decision about menu size. Fewer renders means not rendering it per request, and the
    interesting shape there is that **the data is already in the page twice**: `inc/javascript.html`
-   emits the whole menu as JSON (12,841 bytes, item 5 below), so the browser gets a rendered HTML
+   emits the whole menu as JSON (12,841 bytes, item 6 below), so the browser gets a rendered HTML
    menu costing ~20.4ms of server time *and* a JSON copy of the same structure. Caching the HTML
    instead is risk B2 with a permission-set cache key, which finding 52 showed is not uniform even
    between two users who see nearly the same menu. Neither is an experiment this branch can run as
@@ -557,7 +603,7 @@ prize to collect, whatever its risk profile.
 ### Nested transactions on the write path, and whether any of them earn their SQL
 
 A single REST cable create with one termination issues **6 SAVEPOINT/RELEASE pairs**
-— 12 statements of ~125, measured by diffing the SQL of the two arms of queue item 5's
+— 12 statements of ~125, measured by diffing the SQL of the two arms of queue item 6's
 A/B on the one-ended control. They come from functions that each open
 `transaction.atomic()` without knowing whether a caller already did: DRF's
 `perform_create`, `Cable.save()`, `defer_cable_path_rebuilds()`, `rebuild_paths()`,
@@ -624,7 +670,7 @@ exception handler.
 
 Items 3 to 6 are write-path work, ordered by the reasoning in *Why the write path sets the bar* further down. Items 7 to 9 follow it.
 
-### 3. `full_clean()` re-validates every foreign key
+### 4. `full_clean()` re-validates every foreign key
 
 **18 of 178 queries per cable created (10%)**, and 4 of 64 on
 `ipam.ipaddresstointerface`. Django's `ForeignKey.validate()` issues one
@@ -645,7 +691,7 @@ hack. **Universal — every `validated_save()` in the product.**
 `validate_unique` against `validate_constraints`. `perf/scripts/probe_full_clean.py`
 already counts the phases; it needs to attribute queries to them.
 
-### 4. Change-log serialization
+### 5. Change-log serialization
 
 **6% of a cable create, 15% of an `ipam.ipaddresstointerface` create.** Already
 three findings deep (13, 22, 31), and it is the same API serializer the response
@@ -655,7 +701,7 @@ uses, at depth 1, per object.
 Findings 16 and 22 attacked what is *written*; nothing has attacked how deeply it
 is *serialized*.
 
-### 5. The REST create path does not defer cable path rebuilds
+### 6. The REST create path does not defer cable path rebuilds
 
 `defer_cable_path_rebuilds()` exists, is documented "for use when making multiple
 CableToCableTermination table updates", and coalesces per-row signals into one
@@ -666,7 +712,7 @@ Bounded to ~3% by the attribution above, but it is one line and it is the **four
 instance** of the same shape on this branch (findings 7/11, 34, 36). *Cheapest
 item on the list.*
 
-### 6. `django-tree-queries` is already a dependency and `natural_key()` ignores it
+### 7. `django-tree-queries` is already a dependency and `natural_key()` ignores it
 
 Location is a `TreeModel`; the library answers "this node and its ancestors" with
 one recursive CTE. `natural_key()` walks `val = getattr(val, lookup)` instead, one
@@ -681,7 +727,7 @@ a page of 100.
 
 *Next step:* probe it before believing it.
 
-### 7. Affordance-adoption screen
+### 8. Affordance-adoption screen
 
 **Kevin's reframing, and it is better than the one it replaced.** I had called
 `Cable._get_termination_attr` a case of code diverging from its docstring. It
@@ -707,12 +753,12 @@ says it exists "to extend `select_related` so that rendering
 `termination.parent` ... stays query-free per row" — an affordance with a stated
 purpose and an unaudited adoption list.
 
-**Ordered after item 1 only because writes are the unexplored axis, and item 1
-now has a ranked list pointing at specific endpoints where this has none.** On
+**Ordered after the row-rendering work only because writes are the unexplored axis, and that
+work had a ranked list pointing at specific endpoints where this has none.** On
 expected value per hour this may still beat it, and it is cheaper. Reasonable to
 swap.
 
-### 8. Finding 35 audit — undecided, needs a call
+### 9. Finding 35 audit — undecided, needs a call
 
 Finding 35 established that a container restart biases the in-process
 measurement that follows it: bimodal ~99ms or ~165ms, set at process start and
@@ -733,14 +779,14 @@ may move.
 **Decision needed:** pay it down, or note it in the report and defer. It is
 currently noted in finding 35 and nowhere else.
 
-### 9. Read-side leftovers — the ranking here is now unsupported
+### 10. Read-side leftovers — the ranking here is now unsupported
 
-**Read item 2 before using this ordering.** This section was ranked below the
+**Read "Screen the UI surface" before using this ordering.** This section was ranked below the
 write path on the strength of finding 37, whose screen covers REST only, taken
 against an inner loop that measured list-view shells. Finding 44 does not show
 the ranking to be wrong; it shows it was never tested. Two of the sub-items
 below landed today and are struck through rather than deleted, because the
-reasoning that produced them is what item 2 inherits.
+reasoning that produced them is what "Screen the UI surface" inherits.
 
 Kept as one item rather than four, because finding 37 established that none of
 it competes with items 1–3. Ordered within itself by what it would teach.
@@ -756,7 +802,7 @@ it competes with items 1–3. Ordered within itself by what it would teach.
   exercises 49. Seventy return zero rows against this dataset — `cluster`,
   `virtualmachine`, `vminterface`, `module` and the whole modules/templates
   family, `tag`, `service`, `rir` — and a zero-row endpoint reads as cheap when
-  it is unmeasured. This is the failure item 2 is required to avoid, present in
+  it is unmeasured. This is the failure "Screen the UI surface" is required to avoid, present in
   the instrument that raised the objection. Report attempted / exercised /
   measured separately and stop quoting 166.
 - **The two residuals on tables large enough to compound.** `dcim.cable?depth=1`
@@ -823,7 +869,7 @@ four fixes are surgical and the residual list is the old list with its top two
 removed. The four highest per-object costs sit on tables of 20–38 rows. Only two
 residuals sit on tables large enough to compound, both the same per-row N+1
 shape fixed four times already. **The order below stands.** What is left on the
-read side is collected as item 5.
+read side is collected as item 6.
 
 Two things the run found that the ranking method cannot see are in that item as
 well, and they are worth more than the residual list.
@@ -855,7 +901,7 @@ natural-key and tag caches are cold on the first pass only and survive the
 rollback. 47 of 252 measurements had unstable query counts without it, and 1 of
 257 with it.
 
-**What it found, which is what makes item 1 more interesting rather than less.**
+**What it found, which is what made the row-rendering work more interesting rather than less.**
 The median marginal cost of creating one more object is **12 queries**; the
 median read costs **0.28 queries per returned object**. The cheapest create on
 the whole surface (3.0) is more expensive per object than 47 of the 49 read
@@ -1048,19 +1094,13 @@ re-deriving it.
 
 ## Candidates found while assessing the imported series
 
-**Queued 2026-09-12**, all measured, none fixed — each would be its own experiment.
+**Queued 2026-09-12, all measured, none fixed. Promoted to "Next up" on 2026-09-13** rather
+than listed again here, because a candidate described in two places drifts in one of them:
 
-| endpoint or column | cost | note |
-|---|---|---|
-| `/api/dcim/cables/?depth=1` | **6.027 q/row** (611 queries at 100 rows) | A Cable's nested termination serialization walks each termination's parent: 200 `dcim_cablepath`, 199 `dcim_device`, 173 `dcim_interface` on one page. `Cable` is not a `CableTermination`, so finding 79's rejected commit does not reach it. |
-| `/api/dcim/interfaces/?depth=2` | **14.84 q/row** (1,491 at 100 rows) | Depth 2 is untouched by everything the branch has done; finding 79's enrichment left the slope unchanged. |
-| `/api/circuits/circuits/?depth=2` | **28.0 q/row** (710 at 25 rows) | Same shape, worse. The imported series claims ~1,100 -> ~340 here; ours did not move, so the cause differs. |
-| `/api/dcim/console-ports/?depth=1` | **1.000 q/row** | Pre-existing; found while measuring finding 79. |
-| `PowerFeedTable.utilization`, `RackDetailTable.get_power_utilization`, `PrefixDetailTable.utilization` | 8.0, 3.0, 2.0 q/row | The per-row utilization aggregates. Both this branch and the imported series left them open by design; they are the residue of the column audit. |
+- the four `depth=1`/`depth=2` endpoints are **Next up item 1**
+- the three per-row utilization aggregates are **Next up item 2**
 
-**`?depth=2` is the largest unexplored surface on the read side.** Three of the five rows above are
-depth-2 endpoints, and no finding on this branch has ever measured one: the workload names depth 0
-and depth 1 only.
+Each would be its own experiment. Nothing else came out of that assessment unfixed.
 
 ## Done: the serial full suite is green, twice
 
