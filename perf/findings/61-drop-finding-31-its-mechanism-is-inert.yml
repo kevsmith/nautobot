@@ -1,8 +1,8 @@
 ---
 seq: 61
 id: null
-commit: 427e811f1
-recommended_commit: e6b496057
+commit: null
+recommended_commit: null
 status: accepted
 basis: 'dropping finding 31 removes 2 queries of 6,637 and moves nothing else'
 behaviour: A
@@ -68,4 +68,11 @@ note: '**The prediction was wrong in the branch''s favour, and it was recorded b
   Each was measured against the tree that preceded it, which is correct procedure; neither could
   see that a later change would strand it. Query counts kept falling and wall clock kept improving,
   so nothing looked wrong — only the attribution was. Counting calls rather than queries is what
-  exposed it, and it is worth doing whenever one finding''s subject matter touches another''s.'
+  exposed it, and it is worth doing whenever one finding''s subject matter touches another''s.
+
+
+  **NO COMMIT, BECAUSE THE BRANCH NOW REALISES THIS BY ABSENCE.** This decision was carried by a
+  revert commit, which existed only because finding 31 had been applied first. On 2026-09-13
+  both were dropped, so the branch simply never adds the tag cache. What this finding concluded
+  is unchanged; only the mechanism expressing it is. The pair is preserved at the tag
+  `perf/dropped-tag-cache-pair`.'
