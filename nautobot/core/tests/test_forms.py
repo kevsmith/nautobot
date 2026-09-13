@@ -633,6 +633,89 @@ class WidgetsTest(testing.TestCase):
         self.assertEqual('["I am UTF-8! 😀"]', widget.attrs["data-query-param-utf8"])
 
 
+class CachedStaticOptionsTest(testing.TestCase):
+    """`CachedStaticOptionsMixin` renders a static choice list's options once per process.
+
+    The mixin exists because a field like `PrefixFilterForm.prefix_length` has 130 choices from
+    a module-level constant and re-renders identical markup on every request. Each of these
+    tests pins one of the properties that make caching safe, so a change that breaks the
+    assumption fails here rather than silently serving wrong markup.
+    """
+
+    STATIC_CHOICES = forms.add_blank_choice([(i, i) for i in range(12)])
+
+    def _baseline(self, widget, name, value, attrs):
+        """What the widget renders without the mixin: Django's own Select.render."""
+        cls = django_forms.SelectMultiple if widget.allow_multiple_selected else django_forms.Select
+        return cls.render(widget, name, value, attrs=dict(attrs))
+
+    def _widget(self, cls, choices=None):
+        widget = cls()
+        widget.choices = self.STATIC_CHOICES if choices is None else choices
+        return widget
+
+    def test_output_is_identical_to_django_for_each_selection_state(self):
+        """The cached path must be byte-identical to the path it replaces, not merely similar."""
+        for cls, values in (
+            (forms.StaticSelect2, ["", "0", "11", "nonexistent"]),
+            (forms.StaticSelect2Multiple, [[], ["3"], ["3", "7"], ["nonexistent"]]),
+        ):
+            for value in values:
+                with self.subTest(widget=cls.__name__, value=value):
+                    attrs = {"id": "id_probe"}
+                    widget = self._widget(cls)
+                    self.assertEqual(
+                        widget.render("probe", value, attrs=dict(attrs)),
+                        self._baseline(self._widget(cls), "probe", value, attrs),
+                    )
+
+    def test_selection_still_varies_after_the_cache_is_warm(self):
+        """A cache keyed only on the choice list would serve the first request's selection."""
+        widget = self._widget(forms.StaticSelect2)
+        first = widget.render("probe", "3", attrs={"id": "id_probe"})
+        second = widget.render("probe", "7", attrs={"id": "id_probe"})
+        again = widget.render("probe", "3", attrs={"id": "id_probe"})
+        self.assertEqual(first, again)
+        self.assertNotEqual(first, second)
+        self.assertIn('value="3"\n         selected', first)
+        self.assertIn('value="7"\n         selected', second)
+
+    def test_two_fields_sharing_a_choice_list_do_not_collide(self):
+        """`name` is part of the key, because an option template may render it."""
+        one = self._widget(forms.StaticSelect2).render("alpha", "3", attrs={"id": "id_alpha"})
+        two = self._widget(forms.StaticSelect2).render("beta", "3", attrs={"id": "id_beta"})
+        self.assertIn('name="alpha"', one)
+        self.assertIn('name="beta"', two)
+
+    def test_named_option_groups_fall_back(self):
+        """Grouped choices are not modelled by the cache, so they must take the normal path."""
+        grouped = [("Group A", [(1, "One")]), ("Group B", [(2, "Two")])]
+        widget = self._widget(forms.StaticSelect2, grouped)
+        attrs = {"id": "id_grouped"}
+        self.assertIsNone(widget._cached_options_html("grouped", widget.get_context("grouped", "1", dict(attrs))["widget"]["optgroups"], None))
+        self.assertEqual(
+            widget.render("grouped", "1", attrs=dict(attrs)),
+            self._baseline(self._widget(forms.StaticSelect2, grouped), "grouped", "1", attrs),
+        )
+
+    def test_the_assumption_the_cache_rests_on(self):
+        """Options carry no attribute but `selected`, and never inherit the select's.
+
+        The cached markup is keyed on `(template, name, [(value, label)])` and chosen between
+        by `selected`. That is only sound while those are the sole inputs to an option's
+        rendering. If django or Nautobot starts setting another per-option attribute, this
+        fails and the cache must learn about it.
+        """
+        widget = self._widget(forms.StaticSelect2)
+        self.assertFalse(widget.option_inherits_attrs)
+        optgroups = widget.get_context("probe", "3", {"id": "id_probe", "class": "x"})["widget"]["optgroups"]
+        seen = set()
+        for _group, options, _index in optgroups:
+            for option in options:
+                seen |= set(option["attrs"])
+        self.assertLessEqual(seen, {"selected"})
+
+
 class DynamicFilterFormTest(testing.TestCase):
     def test_get_filterset_parameter_form_field_all_filters(self):
         """
