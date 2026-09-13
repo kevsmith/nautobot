@@ -51,6 +51,18 @@ result:
   list. This has not been recorded before and it is a different lever from the 133-option field
   -- it scales with how many filter fields a model has rather than with how many choices one of
   them offers.'
+  wrapper_versus_options: '**The `<select>` wrapper is 1.2% of the cost and the options are
+  98.8%**, measured by varying the option count and fitting rather than by subtracting one
+  whole-widget figure from another. `StaticSelect2` fits **0.305ms fixed + 190.4us per option**,
+  `StaticSelect2Multiple` **0.308ms + 190.3us** -- indistinguishable, so multiple selection costs
+  nothing extra. At 130 options that is 25.1ms of which 24.8ms is options.
+
+
+  The fit cross-checks against the page: `probe_form_widgets.py` measures `mask_length` at
+  25.4ms in situ and the fitted line predicts 24.9ms at its 129 options, agreeing within 2% from
+  an isolated synthetic render. And the per-option cost is flat rather than amortizing -- it
+  reads 351us at one option and 192us at 130 only because the 0.3ms fixed cost is spreading; the
+  asymptote is ~190us and it is linear from there, so there is no economy of scale to wait for.'
   why_two_renders_per_option: 'Django `select.html` includes the option template once per option,
   and Nautobot `selectwithdisabled_option.html` then includes `attrs.html` itself, so every
   option costs two template renders. The templates are already cached, verified in
