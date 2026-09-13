@@ -1,8 +1,8 @@
 ---
 seq: 64
 id: null
-commit: b03848a5c
-recommended_commit: e0980e7b3
+commit: 33bac3034
+recommended_commit: cc48f73ed
 status: accepted
 basis: 'attribution: 1.000 cache-backend GET per rendered row, and 97 -> 5 after'
 behaviour: A
