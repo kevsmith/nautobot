@@ -2,7 +2,7 @@
 seq: 69
 id: null
 commit: ab93650c1
-recommended_commit: fa9347675
+recommended_commit: cb72a7566
 status: accepted
 basis: 'attribution: 875 queries on one page, 17.857 per interface, 484 in two shapes'
 behaviour: A

@@ -1,7 +1,7 @@
 ---
 seq: 6
 commit: f341c2cce
-recommended_commit: ddb8bc1bb
+recommended_commit: 148b2df32
 status: accepted
 behaviour: B2
 migration: '-'

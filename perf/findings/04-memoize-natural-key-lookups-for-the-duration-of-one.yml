@@ -2,7 +2,7 @@
 seq: 4
 id: F-04
 commit: 44661751f
-recommended_commit: 5c12cc9de
+recommended_commit: 012f88561
 status: accepted
 behaviour: B1
 migration: '-'

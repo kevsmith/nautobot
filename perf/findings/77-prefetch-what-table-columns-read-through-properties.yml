@@ -2,7 +2,7 @@
 seq: 77
 id: null
 commit: 61a019928
-recommended_commit: 2ab871c2f
+recommended_commit: 1da578468
 status: accepted
 basis: 'audit: 55 offending columns across 4 tables, the 6 outside the interface tables to zero'
 behaviour: A
