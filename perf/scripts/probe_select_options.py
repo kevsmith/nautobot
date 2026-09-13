@@ -75,8 +75,10 @@ def run(cls, label, counts, reps, multiple):
     slope, intercept = fit(points)
     print(f"  fit: {intercept:.3f}ms fixed + {slope * 1000:.1f}us per option")
     for name, count in REAL.items():
-        print(f"       at {name}'s {count} options -> {intercept + slope * count:.1f}ms "
-              f"({slope * count / (intercept + slope * count) * 100:.0f}% options)")
+        print(
+            f"       at {name}'s {count} options -> {intercept + slope * count:.1f}ms "
+            f"({slope * count / (intercept + slope * count) * 100:.0f}% options)"
+        )
     return points, slope, intercept
 
 
