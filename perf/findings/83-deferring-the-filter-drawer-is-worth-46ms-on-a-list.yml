@@ -1,0 +1,99 @@
+---
+seq: 83
+id: null
+commit: null
+status: priced
+behaviour: C
+migration: '-'
+flags: []
+title: Deferring the filter drawer is worth 46ms on a list view, measured by removing it
+site: nautobot/core/templates/generic/object_list.html - nautobot/core/templatetags/helpers.py filter_form_drawer
+summary: 'Finding 82 attributed 36-46ms of a list view document to a filter drawer that is closed
+  until clicked. Attribution says where time is spent; it does not say what removing the work
+  would return, because a saving can be absorbed elsewhere. This measures the ceiling by deleting
+  the drawer outright on a throwaway arm, before anything is designed or built.
+
+
+  The idea is Kevin''s and it is better than the one it displaces: rather than making the drawer''s
+  markup cheaper to render, do not render it on page load at all, fetching it when the user opens
+  it. Nautobot already does exactly this for table rows.'
+result:
+  three_arms: 'baseline, filter drawer removed, and all three hidden drawers removed, three
+    alternating rounds each, medians:
+
+      ui.prefix.list   141.9 -> 95.9 filter drawer out (-46.0ms, -32.4%)  -> 90.7 all out (-51.2ms)
+      ui.device.list   183.2 -> 150.2 filter drawer out (-33.0ms, -18.0%) -> 145.9 all out (-37.3ms)
+      ui.chrome.404     19.6 -> 20.3                    (+0.7ms)          -> 20.5 (+0.9ms)'
+  attribution_predicted_removal: '**46.0ms attributed on `ui.prefix.list`, 46.0ms removed.** On
+    `ui.device.list` 36.2ms attributed against 33.0ms removed, the right order and slightly
+    conservative. This is the result that matters beyond the drawer itself: the per-template
+    attribution in `probe_page_phases.py` can be trusted to size work before anyone builds
+    anything, which is not something this branch had checked.'
+  the_other_two_drawers: 'the table-config column picker and the saved-views drawer are worth
+    5.2ms on prefix and 4.3ms on device between them, plus one query -- the all-drawers arm runs
+    3 queries in render against 4. Real, but the filter drawer is 90% of the prize. Deferring all
+    three is about 10% better than deferring the filter drawer alone.'
+  against_the_alternative: 'finding 82''s cached-options change, measured on the same pages,
+    returns 26.6ms on prefix and 5.4ms on device. Deferring wins by 1.7x on prefix and 6x on
+    device, and the device gap is the one that matters -- that page''s shape, many filter fields
+    with few options each, is what most list views look like. Caching options is a per-option
+    discount on one family of widgets; deferring does not care what widget class the markup came
+    from.'
+wall_clock: "−32.4% ui.prefix.list, −18.0% ui.device.list, as an upper bound"
+basis: the drawer removed outright on a throwaway arm, three alternating rounds
+controls: '`ui.chrome.404` renders no drawers and is CPU-bound at 3 queries: it moved +0.7ms and
+  +0.9ms, about 4%, against its own 3.6% baseline spread and with no trend. That is the inert
+  control `ui.home` failed to be -- see the caveat. Baseline spread was 3.5% on prefix and 0.8%
+  on device against effects of 32% and 18%.
+
+
+  **The three arms could not be proved distinct by content hash while the run was taken**, because
+  they differ only in `object_list.html` and `nb_hash` was `*.py` only (finding 84). Verified
+  afterwards instead, which is sound because arming is deterministic from the ref: re-armed each
+  of the three and they hash `066de3e628910b30`, `0595bd3b2bc7aaa4` and `46375107474b8e2a`, with
+  the template carrying 1, 0 and 0 calls to `filter_form_drawer` respectively.'
+tests: n/a; the arms are throwaway stubs, not a proposed change
+caveat: '**This is an upper bound and not a forecast.** Stubbing removes the work; deferring only
+  moves it. The page-load saving is real, but whoever opens the drawer pays for it on the fetch,
+  so the value of the change rests on most users never opening filters -- which nobody here has
+  measured, and which no instrument on this branch can measure.
+
+
+  **The device figure is softer than the prefix one.** Its two stub arms spread 7.1% and 8.1%
+  across rounds against prefix''s 3.6% and 5.3%. Read -46.0ms as firm and -33.0ms as indicative.
+
+
+  **An inversion appeared and dissolved, which is why the rounds are not optional.** After one
+  round, removing all three drawers read *slower* than removing just the filter drawer on device,
+  150.8 against 140.3. It held through a second reading and then dissolved on the third, when the
+  drawer-only arm read 150.2. A mechanism was nearly offered for it; the branch''s own history
+  has a 2ms and an 11% regression dissolving on a third round, and this is the third.'
+note: '**Status is `priced`, not `accepted`: nothing is proposed here.** The measurement says what
+  the idea is worth, not that it should be taken. What it costs is a behaviour change, and the
+  three questions belong to whoever decides it rather than to a measurement:
+
+
+  *Without JavaScript the filter form disappears.* This is nearly free as positions go, because
+  the list view already renders zero rows without JavaScript -- `queryset if htmx_request else
+  queryset.none()` -- so the page is already non-functional there. The change does not newly take
+  that position, it inherits it.
+
+
+  *A deep-linked filtered URL needs to show filter state before the drawer is opened.* The
+  indicator that does this today renders inside the drawer, so something outside it has to.
+
+
+  *The request has to be disambiguated, and that is the hard part.* The table already fetches the
+  same URL with `hx-get=""` and `hx-params="*"`, distinguished only by `HX-Request`, so that
+  header is taken. A discriminator is needed, it has to be registered in `NON_FILTER_PARAMS` or
+  the view reports "Invalid filters were specified", and `Vary` has to cover it or a cache serves
+  a fragment where a page belongs.
+
+
+  **A dedicated endpoint looks like the clean answer and is not.** The drawer''s content is a
+  function of the *view*, not the model: `renderers.py:236` reads `view.filterset_form_class`, and
+  119 views override it. An endpoint addressing a model cannot see those overrides, and would have
+  to recompute permissions, `filter_params` and saved-view state in a second code path that must
+  agree with the first forever. Same URL plus a discriminator keeps all of that inherited. The
+  precedent is already in the file: `renderers.py:307` does exactly this for detail views, with
+  `HX-Request` plus `component_id`.'

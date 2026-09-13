@@ -28,8 +28,18 @@ set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO" || exit 1
 
+# Hashes templates as well as Python. It used to be *.py only, which made the content hash --
+# the thing the protocol leans on to prove two arms differ -- blind to a template-only change.
+# Two arms differing only in a .html file reported the same hash, so the proof read as satisfied
+# while proving nothing. No published figure was affected: findings 51 and 58 are the only
+# accepted product changes touching templates and both also changed .py, so their hashes moved.
+# Caught when three drawer-stub arms, differing only in object_list.html, all hashed 368a99a04.
+#
+# project-static stays excluded: it is build output, regenerated per image, and including it
+# makes the hash depend on whether docs happen to have been built.
 nb_hash() {
-  find nautobot -name "*.py" -not -path "*/project-static/*" -print0 \
+  find nautobot \( -name "*.py" -o -name "*.html" -o -name "*.txt" \) \
+    -not -path "*/project-static/*" -print0 \
     | LC_ALL=C sort -z | xargs -0 cat | sha256sum | cut -d" " -f1
 }
 
