@@ -36,7 +36,25 @@ a tag rather than simply gone.
 
 ## Next up
 
-### 1. `?depth=2`, the largest unexplored surface on the read side
+### 1. Screen the UI surface
+
+`screen_reads.py` filters for namespaces ending in `-api`, so **the UI surface
+has never been screened at all.** 166 REST endpoints ranked; zero UI endpoints.
+The inner loop's 27 hand-picked UI scenarios are the only UI coverage there has
+ever been, and 20 of them were measuring shells.
+
+This is what makes item 10's ranking honest. That section is titled "ranked below
+the write path" on the strength of finding 37, which screened REST only — so the
+read side was ranked low on data that omitted half of every list request. Until
+the UI surface is screened with rows rendered, **the read-versus-write ordering
+in this queue is unsupported rather than wrong.**
+
+Cheap: the enumeration logic already exists, the header plumbing already exists,
+and a run is minutes.
+
+**Why this is first, ahead of the depth-2 work below.** It is minutes of machine time, and the ordering of everything under it depends on what it returns. Committing to a depth-2 experiment first would mean choosing a target while the instrument that ranks targets still omits the entire UI surface.
+
+### 2. `?depth=2`, the largest unexplored surface on the read side
 
 **No finding on this branch has ever measured a depth-2 endpoint.** `workload.yml` names depth
 0 and depth 1 only, so the read loop cannot see this, and `screen_reads.py` enumerates
@@ -50,11 +68,12 @@ still open:
 | `/api/dcim/cables/?depth=1` | **6.027 q/row** (611 at 100 rows) | A Cable's nested termination serialization walks each termination's parent: 200 `dcim_cablepath`, 199 `dcim_device`, 173 `dcim_interface` on one page. `Cable` is not a `CableTermination`, so finding 79's rejected commit does not reach it |
 | `/api/dcim/console-ports/?depth=1` | **1.000 q/row** | Pre-existing; found while measuring finding 79 |
 
-Why this is first:
+Why this is the first optimization target once the UI screen has run:
 
 - **It is the only read surface with a measured per-row slope and no finding against it.**
   Everything else in this queue is either done, ranked on data that omits it, or per-row by
-  design.
+  design. The UI screen above could add to that list, which is the one thing that would
+  reorder this.
 - **Finding 62 does not reach it.** That change prefetches FK fields at `?depth=0`, where a
   `RelatedField` never reads the joined columns. At `depth>=1` the nested serializer renders
   the whole related object, so the JOIN stays and both `depth>=1` rows in its own by-action
@@ -66,7 +85,7 @@ First step is cheap and settles the shape: add depth-2 scenarios to `workload.ym
 `probe_query_slope.py` with `PERF_SHAPES=1` at two page sizes to get the slope and the
 repeated query shapes behind it.
 
-### 2. The per-row utilization aggregates
+### 3. The per-row utilization aggregates
 
 The residue of the column audit, and the one place both this branch and the imported series
 stopped by design:
@@ -87,27 +106,11 @@ Four further columns of the audit's remaining 18 are the audit's own blind spot:
 call `paginate()`, so it misses the hierarchy prefill that makes `/ipam/prefixes/` read 17
 queries flat. Those need no fix, only a correction to the audit.
 
-### 3. Screen the UI surface
-
-`screen_reads.py` filters for namespaces ending in `-api`, so **the UI surface
-has never been screened at all.** 166 REST endpoints ranked; zero UI endpoints.
-The inner loop's 27 hand-picked UI scenarios are the only UI coverage there has
-ever been, and 20 of them were measuring shells.
-
-This is what makes item 10's ranking honest. That section is titled "ranked below
-the write path" on the strength of finding 37, which screened REST only — so the
-read side was ranked low on data that omitted half of every list request. Until
-the UI surface is screened with rows rendered, **the read-versus-write ordering
-in this queue is unsupported rather than wrong.**
-
-Cheap: the enumeration logic already exists, the header plumbing already exists,
-and a run is minutes.
-
 ---
 
 ## Done: the row-rendering request on every list view (findings 44, 76-79)
 
-This was item 1 until 2026-09-13. It opened because finding 44 showed the harness had never
+This headed "Next up" until 2026-09-13, under a numbering since superseded. It opened because finding 44 showed the harness had never
 issued the XHR that renders a list view's rows, so an entire request class was unprofiled. The
 18 `ui.*.list.rows` scenarios now carry `HX-Request`, and the table work that followed took
 them apart:
@@ -122,7 +125,7 @@ them apart:
 | `ui.status.list.rows` | 30 q | 8 q |
 
 Finding 11's `wall_clock` field no longer reads "not measured"; the row requests are in the
-read loop and carry real numbers. What it left behind is item 2 above.
+read loop and carry real numbers. What it left behind is item 3 above.
 
 ---
 
@@ -1097,8 +1100,8 @@ re-deriving it.
 **Queued 2026-09-12, all measured, none fixed. Promoted to "Next up" on 2026-09-13** rather
 than listed again here, because a candidate described in two places drifts in one of them:
 
-- the four `depth=1`/`depth=2` endpoints are **Next up item 1**
-- the three per-row utilization aggregates are **Next up item 2**
+- the four `depth=1`/`depth=2` endpoints are **Next up item 2**
+- the three per-row utilization aggregates are **Next up item 3**
 
 Each would be its own experiment. Nothing else came out of that assessment unfixed.
 
