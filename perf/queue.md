@@ -500,12 +500,29 @@ Measured benefit, on the tree with the queryset guards applied:
 | `ui.ipaddress.list` | 141 + 205 attrs | ~26ms | ~14% |
 | `ui.device.list` | 37 + 156 attrs | **~6.3ms** | **~3%** |
 
-**Not taken.** It is a whitespace-exact rewrite of HTML generation for the most widely used
-widget class in the product, and 94% of the headline win is `prefix_length` rendering options
-nobody sees (above). 3% on the main list view does not justify that risk. Four subclasses
-override `option_template_name` (`ColorSelect`, `SelectWithPK`, `ContentTypeSelect`) and would
-need a fallback. Revisit if a form turns up where option counts are high across *many* fields —
-the reach is genuinely broad even though the measured benefit here is concentrated.
+**Not taken, and the reasoning still holds for the general version.** It is a whitespace-exact
+rewrite of HTML generation for the most widely used widget class in the product, and 94% of the
+headline win is `prefix_length` rendering options nobody sees (above). 3% on the main list view
+does not justify that risk. Four subclasses override `option_template_name` (`ColorSelect`,
+`SelectWithPK`, `ContentTypeSelect`) and would need a fallback.
+
+**A scoped version is a different proposition, and finding 82 measured what it would be worth.**
+Rather than rewriting the widget class, precompute the option string for fields whose choices
+come from a static constant and splice `selected` in at render time. Every objection above is
+about the general case: the subclasses that override `option_template_name` are not these
+fields, and whitespace-exactness becomes provable by byte-diffing one `<select>` instead of
+auditing a class used everywhere. It captures the 94% that is concentrated in one field.
+
+What makes these two fields safe, all verified: choices are a module-level constant with no
+queryset; nothing varies per user; and no option carries attributes, so the options substring is
+invariant and only `selected` moves. The split is **0.305ms fixed + 190.4us per option**, so
+**98.8% of a 130-option field is the options** -- roughly 24.8ms recoverable per field, ~17% of
+a prefix-list or IP-address-list page. `StaticSelect2Multiple` fits the same line, so multiple
+selection needs no special case beyond splicing N selected rather than one.
+
+Not yet run. Two things to prove first: byte-identical output across no-filter, single and
+multiple selection; and a control page without such a field (`ui.device.list`) that must not
+move.
 
 ### The queryset guards do not cover non-Nautobot models
 
