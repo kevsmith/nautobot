@@ -2,7 +2,7 @@
 seq: 26
 id: null
 commit: b205a508a
-recommended_commit: 13273fc7f
+recommended_commit: 4baeda25e
 status: accepted
 behaviour: B1
 migration: '-'
