@@ -1,0 +1,76 @@
+---
+seq: 80
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: Arming to a third ref leaves files behind, and the same ref then hashes two ways
+site: perf/scripts/arm_control.sh
+summary: '`arm_control.sh arm <ref>` swaps `nautobot/` with `git checkout <ref> -- nautobot/`,
+  which overwrites but never deletes, and then removes the difference by hand. The removal
+  set was `git diff --name-only --diff-filter=A <ref> HEAD -- nautobot/`: the files HEAD adds
+  relative to the target. That is correct while exactly two refs are in play and HEAD is one
+  of them, and it is wrong the moment a third appears. A file carried in by an earlier arm to
+  some other ref is absent from both `<ref>` and HEAD, so it is outside the removal set, and
+  the path-scoped checkout cannot clear it either. It survives into the next arm.'
+result:
+  observed: 'arming `upstream/next` -> `perf/experiments` -> `upstream/next` produced content
+    hash `74f4a39e7dfc3fbc` on the first arm and `b98181229fdead80` on the third, for the same
+    ref. The intervening arm restored 40 `tests/integration/*.py` modules that `perf/experiments`
+    still carries and that upstream deleted between `ce01a0464` and `c3605ae48`, migrating the
+    Selenium suite to Playwright (47 such files to 7). Neither `upstream/next` nor HEAD
+    (`perf/experiments-next`) has them, so nothing removed them.'
+  detection: 'the hash was recorded on the first arm and compared against the third. Without
+    that comparison the run would have completed normally: `git diff <ref> -- nautobot/` reports
+    the *tracked* tree as identical, because the leftovers are untracked relative to HEAD. The
+    tell is `git status --porcelain nautobot/` showing `??` entries, which no gate looked at.'
+  measurement_impact: 'the 40 files are test modules under `tests/integration/`, imported by
+    no runtime path, so neither query count nor wall clock is expected to move -- and that is a
+    statement about these particular files rather than about the defect. `nb_hash` walks every
+    `*.py` under `nautobot/`, so the leftovers changed the hash without changing the program.
+    The next leftover need not be inert; the same sequence would carry a stale module that
+    *is* imported just as readily.'
+  committed_baselines: 'every published A/B on this branch alternates two refs with HEAD as
+    one of them, which is the case the old removal set handles correctly, so no committed
+    baseline is expected to be affected. This was reasoned from the arming pattern rather than
+    re-measured, and the perf/exp-* branches were not audited individually.'
+wall_clock: "not applicable: this measures the instrument rather than a change to Nautobot"
+basis: the same ref armed twice produced two different content hashes
+controls: 'arming each ref twice in alternation after the fix -- `upstream/next`,
+  `perf/experiments-next`, `upstream/next`, `perf/experiments-next` -- reproduces
+  `74f4a39e7dfc3fbc` and `368a99a0401538e6` exactly, with zero tracked difference and zero
+  untracked files under `nautobot/` on every pass. The two arms differ from each other, which
+  is the property the protocol actually rests on.'
+tests: n/a; harness only, no product code
+caveat: null
+note: 'The removal set is now computed against the **working tree** rather than against HEAD:
+  every file under `nautobot/` that the target ref does not have is removed, whatever put it
+  there. `project-static` is excluded because it is build output `nb_hash` already ignores, and
+  `__pycache__` because discarding it would hand the next run a cold import.
+
+
+  This is the second time this script has been wrong in the same direction, and the first fix
+  is why the second was possible. Its header already records finding 22''s migration surviving
+  into the stock arm, and the repair for that reached exactly as far as the incident did --
+  two refs, HEAD one of them. A fix shaped to the incident rather than to the mechanism leaves
+  the mechanism live, and the second occurrence cost a restarted measurement run rather than a
+  wrong number only because the hash happened to be compared.
+
+
+  **A content hash proves two arms differ. It does not prove either one is what it claims to
+  be.** The protocol has always read the hash as evidence the swap happened, and it is good
+  evidence for that. Here both arms were distinct and one of them was not the ref it was
+  labelled with. The check that would have caught it costs nothing and is now worth running
+  beside the hash: `git status --porcelain nautobot/` must be empty.
+
+
+  **`git diff <ref> -- nautobot/` is not that check, and it reads backwards.** It compares
+  `<ref>` against the *index*, and `arm` ends with `git reset -q`, so the index is HEAD. Arming
+  to any ref that is not an ancestor of HEAD then reports every file the ref has and HEAD lacks
+  as `D`, deleted, while those files sit on disk correctly restored -- arming to
+  `perf/experiments` from a `perf/experiments-next` checkout shows 45 phantom deletions. The
+  file-set comparison is the honest one: 1,205 `*.py` in the worktree against 1,205 in the ref,
+  at the hash the ref is known to produce. An earlier empty `git diff` here looked like
+  verification and was only an accident of `upstream/next` being an ancestor of HEAD.'

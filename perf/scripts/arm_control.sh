@@ -15,6 +15,12 @@
 # be inert during an apply, which is exactly why it went unnoticed; the next added
 # file need not be.
 #
+# The fix for that was HEAD-relative and covered two refs only. With a third ref in
+# the sequence it fails again, and the same way: arming stock -> old-branch -> stock
+# left 40 integration tests upstream had deleted in the stock arm, because they are
+# absent from both the target ref and HEAD. The removal set is now computed against
+# the working tree, so what arms to a ref is that ref and nothing else.
+#
 #   armctl.sh hash            content hash of nautobot/, the proof the arms differ
 #   armctl.sh arm <ref>       swap nautobot/ to <ref>, restart, wait until measurable
 #   armctl.sh reset           clone nautobot_empty over the live database
@@ -35,13 +41,37 @@ hash)
 arm)
   ref="${2:?usage: armctl.sh arm <ref>}"
   git checkout "$ref" -- nautobot/ || { echo "checkout failed" >&2; exit 1; }
-  # Remove what the target ref does not have. --diff-filter=A against HEAD lists
-  # files added on the way from <ref> to HEAD, which is precisely the set a
-  # path-scoped checkout cannot clear. Arming back to the branch restores them.
-  extra="$(git diff --name-only --diff-filter=A "$ref" HEAD -- nautobot/)"
+  # Remove what the target ref does not have, computed against the WORKING TREE
+  # rather than against HEAD.
+  #
+  # This used to diff --diff-filter=A <ref>..HEAD, i.e. only the files HEAD adds
+  # relative to <ref>. That covers the two-ref case and silently fails the moment a
+  # third ref is involved: a file left behind by an earlier arm is in neither <ref>
+  # nor HEAD, so it is outside that set, and `git checkout <ref> -- nautobot/`
+  # overwrites but never deletes. Arming stock -> old-branch -> stock left 40
+  # integration tests upstream had deleted sitting in the stock arm, and the same
+  # ref hashed two different ways -- which voids the proof that two arms differ.
+  #
+  # project-static is excluded because it is build output nb_hash already ignores,
+  # and __pycache__ because discarding it would put a cold import on the next run.
+  ref_files="$(mktemp)"; wt_files="$(mktemp)"
+  trap 'rm -f "$ref_files" "$wt_files"' RETURN 2>/dev/null || true
+  git ls-tree -r --name-only "$ref" -- nautobot/ | LC_ALL=C sort > "$ref_files"
+  find nautobot -type f \
+    -not -path "nautobot/project-static/*" \
+    -not -path "*/__pycache__/*" \
+    | LC_ALL=C sort > "$wt_files"
+  extra="$(comm -13 "$ref_files" "$wt_files")"
+  rm -f "$ref_files" "$wt_files"
   if [ -n "$extra" ]; then
     echo "$extra" | while IFS= read -r f; do [ -n "$f" ] && rm -f "$f"; done
-    echo "  removed $(echo "$extra" | grep -c .) file(s) absent from $ref: $(echo $extra | tr '\n' ' ')"
+    find nautobot -type d -empty -delete 2>/dev/null
+    n=$(echo "$extra" | grep -c .)
+    if [ "$n" -le 6 ]; then
+      echo "  removed $n file(s) absent from $ref: $(echo $extra | tr '\n' ' ')"
+    else
+      echo "  removed $n file(s) absent from $ref, including: $(echo $extra | head -4 | tr '\n' ' ')..."
+    fi
   fi
   # Unstage immediately. A staged reversion left lying around is how five fixes
   # got undone once on this branch; nothing commits on this host, and this makes
