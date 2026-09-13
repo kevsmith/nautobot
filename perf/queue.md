@@ -108,6 +108,84 @@ queries flat. Those need no fix, only a correction to the audit.
 
 ---
 
+## Queued: `perf/ez-review`, a review-ordered cut of `perf/recommended`
+
+**Not started. Agreed 2026-09-13.** `perf/recommended` is ordered for *attribution* — commits
+appear in the order the changes were made, and each maps to exactly one finding, which is what
+`recommended_commit` records and what the report's table cites. That ordering is poor for
+review. A separate branch, `perf/ez-review`, would carry the same tree in an order a reviewer
+can work through, leaving `perf/recommended` as the attribution branch.
+
+**SHAs below are valid at `perf/recommended` `0e3efb8ab`.** If that branch moves, re-derive
+them by subject rather than trusting these.
+
+### Step 1 — delete the no-op pair, which is the largest single win and is not about ordering
+
+Two commits cancel exactly:
+
+| | commit | |
+|---|---|---|
+| adds | `c2c211cd1` | Fix the tag cache in `serialize_object`, which never fires |
+| reverts | `e6b496057` | Revert finding 31: its tag cache has no reader since finding 22 |
+
+**Verified, not assumed:** all four touched files — `core/models/utils.py`,
+`extras/api/mixins.py`, `extras/context_managers.py`, `extras/signals.py` — are byte-identical
+at `c2c211cd1~1` and at `e6b496057`, and no commit between the two touches any of them. A
+reviewer currently watches a change be added and removed for no net effect. 48 commits become
+46 by deleting both.
+
+### Step 2 — move the state-changing commits into a labelled tail
+
+| commit | tier | what |
+|---|---|---|
+| `d6a786e30` | `C` | Stop writing `ObjectChange.object_data` — carries migration `0146` |
+| `148b2df32` | `B2` | Stop paying Redis round-trips for tree display and config |
+| `4f0382393` | `B2` | Resolve the navbar-favorites URLs once per process |
+| `42f25eccc` | `B2` | Cache the rendered sidenav item fragment per (user, theme) |
+
+**Every one is already isolated:** no later commit on the branch touches any file any of them
+touches, so moving them costs nothing semantically.
+
+**This is the property worth having.** A maintainer could take the first 42 commits and defer
+the tail without rebasing anything. Today, deferring the `object_data` migration means rebasing
+the 27 commits behind it.
+
+### Step 3 — group the middle by subsystem
+
+`core/api` 7, `core/models` 8, `core/tables.py` 6 plus its rollouts into `dcim`/`tenancy`/`ipam`,
+`dcim` 12, `extras`, `core/views`, `core/forms`, `core/templatetags`, `core/context_processors`.
+Splittable across reviewers. The tables chain is already in dependency order — the
+`TemplateColumn` compilation change first, the `BaseTable.replace_queryset` extraction last as
+cleanup — so grouping it reorders nothing semantically.
+
+### Step 4 — attach the tests-only commit to what it tests
+
+`66f14aa16` ("Add the cache-scope and django-tables2 coupling tests") sits at position 25 and
+tests findings 07 and 11, at positions 7 and 11. Upstream review generally wants tests with the
+change they cover.
+
+### What it costs, and what has to be re-recorded
+
+- **Attribution breaks.** All 47 `recommended_commit` fields need repointing. The tooling
+  exists and was used twice on 2026-09-13: build an old→new map from `rev-list --reverse` on
+  both sides, verify 1:1 by subject with zero mismatches, then substitute on the
+  `recommended_commit:` line alone — never a yaml round-trip, the finding files carry folded
+  scalars it would reflow.
+- **Findings 31 and 60 lose their commit entirely**, because the branch would no longer carry
+  that change. That is more honest than the current state and the finding files should say so
+  rather than going silent.
+- **Decide whether `recommended_commit` should point at `perf/recommended` or at
+  `perf/ez-review`.** It cannot point at both, and `verify_report.py` asserts every SHA in the
+  report's table is on the branch it names.
+
+### How to build it safely
+
+Build in a worktree; tag the old tip first, as with the two re-baselining rebases. **The gate
+before it replaces anything:** `nautobot/` byte-identical to `perf/experiments`, the net diff
+against `next` textually identical to `perf/recommended`'s (63 files, `+3,022 −454`, 3,476
+changed lines), zero merges, and nothing added outside `nautobot/`. A reordering that changes
+the tree is a reordering that went wrong.
+
 ## Done: the row-rendering request on every list view (findings 44, 76-79)
 
 This headed "Next up" until 2026-09-13, under a numbering since superseded. It opened because finding 44 showed the harness had never
