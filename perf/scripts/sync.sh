@@ -35,6 +35,13 @@ done
 # here. Do not run git operations locally while a sync is in flight.
 EXCLUDES=(
   --exclude "perf/results/"
+  # Run output, not source. rsync --delete removes anything on the far side that is absent
+  # here, so a sync between a suite finishing and its artifacts being collected destroys them.
+  # An overnight coverage run was lost that way.
+  --exclude ".coverage"
+  --exclude ".coverage.*"
+  --exclude "lcov.info"
+  --exclude "htmlcov/"
   --exclude "__pycache__/"
   --exclude "*.pyc"
   --exclude "node_modules/"
