@@ -125,10 +125,13 @@ tests: '**Its own 6 pass and it breaks 109 others, which is why it was backed ou
   response varies on `HX-Request`. They were the wrong tests to write first: they cover what
   the change does and not what it stops doing.'
 caveat: '**Tier C: this is a behaviour change, not a transparent optimisation.** The filter form
-  is absent from the document until opened, and unavailable without JavaScript. That last part is
-  nearly free as positions go -- a list view already renders zero rows without JavaScript
-  (`queryset if htmx_request else queryset.none()`), so the page is already non-functional there
-  and this inherits the position rather than taking it.
+  is absent from the document until opened, and unavailable without JavaScript.
+
+
+  **The JavaScript question is decided, not open.** A Nautobot list view already renders zero
+  rows without JavaScript -- `queryset if htmx_request else queryset.none()` -- because the table
+  is fetched asynchronously over HTMX, so no list page is usable without it today. The drawer
+  inherits that position rather than taking it, and Kevin accepted it on that basis.
 
 
   **The saving is deferral, not removal.** Whoever opens the drawer pays the ~46ms then. The
