@@ -1,9 +1,9 @@
 ---
 seq: 86
 id: null
-commit: 7dda0bef7
-recommended_commit: null
-status: reverted
+commit: f326e6d07
+recommended_commit: c1785235b
+status: accepted
 behaviour: C
 migration: '-'
 flags: []
@@ -92,9 +92,15 @@ controls: '`ui.chrome.404` renders no drawer and is CPU-bound at 3 queries: -0.5
 
   Equivalence was proved before any timing: the fetched drawer is byte-identical to what
   rendered inline, across four filter states, after normalising the per-request CSRF token.'
-tests: '**Its own 6 pass and it breaks 109 others, which is why it was backed out of
-  perf/recommended.** The full suite on the published tree ran 17,963 tests and reported
-  `FAILED (failures=2, errors=107)` against a clean 17,952 before it.
+tests: '**6 of its own, plus three existing assertions relocated to follow the markup.** Full
+  suite on the accepted tree: **17,963 tests, `OK (skipped=666, expected failures=1)`, zero
+  `FAIL` or `ERROR` lines.**
+
+
+  It was not green first time. Published before the suite ran, it reported
+  `FAILED (failures=2, errors=107)` and was backed out of perf/recommended until the fallout was
+  resolved. What broke was not the change but three assertions reading the filter form where it
+  no longer renders.
 
 
   **107 errors, one cause.** `nautobot/core/testing/views.py:476` reads
