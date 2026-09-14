@@ -2,25 +2,71 @@
 {% load helpers %}
 {% load static %}
 
-<section class="nb-drawer" tabindex="-1" id="{{ filter_form_name }}_drawer"
-    {% if deferred %}
-        {% comment %}
-            Contents fetched the first time the drawer opens, the way the table fetches its rows.
-            The trigger is the drawer's own open event rather than a click on the button: a
-            refresh re-opens the drawer from window.history.state without any click
-            (drawer.js), so a click-scoped trigger leaves it empty until it is toggled twice.
-            `nb-drawer:opened` covers every path that opens it. `this` + innerHTML keeps the
-            <section> drawer.js toggles; swapping the section itself would race that toggle.
-        {% endcomment %}
-        aria-hidden="true"
-        hx-get="{{ request.get_full_path }}"
-        hx-vals='{"_drawer": "filter"}'
-        hx-target="this"
-        hx-swap="innerHTML"
-        hx-trigger="nb-drawer:opened once"
-    {% endif %}
->
-    {% if not deferred %}{% include "utilities/templatetags/filter_form_drawer_content.html" %}{% endif %}
+<section class="nb-drawer" tabindex="-1" id="{{ filter_form_name }}_drawer">
+    <div class="nb-drawer-header">
+        <h1>Filters</h1>
+        <button type="button" class="btn-close" data-nb-dismiss="drawer" aria-label="Close"></button>
+    </div>
+    <div class="nb-drawer-body">
+        <ul id="filter-tabs" class="nav nav-tabs">
+            {% if filter_form %}
+                <li role="presentation" class="nav-item">
+                    <a class="nav-link{% if filter_form %} active{% endif %}"  href="#default-filter" role="tab" data-bs-toggle="tab">
+                        Basic
+                    </a>
+                </li>
+            {% endif %}
+            {% if dynamic_filter_form %}
+                <li role="presentation" class="nav-item">
+                    <a class="nav-link position-relative{% if not filter_form %} active{% endif %}" href="#advanced-filter" role="tab" data-bs-toggle="tab">
+                        Advanced
+                        {% advanced_filter_indicator basic_filter_form=filter_form filter_params=filter_params %}
+                    </a>
+                </li>
+            {% endif %}
+        </ul>
+        <div class="tab-content h-100">
+            {% if filter_form %}
+                <div id="default-filter" role="tabpanel" class="tab-pane fade{% if filter_form %} show active{% endif %} h-100 p-20">
+                    {% include 'inc/search_panel.html' %}
+                </div>
+            {% endif %}
+            {% if dynamic_filter_form %}
+                <div id="advanced-filter" role="tabpanel" class="tab-pane fade{% if not filter_form %} show active{% endif %} h-100 p-20">
+                    <form class="h-100 vstack" id="dynamic-filter-form">
+                        <div class="align-content-start flex-fill pb-20">
+                            {{ dynamic_filter_form.management_form }}
+                            <div id="nb-add-filter-form">
+                                {% for field in dynamic_filter_form.0.visible_fields %}
+                                    <div class="nb-form-group nb-add-filter-form-field">
+                                        <label for="{{ field.auto_id }}">{{ field.label|capfirst }}</label>
+                                        {{ field }}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            <button class="nb-dynamic-filter-add btn btn-primary d-block ms-auto my-20" type="button">
+                                <span aria-hidden="true" class="mdi mdi-plus me-4"></span><!--
+                                -->Add Filter
+                            </button>
+                            <hr class="border-top my-20">
+                            {% include "inc/dynamic_filter_items.html" %}
+                        </div>
+
+                        <div class="d-print-none justify-content-between mb-n20 nb-form-sticky-footer">
+                            <button type="submit" class="btn btn-primary">
+                                <span class="mdi mdi-check me-4" aria-hidden="true"></span><!--
+                                -->Apply Specified
+                            </button>
+                            <button type="reset" class="btn btn-secondary">
+                                <span aria-hidden="true" class="mdi mdi-close me-4"></span><!--
+                                -->Clear All
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
+    </div>
 </section>
 
 {% block javascript %}
@@ -56,7 +102,6 @@
             initializeInputs(element);
         }
 
-
         /**
          * Function to set name for newly created input after adding filter on advanced tab.
          * filter_form.js will call this function to set correct filter input name
@@ -77,17 +122,8 @@
                 'table_changes_pending',
             ];
 
-            /**
-             * Select the URL's filter values in the drawer's multi-value controls.
-             *
-             * Called for whichever way the form reached the DOM: on DOMContentLoaded when the
-             * drawer is rendered inline, and again after the deferred contents are swapped in.
-             * It returns early when the form is absent, which is the normal state of a
-             * deferred drawer that has never been opened.
-             */
-            const prepopulateFilterSelectsFromURL = () => {
+            const prepopulateFilterSelectsFromURL = (() => {
                 const { defaultFilterForm } = getFilterForms();
-                if (!defaultFilterForm) { return; }
                 const urlParams = new URLSearchParams(window.location.search);
                 // Only target Select2 controls inside the default filter form.
                 [...defaultFilterForm.querySelectorAll('select.nautobot-select2-multi-value-char')].forEach((el) => {
@@ -109,28 +145,7 @@
                         $(el).trigger('change');
                     }
                 });
-            };
-            prepopulateFilterSelectsFromURL();
-
-            /**
-             * Initialize the drawer's contents when they are fetched on first open.
-             *
-             * Registered inside this DOMContentLoaded callback rather than at script scope
-             * because prepopulateFilterSelectsFromURL is declared here and is not visible
-             * outside it. initializeInputs is the same function the advanced tab reaches
-             * through reInitialize() after adding a filter row, and it ends by calling
-             * initializeSelect2Fields, which is what the API-backed selects need.
-             */
-            document.body.addEventListener('htmx:afterSettle', (event) => {
-                const target = event.detail && event.detail.target;
-                if (target && target.id === '{{ filter_form_name }}_drawer') {
-                    if (typeof initializeInputs === 'function') {
-                        initializeInputs(target);
-                    }
-                    // After initializeInputs, so select2 exists on the controls this touches.
-                    prepopulateFilterSelectsFromURL();
-                }
-            });
+            })();
 
             const isFilterForm = (target) => Boolean(target?.closest('#{{ filter_form_name }}_drawer'));
 
@@ -209,4 +224,3 @@
         });
     </script>
 {% endblock %}
-
