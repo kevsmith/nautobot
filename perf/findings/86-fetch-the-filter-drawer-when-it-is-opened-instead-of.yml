@@ -2,8 +2,8 @@
 seq: 86
 id: null
 commit: 7dda0bef7
-recommended_commit: 101f4152f
-status: accepted
+recommended_commit: null
+status: reverted
 behaviour: C
 migration: '-'
 flags: []
@@ -38,6 +38,29 @@ result:
   one_fetch_per_page_load: 'verified in a browser: open, close, open fires **exactly one**
     request. The trigger carries `once` and the swapped contents stay in the DOM. 31 select2
     containers initialize on arrival, and a filtered URL arrives with its value selected.'
+  what_would_unblock_it: '**Three pieces of work, and one of them needs a decision rather than a
+    patch.**
+
+
+    *The shared assertion.* `nautobot/core/testing/views.py:476` has to stop requiring a rendered
+    form. Its intent -- following a badge link to a filtered list URL surfaces no filter errors --
+    survives deferral, because invalid filters still reach the user as messages; confirmed in a
+    browser, where `?status=active` produced "Invalid filters were specified". So it can read
+    messages rather than form context. One edit in one file that changes the semantics of every
+    view test case in the product, which is why it is not a quick fix.
+
+
+    *The security regression test.* `test_filtering_crafted_query_params` guards
+    GHSA-jxgr-gcj5-cqqg and has to keep guarding it. Re-pointing it at the fetched drawer is
+    easy and is the wrong thing to do carelessly: the replacement has to fail when the escaping
+    regresses, and that should be proved by breaking the escaping on purpose and watching it
+    fail -- not by watching it pass.
+
+
+    *The tab-strip assertion* is a straightforward relocation to the fetch.
+
+
+    Only after those does a full suite run mean anything here.'
 wall_clock: "−31.9% ui.prefix.list, −32.7% ui.ipaddress.list, −20.5% ui.device.list"
 basis: three arms over three alternating rounds, against an inert control that moved −0.5%
 controls: '`ui.chrome.404` renders no drawer and is CPU-bound at 3 queries: -0.5% on the deferred
@@ -49,13 +72,38 @@ controls: '`ui.chrome.404` renders no drawer and is CPU-bound at 3 queries: -0.5
 
   Equivalence was proved before any timing: the fetched drawer is byte-identical to what
   rendered inline, across four filter states, after normalising the per-request CSRF token.'
-tests: '6 in `nautobot.core.tests.test_views.DeferredFilterDrawerTestCase`, OK. The document
+tests: '**Its own 6 pass and it breaks 109 others, which is why it was backed out of
+  perf/recommended.** The full suite on the published tree ran 17,963 tests and reported
+  `FAILED (failures=2, errors=107)` against a clean 17,952 before it.
+
+
+  **107 errors, one cause.** `nautobot/core/testing/views.py:476` reads
+  `list_response.context["errors"]`, a key present only because the filter form rendered on the
+  page. With the contents deferred no form renders in the document, so every model''s view test
+  case raises `KeyError`. Shared test infrastructure is why one change reaches 107 tests.
+
+
+  **One failure** asserts the filter tabs are in the page body. They are not, by design.
+
+
+  **One failure is the regression test for GHSA-jxgr-gcj5-cqqg**, a reflected XSS: it asserts a
+  crafted query param renders escaped in a filter badge. The escaping still happens, in the
+  fetched drawer, but the test no longer reaches that markup. Nothing here reintroduces the
+  vulnerability; what is lost is the test''s reach.
+
+
+  Attribution checked rather than assumed: finding 85, landed the same night, passes
+  `FilterFormsTestCase` alone, so all 109 belong to this change.
+
+
+  Its own 6, in `nautobot.core.tests.test_views.DeferredFilterDrawerTestCase`: The document
   carries the shell and not the contents, asserted on the drawer''s own tab strip rather than on
   the absence of a `<select>` -- a page whose filter form has no selects would pass that by
   accident. The fetch returns contents without the shell, since the swap is innerHTML and
   returning the section would nest a drawer inside itself. The marker alone does not trigger a
   fetch. The marker is not read as a filter. The fetch keeps the page''s filters. And the
-  response varies on `HX-Request`.'
+  response varies on `HX-Request`. They were the wrong tests to write first: they cover what
+  the change does and not what it stops doing.'
 caveat: '**Tier C: this is a behaviour change, not a transparent optimisation.** The filter form
   is absent from the document until opened, and unavailable without JavaScript. That last part is
   nearly free as positions go -- a list view already renders zero rows without JavaScript
