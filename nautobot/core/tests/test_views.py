@@ -1098,10 +1098,14 @@ class FilterFormsTestCase(TestCase):
         </ul>
         """
 
-        response = self.client.get(reverse("dcim:location_list"))
+        # The filter form is not rendered into a list view; its drawer fetches the contents
+        # when the user first opens it, so that is where the tabs are.
+        drawer = {"_drawer": "filter"}
+        hx = {"HX-Request": "true"}
+        response = self.client.get(reverse("dcim:location_list"), drawer, headers=hx)
         self.assertBodyContains(response, filter_tabs, html=True)
 
-        response = self.client.get(reverse("circuits:circuit_list"))
+        response = self.client.get(reverse("circuits:circuit_list"), drawer, headers=hx)
         self.assertBodyContains(response, filter_tabs, html=True)
 
     def test_filtering_on_custom_select_filter_field(self):
@@ -1139,7 +1143,10 @@ class FilterFormsTestCase(TestCase):
         self.add_permissions("dcim.view_location")
         query_param = "?location_type=1 onmouseover=alert('hi') foo=bar"
         url = reverse("dcim:location_list") + query_param
-        response = self.client.get(url)
+        # The badge renders in the filter drawer, which a list view fetches when it is opened
+        # rather than rendering inline, so the crafted value has to be followed there. The
+        # escaping is unchanged; only where it is rendered moved.
+        response = self.client.get(f"{url}&_drawer=filter", headers={"HX-Request": "true"})
         # The important thing here is that the data-nb-value and value are correctly quoted
         self.assertBodyContains(
             response,
