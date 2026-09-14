@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.template import engines, loader
 from django.urls import resolve
+from django.utils.cache import patch_vary_headers
 from django_tables2 import RequestConfig
 from rest_framework import renderers
 
@@ -363,6 +364,28 @@ class NautobotHTMLRenderer(renderers.BrowsableAPIRenderer):
 
         return context
 
+    #: Query parameter naming which deferred drawer an HTMX request wants. A list view renders
+    #: its filter drawer closed, and most users never open it, so the document omits the contents
+    #: and the drawer is fetched on first open. The table already defers its rows the same way.
+    #:
+    #: The marker rides on the list URL rather than a dedicated endpoint because the drawer is a
+    #: function of the *view*: `filterset_form_class` is a view attribute and 119 views override
+    #: it, so an endpoint addressing a model could not see those overrides and would have to
+    #: recompute permissions, filter params and saved-view state in a second path.
+    #:
+    #: `HX-Request` alone cannot identify it -- the table's row fetch already uses that header on
+    #: this URL -- hence the parameter, which is registered in NON_FILTER_PARAMS so the filterset
+    #: does not reject it as an unknown filter.
+    FILTER_DRAWER_PARAM = "_drawer"
+    FILTER_DRAWER_VALUE = "filter"
+
+    @classmethod
+    def is_filter_drawer_request(cls, request):
+        """True when HTMX is fetching the filter drawer rather than the page around it."""
+        return bool(request.headers.get("HX-Request", False)) and (
+            request.GET.get(cls.FILTER_DRAWER_PARAM) == cls.FILTER_DRAWER_VALUE
+        )
+
     def render(self, data, accepted_media_type=None, renderer_context=None):
         """
         Overrode render() from BrowsableAPIRenderer to set self.template with NautobotViewSet's get_template_name() before it is rendered.
@@ -380,6 +403,13 @@ class NautobotHTMLRenderer(renderers.BrowsableAPIRenderer):
         # Get the corresponding template based on self.action in view.get_template_name() unless it is already specified in the Response() data.
         # See form_valid() for self.action == "bulk_create".
         self.template = data.get("template", view.get_template_name())
+
+        # One URL now answers three ways -- document, table rows, filter drawer -- so anything
+        # caching it has to know that. Without this a cached fragment can be served where a page
+        # belongs, which fails intermittently and is miserable to reproduce.
+        patch_vary_headers(response, ("HX-Request",))
+        if self.is_filter_drawer_request(request):
+            self.template = "generic/object_list_filter_drawer.html"
 
         data["request"] = request
 
