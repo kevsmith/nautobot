@@ -473,10 +473,18 @@ class ViewTestCases:
                         )
                     else:
                         self.assertHttpStatus(list_response, 200)
-                        for error in list_response.context["errors"]:
+                        # Filter errors are read off the rendered page rather than out of
+                        # `context["errors"]`. That key only ever appeared because django's
+                        # form template emits it, and the filter form is no longer rendered
+                        # into a list view -- its drawer fetches itself when opened. The
+                        # message is what the user sees either way, and
+                        # `test_list_objects_filtered` below checks the same string.
+                        list_body = list_response.content.decode(list_response.charset)
+                        if "Invalid filters were specified" in list_body:
                             errors.append(
                                 (
-                                    f"Error on {model_name} {tab_label} tab: panel '{table_title}' badge link '{list_url}': {error}."
+                                    f"Error on {model_name} {tab_label} tab: panel '{table_title}'"
+                                    f" badge link '{list_url}': invalid filters were specified."
                                 )
                             )
             if errors:
