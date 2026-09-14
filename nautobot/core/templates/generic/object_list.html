@@ -194,7 +194,7 @@
 {% endblock %}
 
 {% block drawer %}
-    {% filter_form_drawer filter_form dynamic_filter_form model_plural_name=title filter_params=filter_params deferred=True %}
+    {% filter_form_drawer filter_form dynamic_filter_form model_plural_name=title filter_params=filter_params %}
     {% if table %}
         {% table_config_form table %}
     {% endif %}

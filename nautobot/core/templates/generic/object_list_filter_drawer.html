@@ -1,8 +1,0 @@
-{% load helpers %}
-{% comment %}
-The filter drawer's contents alone, for the HTMX fetch that runs when a user first opens it.
-Returns the inner markup rather than the <section> wrapper, so the swap replaces what is
-inside #<name>_drawer and leaves the element drawer.js toggles untouched. Swapping the
-section itself would race the open-class toggle and close the drawer as it opened.
-{% endcomment %}
-{% filter_form_drawer_content filter_form dynamic_filter_form model_plural_name=title filter_params=filter_params %}
