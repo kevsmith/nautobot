@@ -11,13 +11,12 @@ from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db import connection
-from django.test.utils import CaptureQueriesContext
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.test import override_settings, RequestFactory, tag
-from django.test.utils import override_script_prefix
+from django.test.utils import CaptureQueriesContext, override_script_prefix
 from django.urls import get_script_prefix, reverse
 from prometheus_client.parser import text_string_to_metric_families
 

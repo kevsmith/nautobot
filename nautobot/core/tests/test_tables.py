@@ -41,7 +41,6 @@ from nautobot.extras.tables import JobLogEntryTable
 from nautobot.ipam.api.serializers import PrefixSerializer
 from nautobot.ipam.models import Prefix, RIR
 from nautobot.ipam.tables import PrefixTable, RIRTable
-from nautobot.tenancy.tables import TenantGroupTable
 from nautobot.tenancy.tables import TenantColumn, TenantGroupTable
 from nautobot.users.models import User
 from nautobot.wireless.models import WirelessNetwork
