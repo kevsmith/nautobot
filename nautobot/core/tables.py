@@ -11,11 +11,11 @@ from django.core.exceptions import FieldDoesNotExist, FieldError
 from django.db.models import Prefetch, Q, QuerySet
 from django.db.models.fields.related import ForeignKey, RelatedField
 from django.db.models.fields.reverse_related import ManyToOneRel
+from django.template import Context, Template
 from django.urls import reverse
 from django.utils.html import format_html, format_html_join
 from django.utils.http import urlencode
 from django.utils.safestring import mark_safe
-from django.template import Context, Template
 from django.utils.text import Truncator
 import django_tables2
 from django_tables2.data import TableData, TableQuerysetData
