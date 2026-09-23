@@ -108,6 +108,12 @@ note: '**Worth reporting upstream rather than absorbing.** The duplicate is the 
   changed, and this finding is the explanation.
 
 
+  **Finding 89 returns 4 of these 22 queries, and cannot return the rest.** Memoizing the Job
+  lookup for the duration of the request collapses the device lists'' doubled call to one. The
+  other 18 are a single lookup per list view with nothing to collapse them against, so they stay
+  until either upstream caches the lookup or the trigger stops resolving its Job at render time.
+
+
   **Separately, the shape normaliser has a gap worth fixing.** `normalize_sql` replaces `\b\d+\b`,
   which does not match digits inside an identifier, so a server-side cursor name
   (`_django_curs_136085289079680_sync_80`) survives normalisation and makes the same query a
