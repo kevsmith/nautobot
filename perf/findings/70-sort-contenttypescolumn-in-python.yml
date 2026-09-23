@@ -1,8 +1,8 @@
 ---
 seq: 70
 id: null
-commit: ad2c89c6f
-recommended_commit: 913620b68
+commit: a28f0ec86
+recommended_commit: a15cb3efc
 status: accepted
 basis: 'attribution: exactly 1.000 content-type query per rendered row'
 behaviour: A

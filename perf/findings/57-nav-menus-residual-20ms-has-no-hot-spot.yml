@@ -1,7 +1,7 @@
 ---
 seq: 57
 id: null
-commit: 8434b6685
+commit: c98af8d78
 status: not-taken
 basis: 'attribution: 3,629 node renders averaging ~7us, no node type above 121us/render'
 behaviour: A

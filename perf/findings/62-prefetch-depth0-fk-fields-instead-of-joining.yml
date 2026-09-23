@@ -1,8 +1,8 @@
 ---
 seq: 62
 id: null
-commit: 013683cce
-recommended_commit: e9c7913a1
+commit: 75149fe96
+recommended_commit: cab58fd08
 status: accepted
 basis: 'attribution: Device widens 32 -> 212 columns at depth 0 for columns DRF never reads'
 behaviour: A
