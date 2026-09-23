@@ -11,8 +11,10 @@ title: Memoize the Job a job-modal button resolves, for the duration of the requ
 site: nautobot/core/ui/object_detail.py `_JobModalButton.build_trigger_context` / `_get_job`
 summary: '`_JobModalButton.build_trigger_context()` resolved its Job with
   `Job.objects.restrict(user, "view").get_for_class_path(...)` on every rendered trigger, to decide
-  whether the trigger is disabled. The device lists render the export trigger twice, so the
-  identical permission-filtered query ran twice per page.
+  whether the trigger is disabled. `export_button` builds a trigger for the main button and one
+  more per ExportTemplate on that content type, so the identical permission-filtered query ran
+  **1 + N times per list view**. The device lists show N=1 here because this dataset holds one
+  ExportTemplate and it is on `dcim.device`.
 
 
   The lookup is a pure function of `(class_path, user)`, so it memoizes into the `request_cache()`
@@ -45,7 +47,7 @@ wall_clock_detail: 'Three alternating rounds with the arm order reversed (A/B, B
   is ~0.6% and these deltas are 1 to 5ms. The direction is consistent across all four targets and
   larger than every control, but the deterministic counter is the result and this is corroboration.
   On `server_ms_mean` the targets and the controls cannot be separated at all.'
-basis: 'one SQL shape, 2 -> 1, on the four scenarios that render the trigger twice'
+basis: 'one SQL shape, 2 -> 1, on the four scenarios whose content type has an ExportTemplate'
 controls: 'ui.device.detail +0.0% (252.0ms both arms), ui.location.list −0.3%, api.device.list
   −0.7%. ui.location.list is the sharp one: it renders the same trigger through the same code path
   and its counter does not move, so it prices what this instrument reads on a page the change
@@ -75,7 +77,15 @@ caveat: 'The memoized value is **permission-filtered**, so the B1 argument rests
   Nothing else changes: same query, same disabled state, same rendered markup. The disabled-reason
   branches are reordered to read from a returned `None` rather than from a caught exception, and
   are otherwise identical.'
-note: '**This is the small half of finding 88, and it is worth being plain that it does not close
+note: '**What this is worth scales with the deployment, and this dataset is the floor.** The memo
+  keys on `(class_path, user)` and every one of the `1 + N` calls per list view resolves the same
+  class path, so it collapses all of them to one. Here N is 0 on 17 of 18 list views and 1 on
+  `dcim.device`, which is why the measured saving is 4 queries. A deployment with five
+  ExportTemplates on a model saves five on that model''s list view, twenty saves twenty. The
+  measured figure is not a ceiling and should not be read as one.
+
+
+  **This is the small half of finding 88, and it is worth being plain that it does not close
   it.** #9501 added 22 queries across the 57-scenario read loop; this returns 4. The other 18 are
   one lookup per list view with nothing to collapse them against.
 
@@ -95,9 +105,9 @@ note: '**This is the small half of finding 88, and it is worth being plain that 
   the process. Same counter, B2 plus `security-visible` instead of B1.
 
 
-  **And: stopping the device lists rendering the trigger twice**, which fixes the duplication at
-  source for the same −4. Rejected as tier C against tier B1 for an identical counter -- it changes
-  rendered output, and this does not.
+  **And: not building a trigger per ExportTemplate**, which fixes the duplication at source for
+  the same −4 here. Rejected as tier C against tier B1 for an identical counter on this dataset --
+  it changes rendered output, removing the per-template export actions, and this does not.
 
 
   The commissioning brief for this experiment predicted the +1 would disappear from every list
