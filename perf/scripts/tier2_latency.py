@@ -207,10 +207,33 @@ def main():
               file=sys.stderr)
         for r in skipped:
             print(f"     {r['id']}: probe {r['probe_status']}", file=sys.stderr)
+        # Two different causes, and the hint used to name only the second, which sent
+        # one investigation at an auth problem it did not have.
+        if any(r.get("probe_status") is None for r in skipped):
+            print("   A probe status of None is a connection failure, not an auth failure:\n"
+                  "   the app is not listening yet. The container clears its healthcheck while\n"
+                  "   the entrypoint still has migrate / job refresh / collectstatic / system\n"
+                  "   check to run, which is another 60-90s before uwsgi binds. Poll for HTTP\n"
+                  "   200 before timing, not for `docker compose ps` reporting healthy.",
+                  file=sys.stderr)
         print("   UI views need session auth (--session / NAUTOBOT_SESSIONID); an API\n"
               "   token authenticates DRF only and yields 403 on UI endpoints.",
               file=sys.stderr)
     print(f"wrote {args.out}", file=sys.stderr)
+
+    # A run that timed NOTHING used to exit 0, so it read as a successful run whose
+    # output happened to be empty -- and one A/B round was reported that way before the
+    # file was opened and found to contain no timings at all. Timing nothing is a
+    # failure, and the caller has to be able to see it in an exit code, because the
+    # alternative is a wall-clock figure assembled from the rounds that did work and a
+    # silent hole where one arm should be.
+    #
+    # A PARTIAL skip stays a warning: skipping the UI views for want of a session is a
+    # real and legible way to run this, and the message above says so.
+    if not [r for r in records if not r.get("skipped")]:
+        print(f"!! NOTHING WAS TIMED: all {len(records)} endpoints were skipped. "
+              "This run measured nothing.", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
