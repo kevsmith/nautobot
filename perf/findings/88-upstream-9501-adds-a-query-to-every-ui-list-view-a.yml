@@ -67,8 +67,7 @@ result:
     3,597 -> 3,619, branch 879 -> 901, and the headline therefore reads -75.1% where it read
     -75.6%. The 0.5-point move is upstream''s, not a loss of effect.'
 wall_clock: "not measured: an attribution of queries added upstream, proposing no change here"
-basis: Tier 1 on hannah (two alternating rounds per arm, both arms hash-proved distinct) for the
-  counts; SQL-shape capture on a second host across three refs for the attribution
+basis: Tier 1 over two alternating rounds, plus SQL-shape capture across three refs
 controls: 'Every claim measured on both arms, each printing its own content hash on every swap --
   old stock `2afdc2b25a4a236e`, new stock `0ee05ec157bcf7a8`, branch `33f4cb8930f61178`. Query
   counts reproduced bit-identically across both Tier 1 rounds on both arms (3,619 and 901), zero
