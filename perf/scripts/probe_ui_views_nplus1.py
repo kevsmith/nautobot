@@ -26,7 +26,7 @@ from django.test.utils import CaptureQueriesContext  # noqa: E402
 from django.urls import reverse  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from tier1_queries import get_perf_client  # noqa: E402
+from tier1_queries import _RE_CURSOR, get_perf_client  # noqa: E402
 
 from nautobot.dcim.models import Device  # noqa: E402
 from nautobot.extras.models import ObjectChange  # noqa: E402
@@ -37,6 +37,8 @@ import re  # noqa: E402
 
 def normalize(sql):
     """Collapse literals so repetitions of one query shape group together."""
+    # Cursor names carry the process id and survive \b\d+\b (finding 88).
+    sql = _RE_CURSOR.sub("_django_curs_X", sql)
     sql = re.sub(r"'[^']*'", "?", sql)
     sql = re.sub(r"\b\d+\b", "?", sql)
     sql = re.sub(r"IN \([^)]*\)", "IN (?)", sql)

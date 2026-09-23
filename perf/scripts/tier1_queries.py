@@ -51,10 +51,26 @@ _RE_STRING = re.compile(r"'[^']*'")
 _RE_NUMBER = re.compile(r"\b\d+\b")
 _RE_IN_LIST = re.compile(r"IN \((?:\s*\?\s*,)*\s*\?\s*\)", re.IGNORECASE)
 _RE_WS = re.compile(r"\s+")
+# Django names a server-side cursor after the id() of the cursor object and a
+# per-connection counter: `_django_curs_136085289079680_sync_80`. Those digits sit
+# INSIDE an identifier, where `\b\d+\b` does not match them -- `_` is a word
+# character, so there is no boundary before the run of digits. The name therefore
+# survived normalisation and made one query a different "shape" in every process.
+#
+# It showed up as a phantom extras_objectchange shape appearing on one arm and
+# vanishing on the other, in a comparison where nothing about the query had changed
+# (finding 88). Query COUNTS were never affected -- only distinct_shapes, and only
+# across processes -- so no published figure rests on the old behaviour.
+_RE_CURSOR = re.compile(r"_django_curs_\d+(?:_sync)?_\d+")
 
 
 def normalize_sql(sql):
-    """Collapse a SQL string to its shape, discarding bound literals."""
+    """Collapse a SQL string to its shape, discarding bound literals.
+
+    Shared rather than copied: five probes had their own inline version of this and
+    every one of them carried the cursor-name gap above.
+    """
+    sql = _RE_CURSOR.sub("_django_curs_X", sql)
     sql = _RE_STRING.sub("?", sql)
     sql = _RE_NUMBER.sub("?", sql)
     sql = _RE_IN_LIST.sub("IN (?)", sql)
