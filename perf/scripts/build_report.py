@@ -597,7 +597,12 @@ def render_cumulative(findings):
             data = json.loads((PERF / "baselines" / agg["file"]).read_text())
             t = data["totals"]
             cov = data["coverage"]
-            coverage = f"{cov['comparable']} of {cov['baseline_records']} measurements"
+            # The generic count is right for a screen, where "516 of 518 measurements" is
+            # exactly what a reader needs. It is useless for the apply, where the unit is one
+            # whole-workflow run per arm and "3 of 3 measurements" says nothing about what was
+            # applied. An entry that states its own coverage knows better than this template.
+            coverage = agg.get("coverage") or (
+                f"{cov['comparable']} of {cov['baseline_records']} measurements")
             # An entry may suppress a metric it cannot support, rendering "-" the way
             # the read-loop row already does for db_ms. No row uses it today: the read
             # screen briefly did, on an analysis that keyed measurements by `id` alone

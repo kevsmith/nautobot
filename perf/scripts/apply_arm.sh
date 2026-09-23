@@ -102,8 +102,14 @@ DBMS=$(psql_ -d nautobot -tAc "SELECT round(coalesce(sum(total_exec_time),0)::nu
 ROWS=$(psql_ -d nautobot -tAc "SELECT (SELECT count(*) FROM dcim_device)||'/'||(SELECT count(*) FROM dcim_interface)||'/'||(SELECT count(*) FROM dcim_cable);")
 NBHASH=$("$REPO"/perf/scripts/arm_control.sh hash)
 
+# Two destinations on purpose. /tmp/apply-results.txt is the running log a person tails
+# during a multi-hour run. perf/results/apply-results.txt is the durable one: /tmp does not
+# survive a reboot, and perf/results/ is excluded from sync.sh's rsync so a later --delete
+# cannot remove it. compare_apply.py reads either and turns them into the cumulative row,
+# which is what stopped the apply figures being hand-typed into cumulative.json.
+mkdir -p "$REPO/perf/results"
 printf '%s\n' "label=$LABEL ref=$REF client=${CLIENT_HOST:-local} rc=$RC wall_s=$((END-START)) queries=$CALLS db_ms=$DBMS rows=$ROWS nautobot_hash=${NBHASH:0:16}" \
-  | tee -a /tmp/apply-results.txt
+  | tee -a /tmp/apply-results.txt | tee -a "$REPO/perf/results/apply-results.txt"
 tail -1 "$OUT.log"
 
 # An apply that created nothing here is the signature of a client that reached a
