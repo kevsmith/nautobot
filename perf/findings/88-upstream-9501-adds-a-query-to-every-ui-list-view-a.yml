@@ -18,8 +18,13 @@ summary: 'Re-measuring the read loop against the new base turned up 22 queries t
 
   The query is `Job.objects.get_for_class_path("nautobot.core.jobs.ExportObjectList")`, issued
   from `_JobModalButton.build_trigger_context` when the export button renders. It is uncached,
-  so it runs once per button built -- and on device lists it runs **twice with a byte-identical
-  WHERE clause**, fetching the same Job row twice in one render.
+  and `export_button` builds a trigger for the main button **plus one per ExportTemplate on that
+  content type**, so the cost is **1 + N queries per list view** -- every one of them the same
+  query for the same row.
+
+
+  The measured `+2` on the device lists is that formula, not a doubled button: this dataset holds
+  exactly one ExportTemplate and it is on `dcim.device`. Everywhere else N is 0.
 
 
   This is an upstream regression, not a branch effect: both arms carry it identically, and the
@@ -60,8 +65,15 @@ result:
            AND "extras_job"."module_name" = ''nautobot.core.jobs'') LIMIT 21
 
 
-    Identical bound values, so this is one Job row fetched twice, not two buttons resolving two
-    different Jobs. Duplicate queries on `ui.device.list` go 1 -> 2 accordingly.'
+    Identical bound values, so this is one Job row fetched twice in one render. The second call
+    is the ExportTemplate trigger: `export_button` builds one `job_modal_trigger_context` for the
+    main button and one more per template, each resolving the same Job. Duplicate queries on
+    `ui.device.list` go 1 -> 2 accordingly.
+
+
+    **The +2 is therefore a dataset artifact of N=1, not a ceiling.** Five ExportTemplates on a
+    model would cost +6 on that model''s list view; twenty would cost +21. This dataset cannot
+    show that, and the read loop''s 22 is the N=0 case for 17 of its 18 list views.'
   effect_on_the_published_figure: 'Both arms gained the same 22, so the branch''s absolute saving
     on the read loop is **unchanged at 2,718 queries**. Only the denominator moved: stock
     3,597 -> 3,619, branch 879 -> 901, and the headline therefore reads -75.1% where it read
@@ -76,14 +88,21 @@ controls: 'Every claim measured on both arms, each printing its own content hash
   reproduced the published baseline''s 9 queries and 8 shapes on both list views, weeks after that
   baseline was recorded.'
 tests: n/a; measurement only, no product code changed
-caveat: 'The count and the query are established; **why a device list builds that button twice is
-  not**. `build_trigger_context` resolves the Job per call and nothing memoises it, so two calls
-  means two queries -- but what makes the device list call it twice where a VLAN list calls it
-  once was read from the source, not measured.
+caveat: 'The count, the query and the reason for the second call are established. `export_button`
+  builds one trigger for the main button and one per ExportTemplate on the content type, and
+  `build_trigger_context` resolves the Job per call with nothing memoising it. The device lists
+  call it twice because this dataset holds exactly one ExportTemplate, on `dcim.device`; a VLAN
+  list calls it once because VLAN has none. Confirmed by counting the table, not by reading the
+  source.
 
 
-  Scope is the 57-scenario read loop. Whether the added query reaches list views outside that set
-  is untested, though a button on the shared list template suggests it reaches all of them.
+  **Scope is established rather than assumed.** `ObjectListView.template_name` defaults to
+  `generic/object_list.html` (`nautobot/core/views/generic.py:182`), which carries
+  `{% export_button content_type list_element=True %}` at line 70, so every list view that does
+  not override the template inherits it. All five views that do declare their own list template
+  -- `rack_elevation_list`, the three `*_connection_list`s and `ipaddress_list` -- extend
+  `generic/object_list.html` and inherit it too; 14 templates extend it in total. REST list
+  endpoints are unaffected, this being a template tag.
 
 
   No wall-clock figure. One indexed single-row lookup is small next to a list render; the claim
