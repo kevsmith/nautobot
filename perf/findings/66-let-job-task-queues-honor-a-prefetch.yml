@@ -1,8 +1,8 @@
 ---
 seq: 66
 id: null
-commit: 48ec65b1a
-recommended_commit: efbed74de
+commit: f4f167284
+recommended_commit: 14b0c20e8
 status: accepted
 basis: 'attribution: exactly 1.000 query per row, and flat in the row count after'
 behaviour: A

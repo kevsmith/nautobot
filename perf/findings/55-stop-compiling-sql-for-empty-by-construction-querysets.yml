@@ -1,8 +1,8 @@
 ---
 seq: 55
 id: null
-commit: f948fdfb8
-recommended_commit: 4c7240802
+commit: 122afc660
+recommended_commit: 505a9027b
 status: accepted
 basis: 'attribution: 99 SQL compilations discarded per device-list request, 0 executed from them'
 behaviour: A
