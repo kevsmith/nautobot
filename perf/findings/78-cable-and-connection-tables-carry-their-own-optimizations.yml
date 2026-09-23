@@ -1,8 +1,8 @@
 ---
 seq: 78
 id: null
-commit: 5f1d45c8a
-recommended_commit: f04e32313
+commit: 97c3812f1
+recommended_commit: 5c9a5bbd1
 status: accepted
 basis: 'audit: the 1.750 q/row floor on every interface-table column, and 8.000 on CableTable'
 behaviour: A
