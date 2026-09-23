@@ -54,7 +54,11 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 
 restore() {
   echo "== restoring nautobot/ to $ORIGINAL =="
-  git checkout "$ORIGINAL" -- nautobot/ && git reset -q
+  # The __pycache__ exclusion matches arm_control.sh's: upstream tracks one file
+  # under it whose name ends in digits, a synced tree does not carry it, and the
+  # container owns the directory as root -- so a bare checkout here fails with
+  # "Permission denied" at the END of a multi-hour run and leaves the tree dirty.
+  git checkout "$ORIGINAL" -- nautobot/ ':(exclude)nautobot/**/__pycache__/*' && git reset -q
   perf/scripts/dc.sh restart nautobot >/dev/null 2>&1 </dev/null
 }
 trap restore EXIT

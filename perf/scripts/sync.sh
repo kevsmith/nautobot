@@ -86,7 +86,15 @@ rsync -a --delete "${EXCLUDES[@]}" ./ "$PERF_HOST:$PERF_PATH/"
 # invalidating as stale product code. Extensions are chosen so the large
 # gitignored artifacts stay out -- snapshot*.sql and dataset*.yaml match neither
 # "*.yml" nor anything else listed, and perf/results/*.json is excluded too.
-HASH_CMD='find nautobot development docker perf -type f -not -path "*/project-static/*" \( -name "*.py" -o -name "*.sh" -o -name "*.yml" -o -name "*.ini" -o -name "*.html" \) -print0 | LC_ALL=C sort -z | xargs -0 cat | '
+# perf/results/ is excluded here as well as from the rsync, and the two must stay in
+# step. The exclude list above deliberately does not mirror perf/results (run output;
+# --delete once destroyed an overnight coverage run), so anything there is outside what
+# the sync controls. It used to be inside what the hash measured, which meant a single
+# stray .py in that directory -- a misdirected --out, say -- made the two trees compare
+# unequal forever, on every sync, with no file the operator could see as different.
+# Found when a copy of tier2_latency.py sitting in perf/results since September made a
+# freshly synced host refuse to measure.
+HASH_CMD='find nautobot development docker perf -type f -not -path "*/project-static/*" -not -path "perf/results/*" \( -name "*.py" -o -name "*.sh" -o -name "*.yml" -o -name "*.ini" -o -name "*.html" \) -print0 | LC_ALL=C sort -z | xargs -0 cat | '
 if command -v sha256sum >/dev/null; then LOCAL_SUM="sha256sum"; else LOCAL_SUM="shasum -a 256"; fi
 HERE="$(eval "cd '$ROOT' && $HASH_CMD $LOCAL_SUM" | awk '{print $1}')"
 THERE="$(ssh -o BatchMode=yes "$PERF_HOST" "cd '$PERF_PATH' && $HASH_CMD sha256sum" | awk '{print $1}')"
