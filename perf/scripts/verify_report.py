@@ -74,6 +74,12 @@ def check_reverted(problems):
             sha = d.get(field)
             if not sha:
                 continue
+            # str(), because a short SHA that happens to be all digits -- 545190347,
+            # 105515618 -- is a YAML integer, and passing an int to subprocess raises
+            # TypeError from inside _fork_exec rather than reporting anything useful.
+            # Quoting them in the YAML is the real fix; this makes the failure legible
+            # if one slips through again.
+            sha = str(sha)
             n += 1
             subject = git("log", "-1", "--format=%s", sha).strip()
             if not subject:

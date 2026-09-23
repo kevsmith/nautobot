@@ -50,7 +50,29 @@ hash)
 
 arm)
   ref="${2:?usage: armctl.sh arm <ref>}"
-  git checkout "$ref" -- nautobot/ || { echo "checkout failed" >&2; exit 1; }
+  # __pycache__ is excluded from the checkout, not merely from the hash. Upstream
+  # tracks one file under it -- nautobot/core/celery/__pycache__/task.cpython-313.pyc.140297736092592,
+  # whose name ends in digits rather than .pyc and so slips past .gitignore. A tree
+  # synced with rsync does not carry it (the sync skips __pycache__, which the
+  # container writes through the bind mount as root), so git calls it deleted and a
+  # path-scoped checkout tries to recreate it inside a directory the container has
+  # since remade as root. That fails with "Permission denied" and takes the whole arm
+  # with it. Nothing under __pycache__ is in nb_hash, so leaving it alone costs the
+  # arm nothing.
+  #
+  # On failure, unstage before exiting. `git checkout <ref> -- <path>` STAGES what it
+  # writes, and the `git reset` below is far enough down that an abort never reaches
+  # it -- which leaves a staged, half-applied reversion sitting in the index. That is
+  # the mechanism that silently undid five fixes on this branch once.
+  if ! git checkout "$ref" -- nautobot/ ':(exclude)nautobot/**/__pycache__/*'; then
+    git reset -q
+    echo "checkout failed; the index has been unstaged" >&2
+    echo "   the working tree is part-way between arms -- restore it with:" >&2
+    echo "     git checkout -- nautobot/ ':(exclude)nautobot/**/__pycache__/*'" >&2
+    echo "   (the exclusion is not optional: without it this recovery hits the same" >&2
+    echo "    root-owned __pycache__ that the arm above excludes, and fails too)" >&2
+    exit 1
+  fi
   # Remove what the target ref does not have, computed against the WORKING TREE
   # rather than against HEAD.
   #
