@@ -46,6 +46,29 @@ fi
 "$REPO"/perf/scripts/arm_control.sh reset   || exit 1
 "$REPO"/perf/scripts/arm_control.sh arm "$REF" || exit 1
 
+# databot records what it has already created in a state file NEXT TO THE DATASET, on
+# whichever host runs the client. `armctl reset` removes the local one -- which is the
+# right file only when the client is local. With PERF_CLIENT_HOST set, the file that
+# matters lives on the client, the local delete is a no-op, and databot RESUMES against
+# a database that was just emptied.
+#
+# That is not a crash: it applies the remainder, prints "created N objects ... (resumed)",
+# and the arm reports a wall clock and a query count for a fraction of the dataset. The
+# first remote-client run did exactly this -- 11,572 objects instead of the full set, 536
+# devices instead of 2,902 -- and every number it produced looked plausible.
+#
+# The row-count guard at the end of this script does not catch it either: rows were
+# created, just not all of them.
+STATE_REL="perf/$(basename "${PERF_DATASET:-large-dc-dataset.yml}" .yml).state.jsonl"
+if [ -n "$CLIENT_HOST" ]; then
+  ssh -n -o BatchMode=yes "$CLIENT_HOST" "rm -f '$CLIENT_PATH/$STATE_REL'" \
+    || { echo "!! could not clear the client's databot state at $CLIENT_HOST:$CLIENT_PATH/$STATE_REL" >&2; exit 2; }
+  if ssh -n -o BatchMode=yes "$CLIENT_HOST" "test -e '$CLIENT_PATH/$STATE_REL'"; then
+    echo "!! client state file still present after delete -- refusing to measure a resumed apply" >&2
+    exit 2
+  fi
+fi
+
 # pg_stat_statements is loaded in the perf overlay for exactly this: attributing
 # total database work across a whole run rather than a single request.
 psql_ -d nautobot -q -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;" >/dev/null 2>&1
