@@ -50,6 +50,7 @@ from nautobot.core.templatetags.helpers import (
 from nautobot.core.ui.choices import LayoutChoices, SectionChoices
 from nautobot.core.ui.echarts import EChartsBase
 from nautobot.core.ui.utils import get_render_cache, render_component_template
+from nautobot.core.utils.cache import get_request_cache
 from nautobot.core.utils.lookup import get_filterset_for_model, get_route_for_model, get_view_for_model
 from nautobot.core.utils.permissions import get_permission_for_model
 from nautobot.core.views.paginator import EnhancedPaginator, get_paginate_count
@@ -2921,6 +2922,19 @@ def resolve_attr(obj, dotted_path: str):
         return None
 
 
+_JOB_MODAL_BUTTON_JOB_CACHE_KEY_PREFIX = "nautobot.core.ui.object_detail._JobModalButton.job"
+
+
+def _job_modal_button_cache_key(class_path, user):
+    """Key under which the Job backing a `_JobModalButton` memoizes into the current request cache.
+
+    `None` and an `AnonymousUser` both have no pk but are not the same lookup - `None` skips the
+    object-level restriction entirely - so they key differently.
+    """
+    user_token = "unrestricted" if user is None else user.pk
+    return f"{_JOB_MODAL_BUTTON_JOB_CACHE_KEY_PREFIX}({class_path},{user_token})"
+
+
 class _JobModalButton(Button):
     """A Button that opens a modal dialog for running a Job. Experimental — subject to change without deprecation.
 
@@ -3049,6 +3063,33 @@ class _JobModalButton(Button):
         """Override the default `get_link()` behavior since this button opens a modal."""
         return None
 
+    def _get_job(self, user):
+        """Return the `Job` this button triggers, or `None` if it does not exist or `user` cannot view it.
+
+        The lookup is one SQL query and is a pure function of `class_path` and the user, so it is memoized for
+        the duration of the enclosing `request_cache()` scope (normally a single request). Every list view
+        renders at least one such trigger and the device lists render two, which made the same restricted
+        query run twice per page for no possible difference in result. The "no such Job" outcome is memoized
+        too, or a disabled trigger goes on querying once per render. Because the memo is discarded the moment
+        the `request_cache()` block exits, it can never serve data stale beyond a single request, so no
+        invalidation logic is required; outside such a scope `get_request_cache()` is None and the lookup runs
+        as it always did.
+        """
+        request_local_cache = get_request_cache()
+        cache_key = _job_modal_button_cache_key(self.class_path, user)
+        if request_local_cache is not None and cache_key in request_local_cache:
+            return request_local_cache[cache_key]
+        jobs = Job.objects
+        if user is not None:
+            jobs = jobs.restrict(user, "view")
+        try:
+            job = jobs.get_for_class_path(self.class_path)
+        except Job.DoesNotExist:
+            job = None
+        if request_local_cache is not None:
+            request_local_cache[cache_key] = job
+        return job
+
     def build_trigger_context(self, user=None, obj=None, extra_hx_vals=None, render_form=True):
         """Compute the HTMX wiring for a trigger that opens this Job's modal.
 
@@ -3093,17 +3134,13 @@ class _JobModalButton(Button):
         # the trigger is disabled.
         disabled = False
         disabled_title = ""
-        try:
-            jobs = Job.objects
-            if user is not None:
-                jobs = jobs.restrict(user, "view")
-            job = jobs.get_for_class_path(self.class_path)
-            if not job.enabled:
-                disabled = True
-                disabled_title = "Job is not enabled."
-        except Job.DoesNotExist:
+        job = self._get_job(user)
+        if job is None:
             disabled = True
             disabled_title = "You do not have permission to run this Job."
+        elif not job.enabled:
+            disabled = True
+            disabled_title = "Job is not enabled."
 
         return {
             "url": reverse("extras:job_run_by_class_path", kwargs={"class_path": self.class_path}),
