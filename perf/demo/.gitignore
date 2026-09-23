@@ -1,0 +1,5 @@
+# demo.sh copies the whole measurement tree here, once per arm, and each copy is a
+# full Nautobot checkout with its own .git. DEMO_ROOT defaults to this directory,
+# so without this an operator who runs demo.sh locally gets two trees' worth of
+# untracked files in `git status`.
+arms/

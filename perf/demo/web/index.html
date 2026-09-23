@@ -1,0 +1,129 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Nautobot: stock vs perf/recommended</title>
+<!--
+  Side-by-side viewer for the two demo instances.
+
+  Served from hannah, not opened as a local file, and that is not a preference.
+  Nautobot's sessionid and csrftoken are SameSite=Lax, so with a file:// parent
+  every frame request counts as cross-site, no cookie is sent, and each frame
+  shows a login form that cannot be logged into. SameSite treats hannah:8480,
+  hannah:8280 and hannah:8380 as one site -- ports are not part of a site -- so
+  served from here the cookies flow exactly as they do in a normal tab.
+
+  The frames are cross-ORIGIN, though, which is a different boundary: this page
+  cannot read where a frame has navigated to. So the buttons drive both frames
+  from here; navigating inside one frame moves only that frame.
+-->
+<style>
+  :root {
+    --bg: #f6f6f4; --panel: #fff; --ink: #1a1a18; --muted: #6b6b66;
+    --line: #dcdcd6; --stock: #b45309; --branch: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16161a; --panel: #1e1e24; --ink: #ececf0; --muted: #9a9aa4;
+            --line: #33333c; --stock: #f0a04b; --branch: #6ee7a0; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink); display: flex; flex-direction: column;
+    font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  .pages { display: flex; gap: 6px; flex-wrap: wrap; }
+  button, input {
+    font: inherit; color: inherit; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px;
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  button.go { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+  input[type=text] { width: 26ch; }
+  .spacer { flex: 1; }
+  .hint { color: var(--muted); font-size: 12px; }
+  main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); min-height: 0; }
+  section { display: flex; flex-direction: column; background: var(--panel); min-width: 0; }
+  h2 {
+    margin: 0; padding: 6px 12px; font-size: 13px; font-weight: 600;
+    letter-spacing: .02em; border-bottom: 1px solid var(--line);
+    display: flex; gap: 10px; align-items: baseline;
+  }
+  h2 .port { font-variant-numeric: tabular-nums; }
+  h2 .ref { color: var(--muted); font-weight: 400; font-size: 12px; }
+  #stock h2 { color: var(--stock); }
+  #branch h2 { color: var(--branch); }
+  iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+</style>
+
+<header>
+  <div class="pages" id="pages"></div>
+  <input type="text" id="path" value="/dcim/devices/" aria-label="path" spellcheck="false">
+  <button class="go" id="go">Go both</button>
+  <button id="reload">Reload both</button>
+  <div class="spacer"></div>
+  <span class="hint">Buttons drive both panes. Clicking inside a pane moves only that pane.</span>
+</header>
+
+<main>
+  <section id="stock">
+    <h2><span>STOCK</span><span class="port">:8280</span><span class="ref">next c3605ae48</span></h2>
+    <iframe id="f-stock" title="stock"></iframe>
+  </section>
+  <section id="branch">
+    <h2><span>RECOMMENDED</span><span class="port">:8380</span><span class="ref">perf/recommended c1785235b</span></h2>
+    <iframe id="f-branch" title="recommended"></iframe>
+  </section>
+</main>
+
+<script>
+  // Built from the page's own hostname so this works whether it is reached as
+  // hannah, hannah.smith-manor.us or an IP -- all three are in the instances'
+  // ALLOWED_HOSTS, and using the wrong one is a 400 on every request.
+  const HOST = location.hostname;
+  const ARMS = { stock: 8280, branch: 8380 };
+
+  const PAGES = [
+    ["Home", "/"],
+    ["Devices", "/dcim/devices/"],
+    ["Interfaces", "/dcim/interfaces/?per_page=100"],
+    ["Prefixes", "/ipam/prefixes/"],
+    ["VLANs", "/ipam/vlans/"],
+    ["Locations", "/dcim/locations/"],
+    ["Cables", "/dcim/cables/"],
+    ["IPs", "/ipam/ip-addresses/?per_page=100"],
+    ["Changelog", "/extras/changelog/"],
+  ];
+
+  const pathBox = document.getElementById("path");
+
+  function go(path) {
+    pathBox.value = path;
+    for (const [arm, port] of Object.entries(ARMS)) {
+      // A fresh src each time, even for the same path: assigning an identical
+      // URL is a no-op in some browsers, which makes a second click on the same
+      // button look like nothing happened.
+      const f = document.getElementById("f-" + arm);
+      f.src = "about:blank";
+      requestAnimationFrame(() => { f.src = `http://${HOST}:${port}${path}`; });
+    }
+  }
+
+  const bar = document.getElementById("pages");
+  for (const [label, path] of PAGES) {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.onclick = () => go(path);
+    bar.appendChild(b);
+  }
+
+  document.getElementById("go").onclick = () => go(pathBox.value.trim() || "/");
+  document.getElementById("reload").onclick = () => go(pathBox.value.trim() || "/");
+  pathBox.addEventListener("keydown", (e) => { if (e.key === "Enter") go(pathBox.value.trim() || "/"); });
+
+  go(pathBox.value);
+</script>
