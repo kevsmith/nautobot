@@ -1,0 +1,117 @@
+---
+seq: 88
+id: null
+commit: null
+status: accepted
+behaviour: A
+migration: '-'
+flags: []
+title: 'Upstream #9501 adds a Job lookup to every UI list view, and runs it twice on device
+  lists'
+site: nautobot/core/ui/object_detail.py:3042 (`Job.objects.get_for_class_path`) and :3096
+  (`ExportObjectListModalButton`), upstream `next`; measured with perf/scripts/probe_exportbtn.py
+summary: 'Re-measuring the read loop against the new base turned up 22 queries this branch did
+  not put there. `next` moved from c3605ae48 to 3f77053a7 while the branch was rebased, and the
+  Export Objects rework added **one query to every UI list view and a second one to the four
+  device lists**.
+
+
+  The query is `Job.objects.get_for_class_path("nautobot.core.jobs.ExportObjectList")`, issued
+  from `_JobModalButton.build_trigger_context` when the export button renders. It is uncached,
+  so it runs once per button built -- and on device lists it runs **twice with a byte-identical
+  WHERE clause**, fetching the same Job row twice in one render.
+
+
+  This is an upstream regression, not a branch effect: both arms carry it identically, and the
+  branch removes neither.'
+result:
+  when: 'Introduced by **3f77053a7, "[3.3] Export Objects - custom widget and job modal button"
+    (#9501), committed 2026-09-18**. It is the only commit between c3605ae48 and 3f77053a7 that
+    touches `nautobot/core/templatetags/buttons.py`, `nautobot/core/ui/object_detail.py` or
+    `nautobot/core/templates/buttons/`, and `ExportObjectListModalButton` first appears in it.'
+  spread: '18 of the 57 read-loop scenarios moved, all of them UI list views, none of the API or
+    detail scenarios. 14 gained one query; the four device lists gained two.
+
+
+        ui.cable.list        9 -> 10      ui.device.list           9 -> 11
+        ui.circuit.list      9 -> 10      ui.device.list.deep     10 -> 12
+        ui.devicetype.list   9 -> 10      ui.device.list.filtered 13 -> 15
+        ui.interface.list   10 -> 11      ui.device.list.page100  10 -> 12
+        ui.ipaddress.list   10 -> 11
+        ui.location.list     9 -> 10      (and objectchange, prefix,
+        ui.prefix.list       9 -> 10       prefix.page100, rack, role,
+        ui.vlan.list         9 -> 10       status, tag -- all +1)'
+  the_added_shape: 'SQL-shape capture on c3605ae48 and on 3f77053a7, same dataset and same host,
+    isolates it to one shape:
+
+
+        shape                    c3605ae48   3f77053a7
+        "extras_job"                     0           1     (ui.vlan.list)
+        "extras_job"                     0           2     (ui.device.list)
+        "extras_exporttemplate"          1           1     both
+
+    **`extras_exporttemplate` is unchanged.** The export button queried it before the rework and
+    queries it the same number of times after; it is not part of this regression.'
+  the_duplicate: 'On `ui.device.list` the `extras_job` shape has a count of 2 where every other
+    list view has 1. Captured unnormalised, both are the same query:
+
+
+        WHERE ("extras_job"."job_class_name" = ''ExportObjectList''
+           AND "extras_job"."module_name" = ''nautobot.core.jobs'') LIMIT 21
+
+
+    Identical bound values, so this is one Job row fetched twice, not two buttons resolving two
+    different Jobs. Duplicate queries on `ui.device.list` go 1 -> 2 accordingly.'
+  effect_on_the_published_figure: 'Both arms gained the same 22, so the branch''s absolute saving
+    on the read loop is **unchanged at 2,718 queries**. Only the denominator moved: stock
+    3,597 -> 3,619, branch 879 -> 901, and the headline therefore reads -75.1% where it read
+    -75.6%. The 0.5-point move is upstream''s, not a loss of effect.'
+wall_clock: "not measured: an attribution of queries added upstream, proposing no change here"
+basis: Tier 1 on hannah (two alternating rounds per arm, both arms hash-proved distinct) for the
+  counts; SQL-shape capture on a second host across three refs for the attribution
+controls: 'Every claim measured on both arms, each printing its own content hash on every swap --
+  old stock `2afdc2b25a4a236e`, new stock `0ee05ec157bcf7a8`, branch `33f4cb8930f61178`. Query
+  counts reproduced bit-identically across both Tier 1 rounds on both arms (3,619 and 901), zero
+  unstable counts across 57 scenarios. The shape probe discards one warm request per scenario, so
+  process-level caches are not attributed to the render. The old-stock arm independently
+  reproduced the published baseline''s 9 queries and 8 shapes on both list views, weeks after that
+  baseline was recorded.'
+tests: n/a; measurement only, no product code changed
+caveat: 'The count and the query are established; **why a device list builds that button twice is
+  not**. `build_trigger_context` resolves the Job per call and nothing memoises it, so two calls
+  means two queries -- but what makes the device list call it twice where a VLAN list calls it
+  once was read from the source, not measured.
+
+
+  Scope is the 57-scenario read loop. Whether the added query reaches list views outside that set
+  is untested, though a button on the shared list template suggests it reaches all of them.
+
+
+  No wall-clock figure. One indexed single-row lookup is small next to a list render; the claim
+  here is about query counts only.
+
+
+  **This finding''s first draft blamed `ExportTemplate` and was wrong.** That came from reading
+  Tier 1''s `distinct_shapes` count -- which says a shape was added, not which -- and pairing it
+  with a plausible-looking new line in the diff. The `ExportTemplate` query had been there all
+  along. Capturing shapes on the old ref is what settled it, and nothing short of that could
+  have.'
+note: '**Worth reporting upstream rather than absorbing.** The duplicate is the class of defect
+  this branch spent 87 findings removing -- read-loop duplicate queries went 2,792 -> 66 -- and
+  #9501 adds one back on the most-trafficked page in the product. An uncached per-button Job
+  lookup is cheap to fix at the source (memoise per request, as findings 4 and 5 did for natural
+  keys) and awkward to fix downstream.
+
+
+  **It also sets a floor no branch finding can reach.** These 22 queries are in both arms, so they
+  are carried into every cumulative figure this re-measure produces. A reader comparing the new
+  report against the old will see the read-loop percentage move with no branch commit having
+  changed, and this finding is the explanation.
+
+
+  **Separately, the shape normaliser has a gap worth fixing.** `normalize_sql` replaces `\b\d+\b`,
+  which does not match digits inside an identifier, so a server-side cursor name
+  (`_django_curs_136085289079680_sync_80`) survives normalisation and makes the same query a
+  different "shape" in every process. It showed up here as a phantom `extras_objectchange`
+  shape appearing and disappearing between arms. It inflates `distinct_shapes` across runs and
+  should be stripped; it does not affect query counts, so no published figure depends on it.'
