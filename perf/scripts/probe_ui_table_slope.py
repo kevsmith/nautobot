@@ -24,7 +24,7 @@ from django.db import connection  # noqa: E402
 from django.test.utils import CaptureQueriesContext  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from tier1_queries import get_perf_client  # noqa: E402
+from tier1_queries import _RE_CURSOR, get_perf_client  # noqa: E402
 
 PAGES = [int(x) for x in os.environ.get("PERF_PAGE_SIZES", "25,100").split(",")]
 
@@ -54,6 +54,8 @@ URLS = [
 
 
 def normalize(sql):
+    # Cursor names carry the process id and survive \b\d+\b (finding 88).
+    sql = _RE_CURSOR.sub("_django_curs_X", sql)
     sql = re.sub(r"'[^']*'", "?", sql)
     sql = re.sub(r"\b\d+\b", "?", sql)
     sql = re.sub(r"IN \([^)]*\)", "IN (?)", sql)
