@@ -598,10 +598,25 @@ def render_cumulative(findings):
             t = data["totals"]
             cov = data["coverage"]
             coverage = f"{cov['comparable']} of {cov['baseline_records']} measurements"
+            # An entry may suppress a metric it cannot support, rendering "-" the way
+            # the read-loop row already does for db_ms. No row uses it today: the read
+            # screen briefly did, on an analysis that keyed measurements by `id` alone
+            # and so compared 165 of 518 -- on that subset db_ms noise looked larger
+            # than the signal, and on the full set it is a tenth of it. The hook stays
+            # because a row that genuinely cannot support a column should say so rather
+            # than publish it, but turning it on needs the noise floor measured against
+            # the same measurement set the figure comes from.
+            suppress = set(agg.get("suppress") or ())
+
+            def _cell(metric, fmt):
+                if metric in suppress:
+                    return "-"
+                return _delta(t[metric]["baseline"], t[metric]["current"], fmt)
+
             cells = [
-                _delta(t["queries"]["baseline"], t["queries"]["current"], _fmt_count),
-                _delta(t["db_ms"]["baseline"], t["db_ms"]["current"], _ms_formatter(*t["db_ms"].values())),
-                _delta(t["wall_ms"]["baseline"], t["wall_ms"]["current"], _ms_formatter(*t["wall_ms"].values())),
+                _cell("queries", _fmt_count),
+                _cell("db_ms", _ms_formatter(*t["db_ms"].values())),
+                _cell("wall_ms", _ms_formatter(*t["wall_ms"].values())),
             ]
             moved = _movement(data)
             if moved:
