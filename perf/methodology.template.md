@@ -92,8 +92,11 @@ twice over: a 2 ms "regression" and an 11% "regression" both dissolved on a thir
 
 ## Baseline: read path
 
-Ten most expensive read scenarios of 38, on the large baseline (pristine tree, 24,091 objects).
-Duplicates are repeated query shapes after literal normalization.
+Ten most expensive read scenarios of 57, on the large baseline (pristine tree, 24,091 objects).
+Duplicates are repeated query shapes after literal normalization. The workload was 38 scenarios
+when this table was first written; the 18 HX-Request row-rendering scenarios added after finding
+44 -- which established that the earlier `ui.*.list` entries were timing a table with no rows in
+it -- and `ui.chrome.404` bring it to 57. The ten below are unchanged by that growth.
 
 | Scenario | Queries | Duplicate |
 |---|---:|---:|
@@ -106,7 +109,7 @@ Duplicates are repeated query shapes after literal normalization.
 | `ui.prefix.detail` | 79 | 34 |
 | `ui.device.interfaces` | 71 | 34 |
 | `ui.location.detail` | 68 | 27 |
-| `api.interface.list` | 23 | 3 |
+| `api.interface.list` | 23 | 1 |
 
 All 38 endpoints returned 200, and every query count repeated exactly across runs. List views
 are efficient at 9-10 queries each; the cost concentrates in nested API serialization and in
