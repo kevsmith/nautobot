@@ -33,12 +33,25 @@
 #
 # ## Why these two refs
 #
-# perf/recommended is 52 commits on top of `next` at 3f77053a7. The stock arm is
-# that same base, so the only difference between the arms is those 52 commits.
-# Demoing against develop -- or against any other base than the branch's own --
-# folds upstream's changes into what looks like this branch's result. `start`
-# checks both arms against the content hashes below, so this is verified rather
-# than asserted.
+# The stock arm is upstream `next` at its current tip; the branch arm is
+# perf/recommended. `start` checks both arms against the content hashes below, so
+# which code each one runs is verified rather than asserted.
+#
+# **The two arms do not share a base, and what that costs is interpretive rather
+# than operational.** perf/recommended is 53 commits on top of `next` at
+# 3f77053a7, and the stock arm here is 15 commits further on. So the difference a
+# viewer sees is those 53 commits MINUS whatever the 15 changed -- custom links
+# rendering as a dropdown (#9514), lighter dark-mode borders (#9517), a
+# maintenance-mode fix (#9415), the debug toolbar kept off Playwright's pages
+# (#9511), and dependency bumps. None of those is known to move page load either
+# way; none has been measured on this rig.
+#
+# Nothing here measures, so this is a statement about what the side-by-side
+# implies, not about whether it runs. If you need the difference to be exactly
+# this branch's effect -- for a published figure, or for an audience who will
+# read it that way -- rebase perf/recommended onto the same tip and set STOCK_REF
+# to it. perf/report.md's figures are measured that way and are not what this
+# demo shows.
 #
 # Both refs moved on 2026-09-21, when the branch was rebased from `next` at
 # c3605ae48 onto 3f77053a7 and the serial unit suite was run on each: `next`
@@ -77,7 +90,7 @@ DEMO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEMO_ROOT="${DEMO_ROOT:-$DEMO_DIR/arms}"
 SOURCE_TREE="${SOURCE_TREE:-/home/kevsmith/repos/work/nautobot/nautobot}"
 SNAPSHOT="${DEMO_SNAPSHOT:-$SOURCE_TREE/perf/snapshot-large.sql}"
-STOCK_REF="${STOCK_REF:-3f77053a7}"
+STOCK_REF="${STOCK_REF:-fd7b7d4bc}"
 BRANCH_REF="${BRANCH_REF:-perf/recommended}"
 DEMO_PASSWORD="${DEMO_PASSWORD:-demo1234}"
 # Same default dc.sh uses. Named here too because the viewer container is
@@ -103,7 +116,7 @@ export PYTHON_VER="${PYTHON_VER:-3.13}"
 #     find nautobot \( -name '*.py' -o -name '*.html' -o -name '*.txt' \) \
 #       -not -path '*/project-static/*' -print0 | LC_ALL=C sort -z | \
 #       xargs -0 cat | sha256sum | cut -c1-16
-EXPECT_STOCK="${EXPECT_STOCK:-0ee05ec157bcf7a8}"
+EXPECT_STOCK="${EXPECT_STOCK:-53a8249102cdb2d9}"
 EXPECT_BRANCH="${EXPECT_BRANCH:-cb8e6a4ec415f1e5}"
 
 # The fixed session key ensure_credentials.py mints. `status` and `warm` use it
@@ -395,6 +408,17 @@ cmd_up() {
   for arm in "${ARMS[@]}"; do ready_arm "$arm"; done
   viewer_up
 }
+
+# Moving STOCK_REF to a newer upstream commit is not only a constant change: each arm
+# is a COPY of the measurement tree with its own .git, taken at install time, so a ref
+# that postdates the copy is not an object those trees hold and `arm` fails with
+# "checkout failed". Refresh them first --
+#
+#   perf/scripts/sync.sh            # from the Mac, so the host has the objects
+#   perf/demo/remote.sh install     # re-copies both trees, re-applies the patches
+#
+# -- then start, load and arm as usual. `install` is the expensive path (it re-rsyncs
+# two full checkouts); nothing cheaper brings a new ref into an existing arm.
 
 cmd_arm() {
   # Only needed when a ref moves or a copy has been disturbed: the armed code
