@@ -30,24 +30,10 @@
     },
     {
       "coverage": "11,572 objects created per arm, across 68 models",
-      "figures": {
-        "db_ms": {
-          "baseline": 31859,
-          "current": 24556
-        },
-        "queries": {
-          "baseline": 804796,
-          "current": 635388
-        },
-        "wall_ms": {
-          "baseline": 1838000,
-          "current": 1037000
-        }
-      },
-      "file": null,
+      "file": "apply-ab-next.json",
       "key": "apply",
       "label": "Whole-workflow apply, 11,572 objects",
-      "note": "**the whole-workflow figure: one `databot apply` per arm, creating 11,572 objects across 68 models, three alternating rounds, median.** The database is dropped and recreated from an empty template before every arm, so each run builds the dataset from nothing.\n\nThe client runs on a second host, not on the box under measurement: it builds every payload itself and is a sustained CPU load, and the perf overlay commits all eight of the measurement host's threads. Measured cost of moving it off-box is +0.16ms per TCP connect against ~198ms average per request.\n\nWall clock is tight across rounds -- stock 1839/1838/1832s, branch 1037/1040/1032s, spans of 0.4% and 0.8% -- and row counts were identical on all six arms (536 devices, 1,616 interfaces, 1,648 cables), which is what says each arm applied the same work. Query counts come from `pg_stat_statements` reset per arm, so they cover the whole run rather than one request.\n\nThe dataset file defines 11,578 objects and databot reports creating 11,572; the six-object difference was not chased, and the figures here describe what was created. These figures are hand-entered from the run's result lines; no source file drives them, so verify_report.py cannot recompute this row",
+      "note": "**the whole-workflow figure: one `databot apply` per arm, creating 11,572 objects across 68 models, three alternating rounds, median.** The database is dropped and recreated from an empty template before every arm, so each run builds the dataset from nothing.\n\nThe client runs on a second host, not on the box under measurement: it builds every payload itself and is a sustained CPU load, and the perf overlay commits all eight of the measurement host's threads. Measured cost of moving it off-box is +0.16ms per TCP connect against ~198ms average per request.\n\nWall clock is tight across rounds -- stock 1839/1838/1832s, branch 1037/1040/1032s, spans of 0.4% and 0.8% -- and row counts were identical on all six arms (536 devices, 1,616 interfaces, 1,648 cables), which is what says each arm applied the same work. Query counts come from `pg_stat_statements` reset per arm, so they cover the whole run rather than one request.\n\nThe dataset file defines 11,578 objects and databot reports creating 11,572; the six-object difference was not chased, and the figures here describe what was created. The figures are computed from the run's own result lines by `perf/scripts/compare_apply.py`, so verify_report.py recomputes this row like any other. It was hand-entered until 2026-09-23",
       "tree": "33f4cb8930f611786f2125dee8b4d3491726a50ce1674d6066dc1b56dec7fa3e"
     }
   ],

@@ -1,0 +1,87 @@
+{
+ "arms": {
+  "branch": {
+   "hashes": [
+    "33f4cb8930f61178"
+   ],
+   "rounds": 3
+  },
+  "stock": {
+   "hashes": [
+    "0ee05ec157bcf7a8"
+   ],
+   "rounds": 3
+  }
+ },
+ "coverage": {
+  "baseline_records": 3,
+  "comparable": 3,
+  "rows_per_arm": "536/1616/1648"
+ },
+ "measurements": [
+  {
+   "db_ms": 24579,
+   "id": "branch-r1",
+   "kind": "branch",
+   "queries": 638899,
+   "wall_ms": 1037000
+  },
+  {
+   "db_ms": 24556,
+   "id": "branch-r2",
+   "kind": "branch",
+   "queries": 630908,
+   "wall_ms": 1040000
+  },
+  {
+   "db_ms": 24320,
+   "id": "branch-r3",
+   "kind": "branch",
+   "queries": 635388,
+   "wall_ms": 1032000
+  },
+  {
+   "db_ms": 31975,
+   "id": "stock-r1",
+   "kind": "stock",
+   "queries": 809905,
+   "wall_ms": 1839000
+  },
+  {
+   "db_ms": 31827,
+   "id": "stock-r2",
+   "kind": "stock",
+   "queries": 804796,
+   "wall_ms": 1838000
+  },
+  {
+   "db_ms": 31859,
+   "id": "stock-r3",
+   "kind": "stock",
+   "queries": 804331,
+   "wall_ms": 1832000
+  }
+ ],
+ "schema": 1,
+ "screen": "apply",
+ "totals": {
+  "db_ms": {
+   "baseline": 31859,
+   "current": 24556,
+   "delta": -7303,
+   "pct": -22.92
+  },
+  "queries": {
+   "baseline": 804796,
+   "current": 635388,
+   "delta": -169408,
+   "pct": -21.05
+  },
+  "wall_ms": {
+   "baseline": 1838000,
+   "current": 1037000,
+   "delta": -801000,
+   "pct": -43.58
+  }
+ }
+}
