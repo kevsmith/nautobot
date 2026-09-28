@@ -16,7 +16,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("extras", "0145_objectmetadata_assigned_object_type_cascade"),
+        ("extras", "0146_jobhook_conditions_webhook_conditions"),
     ]
 
     operations = [
