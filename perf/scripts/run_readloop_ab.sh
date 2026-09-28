@@ -46,11 +46,16 @@ shift 2
 PREFIX="rl"
 WALL_ROUNDS=5
 DET_ROUNDS=2
+TIER2_ONLY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --prefix)      shift; PREFIX="${1:?--prefix needs a value}" ;;
     --wall-rounds) shift; WALL_ROUNDS="${1:?--wall-rounds needs a count}" ;;
     --det-rounds)  shift; DET_ROUNDS="${1:?--det-rounds needs a count}" ;;
+    # Re-run only the over-HTTP leg, reusing the URL sets a previous run of the
+    # same prefix dumped. For when tier2 is void and the in-process instruments
+    # are not, which is exactly how this flag came to exist.
+    --tier2-only)  TIER2_ONLY=1; DET_ROUNDS=0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -58,6 +63,32 @@ done
 
 RES="perf/results"
 mkdir -p "$RES"
+
+# Tier 2 goes over HTTP and therefore needs credentials. Without them every UI
+# view answers 302 to /login/ and tier2_latency.py correctly refuses to time a
+# redirect -- so the run completes, writes a file, and reports one endpoint out
+# of 57. That is what happened on the first run of this script: 56 of 57 skipped
+# with "probe status 302", five rounds on both arms, all void. The instrument
+# warned; the driver piped it through `tail -3` and swallowed the warning.
+#
+# The session key is the fixed one ensure_credentials.py mints, so it can be
+# named here rather than scraped out of a restore's output.
+export NAUTOBOT_TOKEN="${NAUTOBOT_TOKEN:-0123456789abcdef0123456789abcdef01234567}"
+export NAUTOBOT_SESSIONID="${NAUTOBOT_SESSIONID:-perfbotperfbotperfbotperfbot0000}"
+BASE_URL="${PERF_BASE_URL:-http://localhost:8180}"
+
+# Prove the cookie before spending hours on runs that cannot use it. A session
+# lives in django_session, so a restore or an `arm_control.sh reset` since it was
+# minted has already invalidated it.
+probe="$(curl -s -o /dev/null -w '%{http_code}' -m 10 \
+  -H "Cookie: sessionid=$NAUTOBOT_SESSIONID" "$BASE_URL/dcim/devices/?per_page=1")"
+if [ "$probe" != "200" ]; then
+  echo "!! session cookie returns $probe on a UI list, not 200." >&2
+  echo "   Tier 2 would skip every UI view and report a run that timed almost nothing." >&2
+  echo "   Re-mint with: perf/scripts/ensure_credentials.py (restore_snapshot.sh calls it)" >&2
+  exit 1
+fi
+echo "== session cookie verified (200 on a UI list) =="
 
 # What the tree was on when this started, so the trap has somewhere to put it
 # back. A dirty nautobot/ means an earlier run died mid-swap; that is a stop
@@ -115,19 +146,45 @@ for r in $(seq 1 "$WALL_ROUNDS"); do
 
     # Wall clock, behind the lock. measure.sh re-checks quiesce and refuses on a
     # busy box; that refusal is the point, so it is not worked around here.
-    echo "   bench (in-process)"
-    bash perf/scripts/measure.sh bash perf/scripts/dc.sh exec -T nautobot \
-      python /source/perf/scripts/bench_endpoints.py --reps 15 \
-      --out "/source/$RES/$PREFIX-bench-$arm-r$r.json" 2>&1 | tail -3
+    if [ "$TIER2_ONLY" -eq 0 ]; then
+      echo "   bench (in-process)"
+      bash perf/scripts/measure.sh bash perf/scripts/dc.sh exec -T nautobot \
+        python /source/perf/scripts/bench_endpoints.py --reps 15 \
+        --out "/source/$RES/$PREFIX-bench-$arm-r$r.json" 2>&1 | tail -3
+    fi
 
     urls="$RES/$PREFIX-urls-$arm-r1.json"
     if [ ! -f "$urls" ]; then
       echo "!! $urls missing -- round 1 must run with --det-rounds >= 1" >&2
       exit 1
     fi
+    out="$RES/$PREFIX-tier2-$arm-r$r.json"
     echo "   tier2 (over HTTP, -c 1)"
+    # Not piped through `tail` any more: this instrument warns on a partial skip
+    # rather than failing, and truncating its output is how that warning was lost.
     bash perf/scripts/measure.sh /usr/bin/python3 perf/scripts/tier2_latency.py \
-      --urls "$urls" --out "$RES/$PREFIX-tier2-$arm-r$r.json" -c 1 2>&1 | tail -3
+      --urls "$urls" --out "$out" -c 1 2>&1 | grep -vE '^\s*$'
+
+    # Coverage guard. A skip is a warning inside tier2_latency.py, deliberately --
+    # skipping UI views for want of a session is not the same as crashing. From a
+    # driver's side it is fatal, because the median is then over a different set
+    # than the one the row claims. Compare against the URL set actually asked for.
+    timed_expected="$(/usr/bin/python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))))" "$urls")"
+    timed_got="$(/usr/bin/python3 -c "
+import json,sys
+d=json.load(open(sys.argv[1]))
+print(sum(1 for e in d['endpoints'] if e.get('server_ms_median') and not e.get('skipped')))" "$out")"
+    echo "   tier2 timed $timed_got of $timed_expected"
+    if [ "$timed_got" -lt "$timed_expected" ]; then
+      echo "!! tier2 timed $timed_got of $timed_expected endpoints in round $r ($arm)." >&2
+      /usr/bin/python3 -c "
+import json,sys,collections
+d=json.load(open(sys.argv[1]))
+c=collections.Counter(str(e.get('skipped')) for e in d['endpoints'] if e.get('skipped'))
+for reason,n in c.most_common(5): print(f'   {n:>4}  {reason[:100]}', file=sys.stderr)" "$out"
+      echo "   Refusing to continue: the medians would describe a shrunken set." >&2
+      exit 1
+    fi
   done
 done
 
