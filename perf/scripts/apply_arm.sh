@@ -15,7 +15,7 @@ cd "$REPO" || exit 1
 
 psql_() { perf/scripts/dc.sh exec -T db psql -U nautobot "$@" </dev/null; }
 
-# Where the apply's client runs. databot creates 9,972 objects across 68 models and
+# Where the apply's client runs. databot creates 11,572 objects across 68 models and
 # builds every payload itself, so it is a sustained CPU load -- and the perf overlay
 # commits all eight threads (nautobot 0,1,4,5; db and redis 2,6; celery 3,7), leaving
 # the client to float across cores already allocated to what is being measured. That
@@ -54,11 +54,26 @@ fi
 #
 # That is not a crash: it applies the remainder, prints "created N objects ... (resumed)",
 # and the arm reports a wall clock and a query count for a fraction of the dataset. The
-# first remote-client run did exactly this -- 11,572 objects instead of the full set, 536
-# devices instead of 2,902 -- and every number it produced looked plausible.
+# first remote-client run did exactly this, and every number it produced looked plausible.
 #
 # The row-count guard at the end of this script does not catch it either: rows were
 # created, just not all of them.
+#
+# This comment used to name the incident's counts -- "11,572 objects instead of the full
+# set, 536 devices instead of 2,902". Do not go by those. The dataset has grown since, and
+# 11,572 created with 536 devices is now what a COMPLETE apply looks like: large-dc-dataset.yml
+# declares 11,578 objects across 68 models, of which 536 are dcim.device and 1,648 dcim.cable.
+# On 2026-09-28 those numbers read as the documented failure signature and cost a diversion
+# mid-campaign, on a run that was entirely healthy. The 2,902 in the old text is the SNAPSHOT
+# dataset's device count -- what the read and write screens measure against -- not this one's.
+#
+# What actually distinguishes the two, and does not drift with the dataset:
+#
+#   databot prints "skipped N". A real resume skips what it already created, so N > 0.
+#   A complete apply into an empty database reports skipped 0.
+#
+#   The rows below are comparable against the dataset's own declarations rather than
+#   against a number written down in a comment a year earlier.
 STATE_REL="perf/$(basename "${PERF_DATASET:-large-dc-dataset.yml}" .yml).state.jsonl"
 if [ -n "$CLIENT_HOST" ]; then
   ssh -n -o BatchMode=yes "$CLIENT_HOST" "rm -f '$CLIENT_PATH/$STATE_REL'" \
