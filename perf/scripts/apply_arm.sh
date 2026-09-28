@@ -59,21 +59,19 @@ fi
 # The row-count guard at the end of this script does not catch it either: rows were
 # created, just not all of them.
 #
-# This comment used to name the incident's counts -- "11,572 objects instead of the full
-# set, 536 devices instead of 2,902". Do not go by those. The dataset has grown since, and
-# 11,572 created with 536 devices is now what a COMPLETE apply looks like: large-dc-dataset.yml
-# declares 11,578 objects across 68 models, of which 536 are dcim.device and 1,648 dcim.cable.
-# On 2026-09-28 those numbers read as the documented failure signature and cost a diversion
-# mid-campaign, on a run that was entirely healthy. The 2,902 in the old text is the SNAPSHOT
-# dataset's device count -- what the read and write screens measure against -- not this one's.
+# Judge an arm by these two, not by a remembered object count. Both hold as the dataset
+# changes size, which a memorised total does not:
 #
-# What actually distinguishes the two, and does not drift with the dataset:
-#
-#   databot prints "skipped N". A real resume skips what it already created, so N > 0.
+#   databot reports "skipped N". A genuine resume skips what it already created, so N > 0.
 #   A complete apply into an empty database reports skipped 0.
 #
-#   The rows below are comparable against the dataset's own declarations rather than
-#   against a number written down in a comment a year earlier.
+#   The row counts below are comparable against large-dc-dataset.yml's own declarations.
+#   It currently declares 11,578 objects across 68 models, 536 of them dcim.device and
+#   1,648 dcim.cable, and a complete apply creates 11,572 of them -- so 536 devices and
+#   1,648 cables is success here, not a fraction of anything.
+#
+# Note that 2,902 devices belongs to the SNAPSHOT dataset, which the read and write screens
+# measure against. It is not this dataset and is not a target for this script.
 STATE_REL="perf/$(basename "${PERF_DATASET:-large-dc-dataset.yml}" .yml).state.jsonl"
 if [ -n "$CLIENT_HOST" ]; then
   ssh -n -o BatchMode=yes "$CLIENT_HOST" "rm -f '$CLIENT_PATH/$STATE_REL'" \
