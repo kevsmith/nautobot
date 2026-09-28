@@ -67,9 +67,10 @@ mkdir -p "$RES"
 # Tier 2 goes over HTTP and therefore needs credentials. Without them every UI
 # view answers 302 to /login/ and tier2_latency.py correctly refuses to time a
 # redirect -- so the run completes, writes a file, and reports one endpoint out
-# of 57. That is what happened on the first run of this script: 56 of 57 skipped
-# with "probe status 302", five rounds on both arms, all void. The instrument
-# warned; the driver piped it through `tail -3` and swallowed the warning.
+# of 57 while looking in every other respect like a result. That has cost this
+# project two void campaigns.
+#
+# An API token does not substitute: it authenticates DRF and 403s on UI views.
 #
 # The session key is the fixed one ensure_credentials.py mints, so it can be
 # named here rather than scraped out of a restore's output.
