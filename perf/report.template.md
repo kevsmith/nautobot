@@ -35,7 +35,7 @@ proved different by content hash before each arm, computed over measurements pre
 sides. The read figure comes from a 57-scenario loop that measures each list view twice: the
 document, and the separate request the browser fires to render its rows. The write figures come
 from a screen enumerating every POST endpoint the URL resolver exposes, plus one end-to-end
-apply that has no read equivalent. A whole test suite of 17,505 tests passed against the same
+apply that has no read equivalent. A whole test suite of 18,449 tests passed against the same
 tree content hash these measurements were taken against. Absolute figures are not comparable to
 any other machine.
 

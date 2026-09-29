@@ -269,15 +269,16 @@ current head of it:
 
 ## Caveats
 
-- Test coverage is complete for the tree these numbers describe. A whole-suite run of **17,505
-  tests in 8,151 s** passed against the exact tree every measurement below was taken against:
-  `OK (skipped=663, expected failures=1)`, zero failures, zero errors, product tree content hash
-  `90dbd96ffbeae6d1b9ed83b3e1042af10f95cdcc6fcc19e4a734be0d30ff36bf`. The hash is quoted rather
+- Test coverage is complete for the tree these numbers describe. A whole-suite run of **18,449
+  tests in 8,490 s** passed against the exact tree every measurement below was taken against:
+  `OK (skipped=664, expected failures=1)`, zero failures, zero errors, product tree content hash
+  `c49463c7c02e04278c677f3eba36f6bd0ebd199e6554e9dae89654521d12d5b3`. The hash is quoted rather
   than a commit because that is what `arm_control.sh` proves before each arm, so the suite and
   the measurements are attached to the same artefact rather than to a branch name that moves.
-  The tree has since gained two test modules, which changes that hash, since test files live
-  under `nautobot/` and `arm_control.sh` hashes every `.py` under it. Nothing measured here
-  moved: the difference is test code only, and it was added after every figure above was taken.
+  That hash is the branch arm of every A/B above, and the suite host reported it independently,
+  so the two are the same artefact rather than two trees believed to match.
+  The suite ran on a second host while the measurement host was busy, which is possible only
+  because the count and the pass/fail are machine-independent in a way wall clock is not.
 - The new request-scoped state is now tested, and the third-party coupling fails loudly. It was
   neither before. `CachingTemplateColumnCouplingTestCase` renders the same cell through the
   caching column and through django-tables2's stock `TemplateColumn` and asserts the output is
