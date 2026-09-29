@@ -1,8 +1,8 @@
 ---
 seq: 54
 id: null
-commit: b2740e4cf
-recommended_commit: 3cecc5162
+commit: 416eeeb30
+recommended_commit: fbeaafa8f
 status: accepted
 basis: 'attribution: 100 template compilations per 100-row page, one per cell, from one column'
 behaviour: A

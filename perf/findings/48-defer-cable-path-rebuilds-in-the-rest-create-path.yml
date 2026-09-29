@@ -1,8 +1,8 @@
 ---
 seq: 48
 id: null
-commit: 696f671ed
-recommended_commit: 42d68a223
+commit: 82146f653
+recommended_commit: 60c733e07
 status: accepted
 basis: −18 queries on a two-ended REST cable create; wall clock inconclusive
 behaviour: A

@@ -1,8 +1,8 @@
 ---
 seq: 75
 id: null
-commit: 7d6f71c34
-recommended_commit: 3e7d7e240
+commit: fea27039a
+recommended_commit: c32044bcf
 status: accepted
 basis: 'enabling change: the seam the per-table commits are written against'
 behaviour: A
