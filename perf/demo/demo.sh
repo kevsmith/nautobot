@@ -37,29 +37,25 @@
 # perf/recommended. `start` checks both arms against the content hashes below, so
 # which code each one runs is verified rather than asserted.
 #
-# **The two arms do not share a base, and what that costs is interpretive rather
-# than operational.** perf/recommended is 53 commits on top of `next` at
-# 3f77053a7, and the stock arm here is 15 commits further on. So the difference a
-# viewer sees is those 53 commits MINUS whatever the 15 changed -- custom links
-# rendering as a dropdown (#9514), lighter dark-mode borders (#9517), a
-# maintenance-mode fix (#9415), the debug toolbar kept off Playwright's pages
-# (#9511), and dependency bumps. None of those is known to move page load either
-# way; none has been measured on this rig.
+# **The two arms share a base.** perf/recommended sits directly on `next` at
+# 0735993cc and STOCK_REF is that same commit, so the difference a viewer sees is
+# this branch's 53 commits and nothing else. No upstream delta is folded into the
+# comparison and none has to be reasoned around.
 #
-# Nothing here measures, so this is a statement about what the side-by-side
-# implies, not about whether it runs. If you need the difference to be exactly
-# this branch's effect -- for a published figure, or for an audience who will
-# read it that way -- rebase perf/recommended onto the same tip and set STOCK_REF
-# to it. perf/report.md's figures are measured that way and are not what this
-# demo shows.
+# perf/report.md is measured against that same base, so the demo and the report
+# describe one upstream tree. The report's figures still come from the
+# measurement rig under a quiesce gate and this demo still measures nothing, so
+# the numbers there and the impressions here are not interchangeable -- but they
+# are at least about the same two trees.
 #
-# Both refs moved on 2026-09-21, when the branch was rebased from `next` at
-# c3605ae48 onto 3f77053a7 and the serial unit suite was run on each: `next`
-# alone 18,108 tests OK, perf/recommended 18,148 tests OK.
+# Keeping it that way is the whole maintenance burden of this file: when `next`
+# moves, rebase perf/recommended onto the new tip, set STOCK_REF to it, and
+# re-derive both hashes below. An arm pair that has drifted apart still runs, and
+# still looks like a result, which is why `start` verifies the hashes rather than
+# trusting the refs.
 #
-# perf/report.md has NOT been re-measured since that rebase. Every figure in it
-# was taken against c3605ae48, so the report and this demo now describe
-# different upstream bases. The demo is the one that is current.
+# The full serial unit suite passed on the branch arm at this base: 18,449 tests,
+# zero failures, against content hash c49463c7c02e0427.
 #
 # ## What is patched in each copy, and what is deliberately not
 #
@@ -90,7 +86,7 @@ DEMO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEMO_ROOT="${DEMO_ROOT:-$DEMO_DIR/arms}"
 SOURCE_TREE="${SOURCE_TREE:-/home/kevsmith/repos/work/nautobot/nautobot}"
 SNAPSHOT="${DEMO_SNAPSHOT:-$SOURCE_TREE/perf/snapshot-large.sql}"
-STOCK_REF="${STOCK_REF:-fd7b7d4bc}"
+STOCK_REF="${STOCK_REF:-0735993cc}"
 BRANCH_REF="${BRANCH_REF:-perf/recommended}"
 DEMO_PASSWORD="${DEMO_PASSWORD:-demo1234}"
 # Same default dc.sh uses. Named here too because the viewer container is
@@ -101,9 +97,10 @@ export PYTHON_VER="${PYTHON_VER:-3.13}"
 # The content hash of each arm, as `arm_control.sh hash` reports it. `start`
 # refuses to hand over a demo that is not running the code named above.
 #
-# These are not the values perf/report.md publishes: the report predates the
-# 2026-09-21 rebase onto 3f77053a7. They were computed from the refs directly
-# and confirmed against what armctl reported on the measurement host.
+# These are the trees perf/report.md's figures were taken against: EXPECT_BRANCH
+# is the branch arm of every A/B in it, EXPECT_STOCK the stock arm. Both were
+# computed from the refs directly and confirmed against what armctl reported on
+# the measurement host.
 #
 # These move whenever either ref moves, and they have twice been left behind:
 # EXPECT_BRANCH was dfed9a0fbd22fd03 while the branch it named hashed
@@ -116,8 +113,8 @@ export PYTHON_VER="${PYTHON_VER:-3.13}"
 #     find nautobot \( -name '*.py' -o -name '*.html' -o -name '*.txt' \) \
 #       -not -path '*/project-static/*' -print0 | LC_ALL=C sort -z | \
 #       xargs -0 cat | sha256sum | cut -c1-16
-EXPECT_STOCK="${EXPECT_STOCK:-53a8249102cdb2d9}"
-EXPECT_BRANCH="${EXPECT_BRANCH:-cb8e6a4ec415f1e5}"
+EXPECT_STOCK="${EXPECT_STOCK:-7b5b5d196b78f5be}"
+EXPECT_BRANCH="${EXPECT_BRANCH:-c49463c7c02e0427}"
 
 # The fixed session key ensure_credentials.py mints. `status` and `warm` use it
 # so they can fetch a real page without logging in; the demo itself logs in as
