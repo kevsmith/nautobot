@@ -452,20 +452,27 @@ Nautobot feel good in the situations we sell on", not a complete picture of load
 ## Closed: the full test suite passes
 
 `invoke tests --parallel-workers=1 -n -k --no-cache-test-fixtures` ran the whole
-suite on 2026-09-12 against `perf/recommended` at `977eb44c6`, the tree a
-reviewer would take:
+suite on 2026-09-28 against `perf/recommended` rebased onto `next` at
+`0735993cc`, the tree a reviewer would take:
 
-    Ran 17533 tests in 7626.657s
-    OK (skipped=663, expected failures=1)
+    Ran 18449 tests in 8490.429s
+    OK (skipped=664, expected failures=1)
 
 Zero failures, zero errors, and no `test_get_docs_url` at all -- the run builds
 docs rather than passing `--skip-docs-build`, which is what makes those ~35 dcim
 model tests fail even on a clean tree. `perf/recommended` and `perf/experiments`
 have byte-identical `nautobot/` trees, so the result covers both.
 
-The collected count is 29 higher than the 17,504 recorded at `fd48eee32`, which
+It ran on albert rather than on hannah, so the measurement host stayed free for
+the cumulative refresh. The suite host reported product tree content hash
+`c49463c7c02e0427`, which is the branch arm of every A/B in the report -- so the
+suite and the measurements describe one artefact, not two trees assumed equal.
+
+The collected count is 916 higher than the 17,533 recorded on 2026-09-12, which
 is the check that matters as much as the failure count: an import error shrinks
-the suite without failing anything.
+the suite without failing anything. The growth is upstream's, from the 19
+commits between `3f77053a7` and `0735993cc` -- event rules, complexity cost rate
+limiting, JSON/YAML import support.
 
 Django's parallel runner cannot run this suite. It dies during subsuite setup
 with a pickling error that hides the underlying exception, prints no test names,

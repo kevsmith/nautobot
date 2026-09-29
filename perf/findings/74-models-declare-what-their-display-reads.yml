@@ -1,8 +1,8 @@
 ---
 seq: 74
 id: null
-commit: 738a3a596
-recommended_commit: d528c25c7
+commit: 2df3fb476
+recommended_commit: 0b46c82e8
 status: accepted
 basis: 'attribution: 1.000 q/row on DeviceTable.device_type in isolation, 0.000 after'
 behaviour: A

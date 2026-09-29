@@ -1,8 +1,8 @@
 ---
 seq: 65
 id: null
-commit: a360158e9
-recommended_commit: 5008da2d4
+commit: 610cd4b48
+recommended_commit: c0d316eca
 status: accepted
 basis: 'attribution on synthesised rows: 1.000 q/row before, 0.000 after, at depth 0'
 behaviour: A
