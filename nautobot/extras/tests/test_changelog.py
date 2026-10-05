@@ -545,7 +545,10 @@ class ChangeLogAPITest(APITestCase):
                 if not expect_change:
                     continue
                 change = changes.first()
-                self.assertCountEqual(change.object_data["tags"], [tag_obj.name for tag_obj in expected_tags])
+                self.assertCountEqual(
+                    [tag_data["name"] for tag_data in change.object_data_v2["tags"]],
+                    [tag_obj.name for tag_obj in expected_tags],
+                )
                 self.assertCountEqual(
                     [tag_data["id"] for tag_data in change.object_data_v2["tags"]],
                     [str(tag_obj.pk) for tag_obj in expected_tags],
@@ -748,7 +751,7 @@ class ObjectChangeModelTest(TestCase):  # TODO: change to BaseModelTestCase once
         changes = get_changes_for_model(location)
         self.assertEqual(changes.count(), change_count + 1)
         change = changes.first()
-        self.assertEqual(change.object_data["tags"], [])
+        self.assertIsNone(change.object_data)
         self.assertEqual(change.object_data_v2["tags"], [])
         self.assertEqual(
             change.get_snapshots()["differences"],
