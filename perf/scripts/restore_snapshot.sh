@@ -36,7 +36,28 @@ perf/scripts/dc.sh up -d $RESTART >/dev/null 2>&1
 # alone leaves the schema behind the code. Migrations are in scope on this branch
 # now (see the taxonomy in perf/README.md), so the restore has to end with one.
 # A no-op on an already-current schema.
-perf/scripts/dc.sh exec -T nautobot nautobot-server migrate --no-input >/dev/null 2>&1
+#
+# Wait for the container to report healthy first. Its entrypoint runs
+# `nautobot-server post_upgrade` -- which migrates -- on every start, and a migrate
+# exec'd straight after `up -d` raced it: both applied the same migration, and
+# whichever lost failed with DuplicateColumn. When the entrypoint lost it retried
+# and nothing showed; when this script lost, set -e ended the restore with its
+# output in /dev/null. That happened four times on 2026-10-05/06, always on the
+# first restore after a container start, and never on an immediate rerun. The
+# healthcheck reports migrations unavailable until they are applied, so healthy
+# means the entrypoint's migrate has finished.
+for _ in $(seq 1 90); do
+  [ "$(perf/scripts/dc.sh ps --format '{{.Name}} {{.Status}}' 2>/dev/null | grep -c 'nautobot-1.*(healthy)')" = "1" ] && break
+  sleep 2
+done
+MIGRATE_LOG="$(mktemp)"
+if ! perf/scripts/dc.sh exec -T nautobot nautobot-server migrate --no-input >"$MIGRATE_LOG" 2>&1; then
+  echo "!! migrate failed after restore:" >&2
+  tail -40 "$MIGRATE_LOG" >&2
+  rm -f "$MIGRATE_LOG"
+  exit 1
+fi
+rm -f "$MIGRATE_LOG"
 # A restore replaces django_session, so any Tier 2 session cookie minted earlier stops
 # authenticating -- which once produced an A/B that completed cleanly having timed one of eight
 # scenarios. The token survives (it is in the snapshot and has no expiry); the session does not.
