@@ -451,12 +451,31 @@ Nautobot feel good in the situations we sell on", not a complete picture of load
 
 ## Closed: the full test suite passes
 
-`invoke tests --parallel-workers=1 -n -k --no-cache-test-fixtures` ran the whole
-suite on 2026-09-28 against `perf/recommended` rebased onto `next` at
-`0735993cc`, the tree a reviewer would take:
+`invoke tests --parallel-workers=1 --no-input -k --no-cache-test-fixtures` ran the
+whole suite on 2026-10-06 against `perf/recommended` rebased onto `next` at
+`dc0c3ae99`, the tree a reviewer would take:
 
-    Ran 18449 tests in 8490.429s
-    OK (skipped=664, expected failures=1)
+    Ran 18720 tests in 9068.451s
+    OK (skipped=668, expected failures=1)
+
+**Spell it `--no-input`.** Upstream added a `color` parameter to `invoke tests`
+between `0735993cc` and `dc0c3ae99`, and invoke's generated short flags shifted
+with it: `-n` now means `--config-file`, `--no-input` has no short flag at all, and
+the old invocation dies at argument parsing before running anything.
+
+The first run on the rebased tree did not pass: 18,720 tests, **6 errors**, all in
+`extras/tests/test_changelog.py`. Upstream #9527 and its two follow-ups added
+`test_interface_tag_changes` and `test_clear_tags`, which read
+`change.object_data["tags"]` -- a column "Stop writing ObjectChange.object_data"
+leaves null. The rebase merged them without a conflict, so only the suite found
+it. Both tests now read `object_data_v2`, the way that commit adapted the existing
+ones; the result above is the full rerun after that fix.
+
+Upstream's dependency update in the same range rewrote `poetry.lock`, and
+`invoke tests` executes inside the already-running container, so the image was
+rebuilt and the container recreated before either run; 261 of 262 locked packages
+matched the lock afterwards, the exception being `async-timeout`, a Python <3.11
+marker dependency.
 
 Zero failures, zero errors, and no `test_get_docs_url` at all -- the run builds
 docs rather than passing `--skip-docs-build`, which is what makes those ~35 dcim
@@ -465,14 +484,13 @@ have byte-identical `nautobot/` trees, so the result covers both.
 
 It ran on albert rather than on hannah, so the measurement host stayed free for
 the cumulative refresh. The suite host reported product tree content hash
-`c49463c7c02e0427`, which is the branch arm of every A/B in the report -- so the
+`3f21387074b8124a`, which is the branch arm of every A/B in the report -- so the
 suite and the measurements describe one artefact, not two trees assumed equal.
 
-The collected count is 916 higher than the 17,533 recorded on 2026-09-12, which
+The collected count is 271 higher than the 18,449 recorded on 2026-09-28, which
 is the check that matters as much as the failure count: an import error shrinks
-the suite without failing anything. The growth is upstream's, from the 19
-commits between `3f77053a7` and `0735993cc` -- event rules, complexity cost rate
-limiting, JSON/YAML import support.
+the suite without failing anything. The growth is upstream's, from the 38
+commits between `0735993cc` and `dc0c3ae99`.
 
 Django's parallel runner cannot run this suite. It dies during subsuite setup
 with a pickling error that hides the underlying exception, prints no test names,
@@ -484,7 +502,7 @@ Two things to carry forward. Fixture caching was off this time, so the cached
 fixture is ruled out as a source of stale state, but `--keepdb` stayed on and the
 log records `Using existing test database for alias 'default'` -- a full
 `--no-keepdb` run is still untried, and needs `--no-input` beside it or it blocks
-on a prompt. And it took 2h11m on the measurement host, which is a background
+on a prompt. And it takes about 2h30m, which is a background
 job rather than an inner-loop check -- targeted per-module runs stay the fast
 signal during an experiment.
 

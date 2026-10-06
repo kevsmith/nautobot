@@ -1,8 +1,8 @@
 ---
 seq: 53
 id: null
-commit: 9c9dc55c1
-recommended_commit: 947a1fc63
+commit: 776221f28
+recommended_commit: d59b5e8b4
 status: accepted
 basis: 'attribution: 100 ipam_ipaddress queries on a 100-row page, all from one property'
 behaviour: A

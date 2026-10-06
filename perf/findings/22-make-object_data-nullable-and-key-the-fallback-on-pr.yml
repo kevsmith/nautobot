@@ -1,7 +1,7 @@
 ---
 seq: 22
-commit: 859191b0a
-recommended_commit: d47c2ae40
+commit: 6f06f7509
+recommended_commit: 87b0be3d4
 status: accepted
 behaviour: C
 migration: M0
