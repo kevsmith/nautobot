@@ -1,8 +1,8 @@
 ---
 seq: 68
 id: null
-commit: d1855618f
-recommended_commit: 6eedd2004
+commit: dd449098b
+recommended_commit: 443343ea8
 status: accepted
 basis: 'attribution: 542 -> 6 reversals on a 100-row page, and redundant reversals to zero'
 behaviour: A
