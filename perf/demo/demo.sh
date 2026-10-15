@@ -38,7 +38,7 @@
 # which code each one runs is verified rather than asserted.
 #
 # **The two arms share a base.** perf/recommended sits directly on `next` at
-# dc0c3ae99 and STOCK_REF is that same commit, so the difference a viewer sees is
+# 73ca2f0ef and STOCK_REF is that same commit, so the difference a viewer sees is
 # this branch's 55 commits and nothing else. No upstream delta is folded into the
 # comparison and none has to be reasoned around.
 #
@@ -54,8 +54,8 @@
 # still looks like a result, which is why `start` verifies the hashes rather than
 # trusting the refs.
 #
-# The full serial unit suite passed on the branch arm at this base: 18,720 tests,
-# zero failures, against content hash 3f21387074b8124a.
+# The full serial unit suite passed on the branch arm at this base: 18,852 tests,
+# zero failures, against content hash 0ecf4a2386d9bb0c.
 #
 # ## What is patched in each copy, and what is deliberately not
 #
@@ -86,7 +86,7 @@ DEMO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEMO_ROOT="${DEMO_ROOT:-$DEMO_DIR/arms}"
 SOURCE_TREE="${SOURCE_TREE:-/home/kevsmith/repos/work/nautobot/nautobot}"
 SNAPSHOT="${DEMO_SNAPSHOT:-$SOURCE_TREE/perf/snapshot-large.sql}"
-STOCK_REF="${STOCK_REF:-dc0c3ae99}"
+STOCK_REF="${STOCK_REF:-73ca2f0ef}"
 BRANCH_REF="${BRANCH_REF:-perf/recommended}"
 DEMO_PASSWORD="${DEMO_PASSWORD:-demo1234}"
 # Same default dc.sh uses. Named here too because the viewer container is
@@ -113,8 +113,8 @@ export PYTHON_VER="${PYTHON_VER:-3.13}"
 #     find nautobot \( -name '*.py' -o -name '*.html' -o -name '*.txt' \) \
 #       -not -path '*/project-static/*' -print0 | LC_ALL=C sort -z | \
 #       xargs -0 cat | sha256sum | cut -c1-16
-EXPECT_STOCK="${EXPECT_STOCK:-bd8aafed98d59c2f}"
-EXPECT_BRANCH="${EXPECT_BRANCH:-3f21387074b8124a}"
+EXPECT_STOCK="${EXPECT_STOCK:-a4f7941e0738040b}"
+EXPECT_BRANCH="${EXPECT_BRANCH:-0ecf4a2386d9bb0c}"
 
 # The fixed session key ensure_credentials.py mints. `status` and `warm` use it
 # so they can fetch a real page without logging in; the demo itself logs in as

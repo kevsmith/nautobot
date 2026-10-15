@@ -269,10 +269,10 @@ current head of it:
 
 ## Caveats
 
-- Test coverage is complete for the tree these numbers describe. A whole-suite run of **18,720
-  tests in 9,068 s** passed against the exact tree every measurement below was taken against:
+- Test coverage is complete for the tree these numbers describe. A whole-suite run of **18,852
+  tests in 9,367 s** passed against the exact tree every measurement below was taken against:
   `OK (skipped=668, expected failures=1)`, zero failures, zero errors, product tree content hash
-  `3f21387074b8124a3f7938f1b80d38ccfee6ee3b2a43d708e4bc9c527908e56b`. The hash is quoted rather
+  `0ecf4a2386d9bb0ca60895203d3c94eba9e5cbc1279ceea02d1cacb78b9d4126`. The hash is quoted rather
   than a commit because that is what `arm_control.sh` proves before each arm, so the suite and
   the measurements are attached to the same artefact rather than to a branch name that moves.
   That hash is the branch arm of every A/B above, and the suite host reported it independently,

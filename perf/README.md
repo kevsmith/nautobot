@@ -452,10 +452,10 @@ Nautobot feel good in the situations we sell on", not a complete picture of load
 ## Closed: the full test suite passes
 
 `invoke tests --parallel-workers=1 --no-input -k --no-cache-test-fixtures` ran the
-whole suite on 2026-10-06 against `perf/recommended` rebased onto `next` at
-`dc0c3ae99`, the tree a reviewer would take:
+whole suite on 2026-10-15 against `perf/recommended` rebased onto `next` at
+`73ca2f0ef`, the tree a reviewer would take:
 
-    Ran 18720 tests in 9068.451s
+    Ran 18852 tests in 9366.959s
     OK (skipped=668, expected failures=1)
 
 **Spell it `--no-input`.** Upstream added a `color` parameter to `invoke tests`
@@ -463,19 +463,15 @@ between `0735993cc` and `dc0c3ae99`, and invoke's generated short flags shifted
 with it: `-n` now means `--config-file`, `--no-input` has no short flag at all, and
 the old invocation dies at argument parsing before running anything.
 
-The first run on the rebased tree did not pass: 18,720 tests, **6 errors**, all in
-`extras/tests/test_changelog.py`. Upstream #9527 and its two follow-ups added
-`test_interface_tag_changes` and `test_clear_tags`, which read
-`change.object_data["tags"]` -- a column "Stop writing ObjectChange.object_data"
-leaves null. The rebase merged them without a conflict, so only the suite found
-it. Both tests now read `object_data_v2`, the way that commit adapted the existing
-ones; the result above is the full rerun after that fix.
+It passed on the first run. The rebase onto `73ca2f0ef` conflicted in
+`inc/nav_menu.html`, where upstream #9594 rewrote the navbar favorites markup that
+findings 51 and 58 both change, and in three modules' import lists; all were
+resolved by hand. Finding 58's cached sidenav fragment now carries upstream's favorites
+button, and its add, remove and reload behaviour was checked in a browser.
 
-Upstream's dependency update in the same range rewrote `poetry.lock`, and
-`invoke tests` executes inside the already-running container, so the image was
-rebuilt and the container recreated before either run; 261 of 262 locked packages
-matched the lock afterwards, the exception being `async-timeout`, a Python <3.11
-marker dependency.
+Upstream rewrote `poetry.lock` again in this range, and `invoke tests` executes
+inside the already-running container, so the image was rebuilt and the container
+recreated before the run.
 
 Zero failures, zero errors, and no `test_get_docs_url` at all -- the run builds
 docs rather than passing `--skip-docs-build`, which is what makes those ~35 dcim
@@ -484,13 +480,13 @@ have byte-identical `nautobot/` trees, so the result covers both.
 
 It ran on albert rather than on hannah, so the measurement host stayed free for
 the cumulative refresh. The suite host reported product tree content hash
-`3f21387074b8124a`, which is the branch arm of every A/B in the report -- so the
+`0ecf4a2386d9bb0c`, which is the branch arm of every A/B in the report -- so the
 suite and the measurements describe one artefact, not two trees assumed equal.
 
-The collected count is 271 higher than the 18,449 recorded on 2026-09-28, which
+The collected count is 132 higher than the 18,720 recorded on 2026-10-06, which
 is the check that matters as much as the failure count: an import error shrinks
-the suite without failing anything. The growth is upstream's, from the 38
-commits between `0735993cc` and `dc0c3ae99`.
+the suite without failing anything. The growth is upstream's, from the 52
+commits between `dc0c3ae99` and `73ca2f0ef`.
 
 Django's parallel runner cannot run this suite. It dies during subsuite setup
 with a pickling error that hides the underlying exception, prints no test names,
