@@ -884,6 +884,76 @@ for HTTP but covers neither jobs nor model `save()`, and which commits partial w
 handler catches an error and returns 4xx unless `set_rollback(True)` is wired into DRF's
 exception handler.
 
+### Prepared statements: psycopg 3 with server-side binding
+
+**Queued 2026-10-15, not measured.** Nautobot runs psycopg2 2.9.13 (`pyproject.toml:126`),
+which interpolates parameters on the client, so PostgreSQL parses and plans every query on
+every execution. psycopg 3, which Django supports from 4.2, binds on the server when the
+database `OPTIONS` set `"server_side_binding": True`, and then prepares any statement a
+connection has run more than `prepare_threshold` times (default 5). Django's default with
+psycopg 3 is still client-side binding, so swapping the driver alone changes nothing.
+
+**Finding 87 is the reason this ranks above its general merits.** The depth-1 device list
+spends 427-470ms planning one 19-join query against 4.4ms executing it, and that finding ruled
+out every index and planner setting as a fix. A prepared statement skips planning only once
+PostgreSQL switches it to a generic plan. Under `plan_cache_mode = auto` that happens after
+five custom plans, and only if the generic plan's estimated cost is no worse than their
+average. If the planner keeps choosing custom plans, every execution still plans and the prize
+is zero. `plan_cache_mode = force_generic_plan` bounds it from above for that one query.
+
+Connections already persist. `CONN_MAX_AGE` defaults to 300s
+(`nautobot/core/settings.py:574`), so each of the rig's three uwsgi workers keeps its
+connection, and would keep its prepared statements, across requests.
+
+Limits on the prize, none of them measured:
+
+- Statements are cached by exact SQL text. Prefetch `IN (...)` lists change length with the
+  page, and each length is a separate statement.
+- `prepared_max` caps each connection at 100 statements, evicted least recently used. How many
+  distinct query shapes one worker sees across the API and UI is uncounted.
+- A generic plan ignores parameter values, so on a skewed filter it can be slower than a custom
+  plan. That regression shows as an occasional slow query rather than a shifted median.
+- PgBouncer in transaction mode breaks prepared statements unless it is 1.21 or later with
+  `max_prepared_statements` set. That belongs in an upstream write-up; the rig has no PgBouncer.
+- `opentelemetry-instrumentation-psycopg2` (`pyproject.toml:113`) has to change with the
+  driver.
+
+Steps, cheapest first:
+
+1. **Price the ceiling with configuration only.** Turn on `pg_stat_statements.track_planning`
+   for one read loop per arm. Total planning time is the most this can save, and finding 87's
+   query shows directly whether it dominates.
+2. **If the ceiling is worth having, add a psycopg 3 arm.** `perf/recommended` plus the driver
+   swap and `server_side_binding`, alternating against `perf/recommended` over five wall-clock
+   rounds. It needs an image rebuild on the measurement host. Tier 1 counts executions, so
+   query counts should not move: the deterministic gate cannot see this change, and wall clock
+   is the gate, as with finding 51.
+3. **Full suite on the swapped driver** before anything is accepted. A driver change touches
+   every query the product issues.
+
+### Upstream added a repeated query to every UI list view's document request
+
+**Queued 2026-10-15, not attributed.** Between `next` at `dc0c3ae99` and `73ca2f0ef`, all 17
+`ui.*.list` scenarios gained exactly one query, on both arms, so it came from upstream's 52
+commits and not from this branch. Read-loop totals moved 3,619 -> 3,636 on stock and 897 -> 914
+on the branch, and the saving is unchanged at 2,722.
+
+What the counters already say:
+
+- Every one of the 17 gained one duplicate as well as one query, and `distinct_shapes` did not
+  move. The new query repeats a normalised shape the page already issued. Whether the bound
+  values also match is unknown, because `normalize_sql()` discards them.
+- On most pages the worst repeat count stayed at 2, so a shape that used to run once now runs
+  twice. On the stock arm's four device-list scenarios it went 2 -> 3, which may instead be an
+  already-doubled shape running a third time.
+- No `ui.*.list.rows` scenario moved, and neither did any detail page. The query is in the list
+  view's document request, not in row rendering.
+
+**First step:** capture the full SQL of `ui.tag.list`, the smallest of the 17, at both commits
+and diff the two. Run it on albert, not on the measurement host. If the repeat has identical
+values it is a candidate for a request-scoped memo; if the values differ it is a per-object
+lookup and needs reading before it is called a defect.
+
 ---
 
 ## Ranked below those, unchanged in substance
