@@ -1,14 +1,14 @@
 {
  "arms": {
-  "1005-branch": {
+  "1015-branch": {
    "hashes": [
-    "3f21387074b8124a"
+    "0ecf4a2386d9bb0c"
    ],
    "rounds": 2
   },
-  "1005-stock": {
+  "1015-stock": {
    "hashes": [
-    "bd8aafed98d59c2f"
+    "a4f7941e0738040b"
    ],
    "rounds": 2
   }
@@ -20,54 +20,54 @@
  },
  "measurements": [
   {
-   "db_ms": 24721,
-   "id": "1005-branch-r1",
-   "kind": "1005-branch",
-   "queries": 634400,
-   "wall_ms": 1042000
+   "db_ms": 24521,
+   "id": "1015-branch-r1",
+   "kind": "1015-branch",
+   "queries": 637408,
+   "wall_ms": 1045000
   },
   {
-   "db_ms": 24723,
-   "id": "1005-branch-r2",
-   "kind": "1005-branch",
-   "queries": 638403,
-   "wall_ms": 1040000
+   "db_ms": 24591,
+   "id": "1015-branch-r2",
+   "kind": "1015-branch",
+   "queries": 636910,
+   "wall_ms": 1043000
   },
   {
-   "db_ms": 31947,
-   "id": "1005-stock-r1",
-   "kind": "1005-stock",
-   "queries": 809659,
+   "db_ms": 31985,
+   "id": "1015-stock-r1",
+   "kind": "1015-stock",
+   "queries": 801293,
+   "wall_ms": 1846000
+  },
+  {
+   "db_ms": 31974,
+   "id": "1015-stock-r2",
+   "kind": "1015-stock",
+   "queries": 806791,
    "wall_ms": 1841000
-  },
-  {
-   "db_ms": 32005,
-   "id": "1005-stock-r2",
-   "kind": "1005-stock",
-   "queries": 808993,
-   "wall_ms": 1849000
   }
  ],
  "schema": 1,
  "screen": "apply",
  "totals": {
   "db_ms": {
-   "baseline": 31976.0,
-   "current": 24722.0,
-   "delta": -7254.0,
-   "pct": -22.69
+   "baseline": 31979.5,
+   "current": 24556.0,
+   "delta": -7423.5,
+   "pct": -23.21
   },
   "queries": {
-   "baseline": 809326.0,
-   "current": 636401.5,
-   "delta": -172924.5,
-   "pct": -21.37
+   "baseline": 804042.0,
+   "current": 637159.0,
+   "delta": -166883.0,
+   "pct": -20.76
   },
   "wall_ms": {
-   "baseline": 1845000.0,
-   "current": 1041000.0,
-   "delta": -804000.0,
-   "pct": -43.58
+   "baseline": 1843500.0,
+   "current": 1044000.0,
+   "delta": -799500.0,
+   "pct": -43.37
   }
  }
 }
