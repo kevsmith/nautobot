@@ -1,8 +1,8 @@
 ---
 seq: 34
 id: null
-commit: 328d20845
-recommended_commit: 20440a989
+commit: 6770deabb
+recommended_commit: 1e549356d
 status: accepted
 behaviour: B1
 migration: '-'

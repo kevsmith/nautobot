@@ -1,7 +1,7 @@
 ---
 seq: 12
-commit: fb46004d6
-recommended_commit: ef23e7c16
+commit: 17cfd25c3
+recommended_commit: 502b4daaf
 status: accepted
 behaviour: A
 migration: '-'

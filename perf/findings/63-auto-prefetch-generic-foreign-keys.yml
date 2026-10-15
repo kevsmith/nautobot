@@ -1,8 +1,8 @@
 ---
 seq: 63
 id: null
-commit: 3230a59ef
-recommended_commit: 2ac7d141c
+commit: f708acc4f
+recommended_commit: e553791fd
 status: accepted
 basis: 'attribution: ~1 query per row per GFK, and exactly 2.19 on the model carrying two'
 behaviour: A

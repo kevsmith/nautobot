@@ -1,8 +1,8 @@
 ---
 seq: 58
 id: null
-commit: 0588c5e0f
-recommended_commit: 9052c9296
+commit: ada94c1a4
+recommended_commit: 1e5675570
 status: accepted
 basis: 'finding 57: no hot spot in a fixed 20.4ms, so the levers are fewer nodes or fewer renders'
 behaviour: B2
