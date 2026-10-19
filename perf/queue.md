@@ -931,29 +931,22 @@ Steps, cheapest first:
 3. **Full suite on the swapped driver** before anything is accepted. A driver change touches
    every query the product issues.
 
-### Upstream added a repeated query to every UI list view's document request
+### Upstream's Import button costs every UI list view one Job lookup
 
-**Queued 2026-10-15, not attributed.** Between `next` at `dc0c3ae99` and `73ca2f0ef`, all 17
-`ui.*.list` scenarios gained exactly one query, on both arms, so it came from upstream's 52
-commits and not from this branch. Read-loop totals moved 3,619 -> 3,636 on stock and 897 -> 914
-on the branch, and the saving is unchanged at 2,722.
+**Attributed 2026-10-19; not a defect.** Between `next` at `dc0c3ae99` and `73ca2f0ef`, all 17
+`ui.*.list` scenarios gained exactly one query on both arms. It is upstream #9571
+(`4aa2dee69`, "Import Objects job modal"): `job_import_button` (core/templatetags/buttons.py:558)
+resolves its trigger through `build_trigger_context`, which calls `Job.objects.get_for_class_path`
+for `nautobot.core.jobs.ImportObjects`. The Export button already did the same for
+`ExportObjectList`. The two lookups share a shape and differ in their values, which is why the
+counters read it as a duplicate. Captured on albert with full SQL and call sites, 11 -> 12 queries
+on `/extras/tags/` and `/dcim/devices/`, matching hannah's counts.
 
-What the counters already say:
-
-- Every one of the 17 gained one duplicate as well as one query, and `distinct_shapes` did not
-  move. The new query repeats a normalised shape the page already issued. Whether the bound
-  values also match is unknown, because `normalize_sql()` discards them.
-- On most pages the worst repeat count stayed at 2, so a shape that used to run once now runs
-  twice. On the stock arm's four device-list scenarios it went 2 -> 3, which may instead be an
-  already-doubled shape running a third time.
-- No `ui.*.list.rows` scenario moved, and neither did any detail page. The query is in the list
-  view's document request, not in row rendering.
-
-**First step:** capture the full SQL of `ui.tag.list`, the smallest of the 17, at both commits
-and diff the two. Run it on albert, not on the measurement host. If the repeat has identical
-values it is a candidate for a request-scoped memo; if the values differ it is a per-object
-lookup and needs reading before it is called a defect.
-
+**What remains is small.** A list view now looks up two system Jobs by class path, one query each.
+One query for both, or a per-request memo in `get_for_class_path`, would save one query per list
+view. Separately, `export_button` looks up `ExportObjectList` again for each Export Template
+offered (buttons.py:620), which is an exact repeat: params identical, one query per template. That
+is why the stock device lists' worst repeat went 2 -> 3. Neither has been measured on wall clock.
 ---
 
 ## Ranked below those, unchanged in substance
