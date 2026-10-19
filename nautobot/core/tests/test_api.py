@@ -670,6 +670,29 @@ class ModelViewSetMixinTest(testing.APITestCase):
         with self.assertNumQueries(1):
             list(instance.tags.all())
 
+    @override_settings(ALLOWED_HOSTS=["*"])
+    def test_get_queryset_prefetches_relations_rendered_below_the_first_nested_level(self):
+        """At `?depth=2` a nested object renders its own relations in full, so those must be prefetched too."""
+        self.user.is_superuser = True
+        self.user.save()
+        view = self.SimpleIPAddressViewSet()
+        view.action_map = {"get": "list"}
+        request = APIRequestFactory().get(reverse("ipam-api:ipaddress-list"), headers=self.header, data={"depth": 2})
+        force_authenticate(request, user=self.user)
+        request = view.initialize_request(request)
+        view.setup(request)
+        view.initial(request)
+
+        instances = [instance for instance in view.get_queryset() if instance.parent is not None]
+        self.assertGreater(len(instances), 1, "need multiple objects for a meaningful N+1 assertion")
+        # `parent` is the first nested level; its Status, Namespace and Tenant are rendered by the
+        # depth-1 Prefix serializer inside it, one level further down.
+        with self.assertNumQueries(0):
+            for instance in instances:
+                instance.parent.status
+                instance.parent.namespace
+                instance.parent.tenant
+
 
 class WritableNestedSerializerTest(testing.APITestCase):
     """
