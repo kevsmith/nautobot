@@ -71,6 +71,83 @@ HTTP_ACTIONS = {
 logger = logging.getLogger(__name__)
 
 
+# Walking a nested serializer means building its `fields`, and every nested serializer's below it -- including
+# branches that are null on every row and so never built by the renderer, which works on its own serializer instance.
+# Measured at `?depth=3`, that construction cost 300ms on a page of zero front ports and +40% on five tenants. The
+# fields are a function of the serializer class (a nested class encodes its remaining depth in its name), the lookup
+# prefix, and the request's `include` and `exclude_m2m` parameters and method, so the walk is done once per process
+# for each combination. Bounded because `include` is free text from the request.
+_NESTED_PREFETCH_LOOKUPS = {}
+_NESTED_PREFETCH_LOOKUPS_MAX = 1024
+
+
+def nested_prefetch_lookups(serializer, model, prefix):
+    """Return the prefetch lookups a nested (`?depth`) serializer needs, at every depth below it.
+
+    A nested serializer renders its related object in full, including that object's own relations: at `?depth=2`
+    an Interface renders its Device, and the Device renders its Status, Role and Location as nested serializers
+    too. The root optimizer only sees the root serializer's fields, so every relation below the first level would
+    otherwise be fetched one query per row.
+
+    Only relations that are rendered from the related row are returned. A depth-0 leaf FK renders `{id, object_type,
+    url}` from the foreign key's own column through DRF's pk-only optimization, so it needs nothing.
+
+    Args:
+        serializer (Serializer): The nested serializer instance, whose `fields` are walked.
+        model (Model): The model the nested serializer renders.
+        prefix (str): The lookup path that reaches `model` from the root queryset, ending in `__`.
+    """
+    request = serializer.context.get("request")
+    params = getattr(request, "query_params", None) or {}
+    key = (
+        type(serializer),
+        model,
+        prefix,
+        getattr(request, "method", None),
+        tuple(params.getlist("include")) if hasattr(params, "getlist") else params.get("include"),
+        params.get("exclude_m2m"),
+        serializer.context.get("exclude_m2m"),
+    )
+    if key not in _NESTED_PREFETCH_LOOKUPS:
+        if len(_NESTED_PREFETCH_LOOKUPS) >= _NESTED_PREFETCH_LOOKUPS_MAX:
+            _NESTED_PREFETCH_LOOKUPS.clear()
+        _NESTED_PREFETCH_LOOKUPS[key] = tuple(_walk_nested_serializer(serializer, model, prefix))
+    return list(_NESTED_PREFETCH_LOOKUPS[key])
+
+
+def _walk_nested_serializer(serializer, model, prefix):
+    """Compute `nested_prefetch_lookups()` without the cache."""
+    lookups = []
+    for field_instance in serializer.fields.values():
+        if field_instance.write_only or field_instance.source == "*" or "." in field_instance.source:
+            continue
+        try:
+            model_field = model._meta.get_field(field_instance.source)
+        except FieldDoesNotExist:
+            continue
+        lookup = f"{prefix}{field_instance.source}"
+        if isinstance(field_instance, (drf_serializers.ManyRelatedField, drf_serializers.ListSerializer)):
+            if not isinstance(model_field, (ManyToManyField, ManyToManyRel, RelatedField, ManyToOneRel, TagsField)):
+                continue
+            lookups.append(lookup)
+            child = getattr(field_instance, "child", None)
+            if isinstance(child, drf_serializers.Serializer):
+                lookups.extend(nested_prefetch_lookups(child, model_field.related_model, f"{lookup}__"))
+        elif isinstance(field_instance, drf_serializers.Serializer) and isinstance(model_field, ForeignKey):
+            lookups.append(lookup)
+            lookups.extend(nested_prefetch_lookups(field_instance, model_field.related_model, f"{lookup}__"))
+
+    for private_field in model._meta.private_fields:
+        if isinstance(private_field, GenericForeignKey):
+            lookups.append(f"{prefix}{private_field.name}")
+
+    # The nested object's `display`/`natural_slug` walks its own natural-key relations, one query per hop otherwise.
+    for natural_key_lookup in getattr(model, "natural_key_field_lookups", []):
+        if "__" in natural_key_lookup:
+            lookups.append(f"{prefix}{natural_key_lookup.rsplit('__', 1)[0]}")
+    return lookups
+
+
 #
 # Mixins
 #
@@ -261,8 +338,8 @@ class ModelViewSetMixin:
         # Relations the viewset's own queryset already select_related()s explicitly. Those stay joined.
         already_joined = queryset.query.select_related
         already_joined = set(already_joined) if isinstance(already_joined, dict) else set()
-        # Related models reached through a nested (`?depth`) serializer, keyed by the field name that reaches them.
-        nested_fk_related_models = {}
+        # Relations a nested (`?depth`) serializer renders below the first level.
+        nested_prefetch_fields = []
 
         for field_instance in serializer.fields.values():
             if field_instance.write_only:
@@ -281,6 +358,11 @@ class ModelViewSetMixin:
                     continue
                 if isinstance(model_field, (ManyToManyField, ManyToManyRel, RelatedField, ManyToOneRel, TagsField)):
                     prefetch_fields.append(field_instance.source)
+                    child = getattr(field_instance, "child", None)
+                    if isinstance(child, drf_serializers.Serializer):
+                        nested_prefetch_fields.extend(
+                            nested_prefetch_lookups(child, model_field.related_model, f"{field_instance.source}__")
+                        )
             elif isinstance(field_instance, drf_serializers.Serializer):
                 # Nested serializer (depth > 0) renders the whole related object for every row, so the
                 # joined columns are all read and a JOIN is the right shape.
@@ -290,7 +372,9 @@ class ModelViewSetMixin:
                     continue
                 if isinstance(model_field, ForeignKey):
                     select_fields.append(field_instance.source)
-                    nested_fk_related_models[field_instance.source] = model_field.related_model
+                    nested_prefetch_fields.extend(
+                        nested_prefetch_lookups(field_instance, model_field.related_model, f"{field_instance.source}__")
+                    )
             elif isinstance(field_instance, drf_serializers.RelatedField):
                 # RelatedField at depth 0 renders a hyperlink or a natural key, not the related row.
                 # Prefetching fetches each related object once; select_related duplicates its columns into
@@ -329,19 +413,9 @@ class ModelViewSetMixin:
                 # Single-level FKs are already covered by select_fields or prefetch_fields above.
                 if prefix not in select_fields and prefix not in prefetch_fields:
                     natural_key_prefetch_fields.add(prefix)
-        # A nested serializer renders the *related* object's `natural_slug`/`display`, which walks that object's own
-        # natural-key relations (e.g. `device.location.parent.parent...`). Those lookups sit two or more levels below
-        # the root model, so the loop above does not reach them, and without prefetching them each nested object walks
-        # its chain one query per hop.
-        for source, related_model in nested_fk_related_models.items():
-            try:
-                related_natural_key_field_lookups = related_model.natural_key_field_lookups
-            except AttributeError:
-                continue
-            for lookup in related_natural_key_field_lookups:
-                if "__" in lookup:
-                    prefix, _ = lookup.rsplit("__", 1)
-                    natural_key_prefetch_fields.add(f"{source}__{prefix}")
+        natural_key_prefetch_fields.update(
+            lookup for lookup in nested_prefetch_fields if lookup not in select_fields and lookup not in prefetch_fields
+        )
         # Add to prefetch_fields rather than select_fields to prevent unnecessary query expansion.
         prefetch_fields.extend(sorted(natural_key_prefetch_fields))
 
