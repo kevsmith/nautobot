@@ -1,0 +1,101 @@
+---
+seq: 90
+id: null
+commit: 389f40beb
+recommended_commit: null
+status: pending
+behaviour: B2
+migration: '-'
+flags: []
+title: Prefetch the relations a nested serializer renders, at every ?depth
+site: nautobot/core/api/views.py `nested_prefetch_lookups` / `ModelViewSetMixin.get_queryset`
+summary: 'The REST optimizer walked only the root serializer''s fields. A nested serializer renders
+  its related object in full, including that object''s own relations: at `?depth=2` an IP address
+  renders its parent Prefix, and the Prefix renders its Status, Namespace and Tenant as nested
+  serializers too. Nothing below the first level was prefetched, so each of those relations was
+  fetched one query per row, 606 queries for a 100-row page of IP addresses at depth 2 and 1,506 at
+  depth 3.
+
+
+  `nested_prefetch_lookups()` walks each nested serializer''s fields recursively and prefetches every
+  relation rendered from the related row: nested FKs, to-many fields and their nested children,
+  GenericForeignKeys, and the natural-key walk behind `display`. A depth-0 leaf FK renders `{id,
+  object_type, url}` from the FK column through DRF''s pk-only optimization and needs nothing. The
+  walk is cached per process, keyed on the serializer class, lookup prefix and the request''s
+  `include`, `exclude_m2m` and method.
+
+
+  **Held off `perf/recommended` by decision.** Measured and kept on `perf/experiments`; the full
+  suite has not been run on it.'
+result:
+  queries: 'In-process, 16 endpoints x depth 0-3 at limit=100. Depth 2 and 3, change arm against
+    base: ip-addresses 606 -> 12 and 1,506 -> 21; prefixes 759 -> 16 and 1,318 -> 25; vlans 207 -> 9
+    and 607 -> 12; locations 466 -> 14 and 708 -> 20; racks 170 -> 14 and 310 -> 19; devices 538 ->
+    20 and 828 -> 35; console-ports 1,656 -> 732 and 4,058 -> 1,993; interfaces 1,491 -> 713 and
+    3,344 -> 1,918; power-feeds 818 -> 506 and 2,094 -> 1,270; circuits 1,074 -> 1,001 and 3,736 ->
+    3,292; cables unchanged. **Depth 0 and 1 identical on all 16 endpoints.**'
+  payload: 'All 64 responses byte-identical between arms, by canonical-JSON hash, in every round.'
+  database: 'pg_stat_statements with track_planning on, cassowary through uwsgi (3 workers) at 1, 3
+    and 6 clients, three alternating rounds, 4,320 requests, none failed. Postgres execution plus
+    planning per request: ip-addresses d2 69 -> 22ms (−68% to −73% across client counts), prefixes
+    d2 125-154 -> 70-84ms (−44%), interfaces d2 280-329 -> 218-256ms (−22%), devices d2 489 -> 455ms
+    and d3 513 -> 457ms at one client. Throughput at 6 clients: ip-addresses 1.69 -> 3.42 req/s
+    (+102%), prefixes 1.29 -> 2.56 (+98%), devices d3 0.81 -> 1.18 (+46%), devices d2 1.09 -> 1.41
+    (+29%), interfaces 0.47 -> 0.58 (+23%); better in all three rounds on every one.'
+  devices_planning_floor: 'About 450ms of every device-list request is Postgres planning one query,
+    at every depth and on both arms: the wide select_related of the device''s own FKs, the cost
+    finding 87 measured. Devices d2 goes 542 -> 24 statements per request and its Postgres time moves
+    only 489 -> 455ms. At 3 and 6 clients planning runs under CPU contention and the per-request
+    database figure for devices is not consistent in sign across rounds; throughput is.'
+  not_reached: 'Per-object method fields. Interfaces, console-ports, power-feeds, circuits and cables
+    keep most of their depth-2 and depth-3 cost in cable-peer, path and termination fields that a
+    walk over serializer fields cannot see. Cables do not move at any depth.'
+wall_clock: '−55% ip-addresses ?depth=2, −51% prefixes, −29% devices, −21% interfaces; −65% / −59% / −34% / −15% at depth 3'
+basis: '606 -> 12 queries on 100 IP addresses at ?depth=2; −55% wall, −68% Postgres time'
+wall_clock_detail: 'In-process through the Django test client, median of five requests after one
+  discarded warm-up, three alternating rounds with the arm order reversed on the second, on a
+  quiesced host through measure.sh, medians across rounds. Base `perf/recommended` against the same
+  tree plus this commit, proved distinct by content hash: `0ecf4a2386d9bb0c` base,
+  `073b8af19d66ae62` change. ip-addresses d2 1,173 -> 530ms, d3 2,536 -> 878; prefixes d2 1,548 ->
+  765, d3 2,484 -> 1,018; vlans d2 594 -> 340, d3 1,255 -> 504; locations d2 1,037 -> 569, d3
+  1,463 -> 740; racks d2 447 -> 290, d3 715 -> 395; devices d2 1,812 -> 1,290, d3 2,614 -> 1,719;
+  console-ports d2 4,339 -> 3,197, d3 11,627 -> 9,082; interfaces d2 4,396 -> 3,467, d3 10,664 ->
+  9,025; power-feeds d2 2,831 -> 2,431, d3 7,537 -> 6,679; circuits d2 2,244 -> 2,178, d3 7,127 ->
+  6,543. Every one of those was faster in all three rounds except circuits d2.
+
+
+  **The first version of this change regressed, and the cache is the fix.** Uncached, `get_queryset()`
+  walked its own serializer instance -- separate from the one that renders the response -- and so
+  built every nested branch, including branches null on every row that the renderer never builds.
+  Two rounds of that version read `dcim/front-ports` at depth 3 31 -> 331ms on a page of zero rows
+  and `tenancy/tenants` +40%, with identical queries. The cached version reads front-ports 32 -> 32
+  and tenants 52 -> 52, and devices d3 improved further, −21% uncached to −34%.'
+controls: 'Depth 0 and 1 on all 16 endpoints: query counts identical, wall within ±6%. Endpoints with
+  no nested relations below the first level -- front-ports (0 rows), device-types, tenants,
+  statuses, platforms -- within ±6% at every depth. One unexplained reading: console-ports depth 1,
+  890 -> 930ms on the median with identical queries, slower in all three rounds but by under 1% in
+  the third. Two query counts varied by one between rounds, power-feeds d3 on the base arm and
+  console-ports d3 on the change arm, so neither is the change.'
+tests: 'core, ipam, circuits and dcim `test_api`, serial: 75 + 558 + 168 + 1,737 = 2,538 OK, run on
+  both the uncached and the cached version. The new test,
+  `ModelViewSetMixinTest.test_get_queryset_prefetches_relations_rendered_below_the_first_nested_level`,
+  fails against the previous optimizer with 226 queries against 0 expected. The full suite has not
+  been run.'
+caveat: 'Tier B2: a module-level cache that outlives the request. It is correct while a serializer
+  class''s fields depend only on the keyed inputs -- class, lookup prefix, `include`, `exclude_m2m`,
+  method -- which holds for `OptInFieldsMixin` and for app serializers registered at startup. A
+  serializer whose fields vary on anything else (the user, a setting changed at runtime) would get
+  the prefetch set computed for the first request that reached it. The failure is bounded: an entry
+  can only add or omit a prefetch, so the worst case is an extra query or a missed one, never a
+  changed response. Bounded at 1,024 entries because `include` is free text from the request.'
+note: 'The device list is the case this does least for, and the database run says why. Its Postgres
+  cost is planning, not row fetches, and planning is set by the first-level JOIN that this change
+  leaves alone. Two routes at that floor are open: prefetching the first-level FKs instead of
+  JOINing them, which trades one wide plan for several narrow ones, and the queued psycopg 3
+  prepared-statements experiment, which plans once per connection.
+
+
+  Measured with two probes added for it: `perf/scripts/probe_depth.py` (queries, canonical-JSON
+  hash and in-process wall per endpoint and depth) and `perf/scripts/probe_db_load.py`
+  (pg_stat_statements deltas around a cassowary run). `track_planning` was turned on for the
+  database run and off again after it.'

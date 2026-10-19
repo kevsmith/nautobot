@@ -53,6 +53,13 @@ GROUPS = [
         "cumulative table above is the measured total.",
     ),
     (
+        "pending",
+        "Measured, not yet on perf/recommended",
+        "Measured and kept on `perf/experiments`, and held back from the upstream-facing branch "
+        "by decision rather than by result. Not counted in the cumulative table, which measures "
+        "`perf/recommended`.",
+    ),
+    (
         "rejected",
         "Rejected",
         "Measurement or blast-radius analysis ruled these out. Listed because a rejected "
@@ -126,11 +133,17 @@ def group_of(f):
     "we looked at and are not doing" -- filing it under Rejected would misdescribe
     both the decision and the history. What it shares with a rejection is only
     that a reader must not count it toward the branch's effect.
+
+    `pending` is a measured change held off `perf/recommended` by decision. It has
+    no commit on that branch, so it cannot sit under Accepted, whose table asserts
+    every SHA is there; and nothing about it was rejected.
     """
     if f["status"] == "accepted":
         return "accepted"
     if f["status"] == "reverted":
         return "reverted"
+    if f["status"] == "pending":
+        return "pending"
     return "rejected"
 
 
@@ -286,6 +299,7 @@ def render_factbar(findings):
     # later stranded by another is not a rejection, and the section below says so. Folding it
     # here would have made this bar disagree with that section.
     reverted = [f for f in product if f["status"] == "reverted"]
+    pending = [f for f in product if f["status"] == "pending"]
     stock = stock_commit()
     against = f"`{STOCK_REF}` at `{stock}`" if stock else f"`{STOCK_REF}`"
     rows = [
@@ -293,7 +307,8 @@ def render_factbar(findings):
         ("Dataset", "databot `enterprise-campus / large` for reads, `datacenter / large` for writes"),
         ("Changes proposed", f"{len(product)}"),
         ("Accepted on this branch", f"**{len(accepted)}**"),
-        ("Rejected", f"{len(product) - len(accepted) - len(reverted)}"),
+        *([("Measured, not yet published", f"{len(pending)}")] if pending else []),
+        ("Rejected", f"{len(product) - len(accepted) - len(reverted) - len(pending)}"),
         *([("Reverted after landing", f"{len(reverted)}")] if reverted else []),
         (
             "Experiments recorded",
