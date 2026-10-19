@@ -38,6 +38,12 @@ a tag rather than simply gone.
 
 ### 1. `?depth=2`, the largest unexplored surface on the read side
 
+**Measured 2026-10-19, finding 90, held off `perf/recommended`.** The optimizer now prefetches
+nested relations at every depth: ip-addresses at depth 2 606 -> 12 queries and −55% wall, devices
+538 -> 20 and −29%. What remains is in per-object method fields (cable peers, paths, circuit
+terminations), which need a per-model change each, and in the device list's ~450ms of Postgres
+planning per request, set by the first-level JOIN. The table below is the state before it.
+
 **No finding on this branch has ever measured a depth-2 endpoint.** `workload.yml` names depth
 0 and depth 1 only, so the read loop cannot see this, and `screen_reads.py` enumerates
 `list.depth1` as its deepest kind. Measured 2026-09-12 while assessing the imported series, all
@@ -942,11 +948,32 @@ for `nautobot.core.jobs.ImportObjects`. The Export button already did the same f
 counters read it as a duplicate. Captured on albert with full SQL and call sites, 11 -> 12 queries
 on `/extras/tags/` and `/dcim/devices/`, matching hannah's counts.
 
-**What remains is small.** A list view now looks up two system Jobs by class path, one query each.
-One query for both, or a per-request memo in `get_for_class_path`, would save one query per list
-view. Separately, `export_button` looks up `ExportObjectList` again for each Export Template
-offered (buttons.py:620), which is an exact repeat: params identical, one query per template. That
-is why the stock device lists' worst repeat went 2 -> 3. Neither has been measured on wall clock.
+**What remains is small.** A list view now looks up two system Jobs by class path, one query each,
+and a per-request memo cannot merge two different class paths; fetching both in one query would
+save one query per list view, unmeasured. `export_button`'s repeat of the `ExportObjectList` lookup
+per Export Template (buttons.py:620) is why the stock device lists' worst repeat went 2 -> 3; the
+branch already removes that duplicate, finding 89.
+
+### UI responses shrank across the rebase onto 73ca2f0ef, and nothing says why
+
+**Queued 2026-10-19.** Between the `dc0c3ae99` and `73ca2f0ef` read-loop runs, the 28 UI
+scenarios' responses shrank by about 28KB in total on the stock arm and about 42KB on the branch.
+Query counts and every other counter are explained; this is not. The report states the drop
+without a cause.
+
+**First step:** capture the HTML of `ui.device.list` at both commits on albert, strip the CSRF
+token and nonces as `tier1_queries.fingerprint()` does, and diff. Repeat on the branch arm only if
+the stock diff does not account for the branch's larger drop.
+
+### Finding 51's commit message on `perf/recommended` still carries the old figure
+
+**Queued 2026-10-19.** `2c7324e59` says "−43.0% on a chrome-only response; 387 URL reversals per
+page become 18". Re-measured on `73ca2f0ef` it is −23.1% and 146 -> 23, because upstream #9594
+cut each menu item's reversals from three to one; the finding record and the report carry the new
+figures. Rewording the commit changes the SHA of every commit after it on `perf/recommended`, so
+every finding's `recommended_commit:` has to be repointed and the branch force-pushed. Do it as
+part of the next rebase onto upstream, or of the `perf/ez-review` cut, rather than on its own.
+
 ---
 
 ## Ranked below those, unchanged in substance
