@@ -2,7 +2,7 @@
 seq: 31
 id: null
 commit: null
-reverted_commit: 864fbb2c0
+reverted_commit: 427e811f1
 reverted_recommended_commit: 5fda65b30
 recommended_commit: null
 status: reverted
@@ -111,7 +111,7 @@ note: 'Three parts, and the first is not optional. `getattr(obj, "_tags", None) 
   by 5-7%, not 50%.
 
 
-  **REVERTED 2026-09-11 in `864fbb2c0`, carried to `perf/recommended` as `5fda65b30` -- see finding 60 and 61.** Finding 22 landed the day after this one and
+  **REVERTED 2026-09-11 in `427e811f1`, carried to `perf/recommended` as `5fda65b30` -- see finding 60 and 61.** Finding 22 landed the day after this one and
   removed the `serialize_object` call from `to_objectchange` entirely. `_tags` has exactly one
   reader in the whole codebase, that function, so nothing on this branch now reads the cache this
   finding fixed. Measured: `serialize_object` is called 50 times on stock and **0 times on the
@@ -127,7 +127,9 @@ note: 'Three parts, and the first is not optional. `getattr(obj, "_tags", None) 
   reverted once finding 61 established it had no reader, and on 2026-09-13 both commits were
   dropped from `perf/experiments` and `perf/recommended`. An addition and its revert cancel to
   nothing, so the pair bought nobody anything and cost every rebase and every reviewer the work
-  of reasoning about it. Both commits are preserved at the tag `perf/dropped-tag-cache-pair`,
-  and the probes that measured this finding are still carried on `perf/experiments`. The tree is
+  of reasoning about it. The `perf/experiments` pair, `6ca08ebfe` and `427e811f1`, is preserved
+  at the tag `perf/dropped-tag-cache-pair`, and the `perf/recommended` pair, `7d2851d6e` and
+  `5fda65b30`, at `perf/baseline-ce01a0464-recommended`, and the probes that measured this
+  finding are still carried on `perf/experiments`. The tree is
   unchanged by the drop: `nautobot/` hashes `368a99a0401538e6` either way, which is what every
   measurement on this branch is attributed to.'
