@@ -23,13 +23,19 @@ name gains the issue number once there is one.
 
 | PR | Branch | Head | Commits | Verified on 3.2 |
 |---|---|---|---|---|
-| 1 | `u/kevsmith-device-list-primary-ips` | `b66961dca` | F53. F69 from the plan's PR 1 is not on it yet. | pending on albert |
-| 2 | `u/kevsmith-table-column-per-row-queries` | `2c750e2b8` | F70 `9a2699805`, F71 `9004d443a`, F73 `2c750e2b8` | pending on albert |
-| 3 | `u/kevsmith-rest-viewset-prefetches` | `e166199c6` | F25 `d07c1d7ef`, F65 `b86423ac1`, F66 `e166199c6` | pending on albert |
+| 1 | `u/kevsmith-device-list-primary-ips` | `b66961dca` | F53. F69 from the plan's PR 1 is not on it yet. | yes: test fails without, passes with; `dcim.tests.test_views` 2,486 OK |
+| 2 | `u/kevsmith-table-column-per-row-queries` | `2c750e2b8` | F70 `9a2699805`, F71 `9004d443a`, F73 `2c750e2b8` | yes: all 3 tests fail without, pass with; `core.tests.test_tables` 20 OK |
+| 3 | `u/kevsmith-rest-viewset-prefetches` | `45abe0d0f` | F25 `e172d4b6c`, F65 `5957277ef`, F66 `45abe0d0f` | yes: all 4 tests fail without, pass with; `dcim.tests.test_api` 1,692 OK, `extras.tests.test_api` 1,479 OK |
 
 Each commit pairs a fix with a test that should fail without it. Commits ported from Ken Celenza's fork
 (F65, F66, F70, F71, F73) credit him with `Co-authored-by`. "Verified" means the new tests fail with the
-fixes reverted and pass with them, and the touched test modules pass in full.
+fixes reverted and pass with them, and the touched test modules pass in full, on a 3.2 image built from
+`develop` on albert, 2026-10-20.
+
+A REST test that renders a related object at `?depth=1` has to grant view permission on that model too.
+Without it Nautobot renders the nested object as a brief reference, the per-row query never happens, and
+the test passes with or without the fix. PR 3's interfaces test did exactly that until it granted
+`dcim.view_device`.
 
 ## How the dependencies were established
 
