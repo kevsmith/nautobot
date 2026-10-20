@@ -59,6 +59,9 @@ ap.add_argument("--out", required=True)
 ap.add_argument("--base-url", default="http://localhost:8180")
 ap.add_argument("--concurrency", default="1,3,6")
 ap.add_argument("--requests-per-worker", type=int, default=12)
+# Untimed requests per URL before its first measurement, at the highest concurrency. A pooled connection prepares a
+# statement only after running it `prepare_threshold` times, so without this the first cells measure the pool warming.
+ap.add_argument("--warm", type=int, default=0)
 args = ap.parse_args()
 
 headers = [f"Authorization: Token {os.environ['NAUTOBOT_TOKEN']}", "Accept: application/json"]
@@ -69,6 +72,13 @@ for url in URLS:
     if status != 200:
         print(f"!! {url} probe status {status}", flush=True)
         continue
+    if args.warm:
+        warm = cassowary_once(full, headers, args.warm, max(int(x) for x in args.concurrency.split(",")), 120)
+        if warm.get("_error") or warm.get("failed_requests"):
+            print(
+                f"!! {url} warm-up: {warm.get('_error') or warm.get('failed_requests')} of {args.warm} failed",
+                flush=True,
+            )
     for c in [int(x) for x in args.concurrency.split(",")]:
         n = max(c * args.requests_per_worker, 12)
         psql("select pg_stat_statements_reset();")
