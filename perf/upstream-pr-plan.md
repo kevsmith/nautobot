@@ -15,6 +15,22 @@ Drafted 2026-10-20 from `perf/recommended` at `f6a4363d0`, checked against `upst
   the per-row counters the findings used) that fails on the base branch, so a reviewer can verify the
   claim without the `perf/` harness.
 
+## Branches
+
+On `origin` (`kevsmith/nautobot`), each based on `upstream/develop` at `72ad4e75c`. None has an issue
+or a PR yet; each carries `changes/XXXX.fixed.md` to be renamed to the issue number, and the branch
+name gains the issue number once there is one.
+
+| PR | Branch | Head | Commits | Verified on 3.2 |
+|---|---|---|---|---|
+| 1 | `u/kevsmith-device-list-primary-ips` | `b66961dca` | F53. F69 from the plan's PR 1 is not on it yet. | pending on albert |
+| 2 | `u/kevsmith-table-column-per-row-queries` | `2c750e2b8` | F70 `9a2699805`, F71 `9004d443a`, F73 `2c750e2b8` | pending on albert |
+| 3 | `u/kevsmith-rest-viewset-prefetches` | `e166199c6` | F25 `d07c1d7ef`, F65 `b86423ac1`, F66 `e166199c6` | pending on albert |
+
+Each commit pairs a fix with a test that should fail without it. Commits ported from Ken Celenza's fork
+(F65, F66, F70, F71, F73) credit him with `Co-authored-by`. "Verified" means the new tests fail with the
+fixes reverted and pass with them, and the touched test modules pass in full.
+
 ## How the dependencies were established
 
 Every commit was cherry-picked alone onto both branches. Where it conflicted, earlier commits touching
