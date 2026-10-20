@@ -1,0 +1,79 @@
+---
+seq: 91
+id: null
+commit: null
+recommended_commit: null
+status: pending
+behaviour: B2
+migration: '-'
+flags: []
+title: Prepared statements on psycopg 3 remove the device list's planning cost
+site: development/nautobot_config.py `DATABASES["default"]["OPTIONS"]`
+summary: 'Finding 87 put about 450ms of every device-list request in Postgres planning one
+  19-join query, with no index or planner setting that helps. psycopg2 binds parameters on the
+  client, so Postgres parses and plans every execution. psycopg 3 with `server_side_binding`
+  sends the parameters separately, and with `prepare_threshold` set it prepares a statement once
+  a connection has run it that many times; Postgres then reuses a generic plan.
+
+
+  The configuration that does it is database `OPTIONS` only, with no change under `nautobot/`:
+  `{"pool": true, "server_side_binding": true, "prepare_threshold": 5}`. The pool is required
+  because a prepared statement lives on its connection, and Django''s pool requires
+  `CONN_MAX_AGE=0`. Django sets `prepare_threshold` to None unless `OPTIONS` names it, so
+  `server_side_binding` on its own prepares nothing.
+
+
+  **Held off `perf/recommended` by decision.** Adopting it needs psycopg 3 in `poetry.lock`; on
+  the rig it was installed into a separate path inside the container and selected per arm. The
+  full suite has not been run on the swapped driver.'
+result:
+  arms: 'Four arms on `perf/recommended`, selected by `/opt/nautobot/perf-db-arm.json` inside the
+    container and read by `development/nautobot_config.py`: A psycopg2 2.9.13 with a connection
+    per request (the rig runs `NAUTOBOT_DB_TIMEOUT=0`); B psycopg 3.3.6 with Django''s pool; C B
+    plus `server_side_binding`; D C plus `prepare_threshold: 5`. Each uwsgi worker opened its own
+    pool after fork, 12 idle connections across 3 workers, with no errors.'
+  database: 'pg_stat_statements with track_planning on, cassowary through uwsgi (3 workers) at 1,
+    3 and 6 clients, three rounds with the arm order reversed on the second, 8,640 requests, none
+    failed. Postgres execution plus planning per request, A -> D, medians across rounds: devices d2
+    496 -> 20ms at one client and 761-812 -> 18-19ms at 3 and 6 (−96% to −98%); devices d3 521 ->
+    27ms at one client (−95% to −96% across client counts); ip-addresses d2 69-80 -> 19-25ms (−66% to −76%); prefixes d2 128-160 ->
+    43-80ms (−47% to −72%); interfaces d2 279-326 -> 159-178ms (−43% to −48%). Lower in D than A
+    in all three rounds in every one of those cells.'
+  plan_reuse: 'In D, devices d2 at 6 clients planned 0.1% of its statements; at 1 client 8.5%,
+    which is the pool warming. B and C plan every statement, as A does.'
+  throughput: 'Requests per second A -> D: devices d2 +26% to +34%, devices d3 +15% to +24%,
+    devices d1 at 6 clients 1.81 -> 2.66 (+47%); ip-addresses, prefixes and interfaces d2 0% to +5%.
+    Median latency: devices d2 −16% to −25%, devices d3 −9% to −20%, devices d1 at 6 clients 3,106
+    -> 1,960ms (−37%); the other endpoints 0% to −7%, and ip-addresses at 6 clients +1%.'
+  warmed_depth_1: 'Devices d1 at 1 and 3 clients moved under 10% in the main run because 12 pooled
+    connections each need five executions of the main query before it is prepared, and those cells
+    run 12 and 36 requests. A separate check warmed the pool with 120 requests at 6 clients, then
+    measured 24 requests at 1 client, three rounds: planning 446-450 -> 0.5-0.8ms per request,
+    median latency 999-1,012 -> 534-541ms (−47%), 0.95 -> 1.72-1.74 req/s (+83%). Same in all three
+    rounds, no failed requests.'
+  b_and_c: 'Neither the driver nor server-side binding explains the gain. B and C read within 13%
+    of A on Postgres time and within 7% on throughput in every cell, mostly slightly lower on
+    Postgres time, and planned every statement.'
+wall_clock: '−47% median devices ?depth=1 warmed; −16% to −25% devices ?depth=2; +26% to +34% req/s
+  devices ?depth=2'
+basis: '446 -> 0.5ms planning per device-list request; −96% to −98% Postgres time at depth 2'
+controls: 'Responses and query counts identical in all four arms: 6 endpoints (devices,
+  ip-addresses, prefixes, interfaces, locations, circuits) at depth 0, 1 and 2 through
+  `probe_depth.py`, one combined hash of every URL, content hash and query count, `7cf844e89a0c`
+  for A, B, C and D. B and C are the controls for the driver and the binding mode. The tree under
+  test was `perf/recommended` without finding 90, so ip-addresses and prefixes still issue their
+  depth-2 queries one per row.'
+tests: 'Not run on the swapped driver. The arm check (`db_arm_check.py`) confirmed per arm the
+  driver module, the effective OPTIONS, the pool class and the count of prepared statements in a
+  session.'
+caveat: 'Tier B2: plans now outlive the request, cached per pooled connection. A generic plan
+  ignores parameter values, so on a skewed filter it can be slower than a custom one; this dataset
+  showed execution time flat or lower in D, which does not cover a customer''s distribution.
+  `plan_cache_mode` is the control. psycopg caps each connection at 100 prepared statements
+  (`prepared_max`), evicted least recently used; how many distinct statement texts the whole
+  product issues was not counted. Behind PgBouncer this needs 1.21 or later in transaction mode
+  with `max_prepared_statements` above 0, queued separately. The pool also changes connection
+  behaviour on its own: each worker holds its connections, where the rig opened one per request.'
+note: 'Measured with `perf/scripts/probe_db_load.py`, which gained a `db_plans` column for this
+  run: with track_planning on, plans below statements means plans were reused. `track_planning`
+  was turned on for the run and off after it, and the arm file removed.'
