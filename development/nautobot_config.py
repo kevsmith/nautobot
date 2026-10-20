@@ -1,6 +1,8 @@
 """Nautobot development configuration file."""
 
+import json
 import os
+import sys
 
 from nautobot.core.settings import *  # noqa: F403  # undefined-local-with-import-star
 
@@ -287,3 +289,21 @@ KUBERNETES_JOB_MANIFEST = {
         "backoffLimit": 0,
     },
 }
+
+
+# Perf database-driver arms. With no arm file this is a no-op and the stack runs psycopg2 with a connection per
+# request. The file lives inside the container (written with `docker exec`), not in the synced tree, so a sync can
+# neither delete it mid-run nor move the tree hash. Django imports psycopg 3 whenever it is importable, so it is
+# installed into a separate directory and only put on the path for the arms that ask for it; the backend module is
+# imported after this file, on first database use. `options` goes to DATABASES OPTIONS as given. Django sets
+# psycopg 3's `prepare_threshold` to None -- no prepared statements -- unless OPTIONS names it.
+#   {"psycopg3_path": "/opt/psycopg3", "options": {"pool": true, "server_side_binding": true, "prepare_threshold": 5}}
+# The container bind-mounts this file by inode; a sync replaces the inode, so a change here takes effect only after
+# `dc.sh up -d --no-deps --force-recreate nautobot`, which also discards /opt/psycopg3.
+_PERF_DB_ARM_FILE = "/opt/nautobot/perf-db-arm.json"
+if os.path.exists(_PERF_DB_ARM_FILE):
+    with open(_PERF_DB_ARM_FILE) as _fh:
+        PERF_DB_ARM = json.load(_fh)
+    if PERF_DB_ARM.get("psycopg3_path"):
+        sys.path.insert(0, PERF_DB_ARM["psycopg3_path"])
+    DATABASES["default"].setdefault("OPTIONS", {}).update(PERF_DB_ARM.get("options", {}))  # noqa: F405

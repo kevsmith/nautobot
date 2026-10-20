@@ -30,16 +30,22 @@ URLS = [
 ]
 STATS_SQL = """
 select coalesce(sum(calls), 0), coalesce(sum(total_exec_time), 0), coalesce(sum(total_plan_time), 0),
-       coalesce(sum(rows), 0), coalesce(sum(shared_blks_hit), 0), coalesce(sum(shared_blks_read), 0)
+       coalesce(sum(rows), 0), coalesce(sum(shared_blks_hit), 0), coalesce(sum(shared_blks_read), 0),
+       coalesce(sum(plans), 0)
 from pg_stat_statements s join pg_database d on d.oid = s.dbid
 where d.datname = 'nautobot' and s.query not ilike '%pg_stat_statements%'
 """
 
 
 def psql(sql):
-    db = subprocess.run(["perf/scripts/dc.sh", "ps", "-q", "db"], capture_output=True, text=True).stdout.strip()
-    proc = subprocess.run(
-        ["docker", "exec", "-i", db, "sh", "-c", 'psql -U "$POSTGRES_USER" -d nautobot -At -F "|"'],
+    # Fixed argv, run from the repo root on the measurement host; docker is found on PATH as measure.sh's are.
+    db = subprocess.run(
+        ["perf/scripts/dc.sh", "ps", "-q", "db"],  # noqa: S607
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    proc = subprocess.run(  # noqa: S603
+        ["docker", "exec", "-i", db, "sh", "-c", 'psql -U "$POSTGRES_USER" -d nautobot -At -F "|"'],  # noqa: S607
         input=sql,
         capture_output=True,
         text=True,
@@ -69,7 +75,7 @@ for url in URLS:
         t0 = time.perf_counter()
         m = cassowary_once(full, headers, n, c, 120)
         elapsed = time.perf_counter() - t0
-        calls, exec_ms, plan_ms, rows, hit, read = (float(x) for x in psql(STATS_SQL).split("|"))
+        calls, exec_ms, plan_ms, rows, hit, read, plans = (float(x) for x in psql(STATS_SQL).split("|"))
         sp = m.get("server_processing", {}) or {}
         rec = {
             "url": url,
@@ -87,6 +93,8 @@ for url in URLS:
             "db_rows": int(rows),
             "db_blocks_hit": int(hit),
             "db_blocks_read": int(read),
+            # With track_planning on, `plans` < `statements` means plans were reused -- prepared statements.
+            "db_plans": int(plans),
         }
         req = rec["requests"] or n
         rec["per_request"] = {

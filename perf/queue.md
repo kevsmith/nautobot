@@ -892,7 +892,13 @@ exception handler.
 
 ### Prepared statements: psycopg 3 with server-side binding
 
-**Queued 2026-10-15, not measured.** Nautobot runs psycopg2 2.9.13 (`pyproject.toml:126`),
+**Measured 2026-10-19, finding 91, held off `perf/recommended`.** psycopg 3 with Django's pool,
+server-side binding and `prepare_threshold=5` cuts the device list's Postgres time per request
+by 95-98% at depth 2 and 3, and warmed at depth 1 the median latency by 47%. Step 3 below, the full
+suite on the swapped driver, has not been run, and adopting it needs a `poetry.lock` change. The
+text below is the state before it.
+
+Nautobot runs psycopg2 2.9.13 (`pyproject.toml:126`),
 which interpolates parameters on the client, so PostgreSQL parses and plans every query on
 every execution. psycopg 3, which Django supports from 4.2, binds on the server when the
 database `OPTIONS` set `"server_side_binding": True`, and then prepares any statement a
@@ -907,9 +913,11 @@ five custom plans, and only if the generic plan's estimated cost is no worse tha
 average. If the planner keeps choosing custom plans, every execution still plans and the prize
 is zero. `plan_cache_mode = force_generic_plan` bounds it from above for that one query.
 
-Connections already persist. `CONN_MAX_AGE` defaults to 300s
-(`nautobot/core/settings.py:574`), so each of the rig's three uwsgi workers keeps its
-connection, and would keep its prepared statements, across requests.
+**The rig does not persist connections.** `CONN_MAX_AGE` defaults to 300s
+(`nautobot/core/settings.py:574`), but the perf stack sets `NAUTOBOT_DB_TIMEOUT=0`, so every
+request opens a connection and a prepared statement never outlives it. The 2026-10-19 arms use
+Django's psycopg 3 pool (`OPTIONS: {"pool": true}`) to keep connections, selected by
+`/opt/nautobot/perf-db-arm.json` inside the container and read by `development/nautobot_config.py`.
 
 Limits on the prize, none of them measured:
 
@@ -936,6 +944,30 @@ Steps, cheapest first:
    is the gate, as with finding 51.
 3. **Full suite on the swapped driver** before anything is accepted. A driver change touches
    every query the product issues.
+
+### Prepared statements behind PgBouncer, as the cloud product would run them
+
+**Queued 2026-10-19.** The cloud product is evaluating PgBouncer, and the prepared-statements
+arms measure Django's own pool instead. PgBouncer does not prepare anything itself: it carries
+statements the client prepares through the extended protocol, from 1.21 in transaction mode with
+`max_prepared_statements` above 0. So the client settings stay as in arm D -- psycopg 3,
+`server_side_binding`, `prepare_threshold` -- minus Django's pool.
+
+Open questions, each one arm on the rig with PgBouncer 1.21+ in transaction mode in front of
+Postgres:
+
+- **Client connection lifetime.** psycopg counts executions per client connection. With
+  `CONN_MAX_AGE=0` a query that runs once per request, the device list's main query among them,
+  never reaches the threshold. Arm one: `CONN_MAX_AGE > 0` to PgBouncer.
+- **`prepare_threshold=0`.** Prepares every statement on first execution. If PgBouncer reuses a
+  statement already prepared on the server connection it hands out, plan reuse survives
+  short-lived client connections. Unverified. It also fills PgBouncer's cache with one-off
+  statements.
+- **`max_prepared_statements` sizing.** PgBouncer's per-server-connection cache is LRU. Count the
+  distinct statement texts a realistic workload issues -- `IN (...)` lists of each length are
+  distinct -- from `pg_stat_statements`, and size from that rather than the default.
+- **Generic-plan quality on skewed data.** Flat execution time on this dataset does not cover a
+  customer's distribution; `plan_cache_mode` is the control.
 
 ### Upstream's Import button costs every UI list view one Job lookup
 
