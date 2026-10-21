@@ -17,13 +17,13 @@ Drafted 2026-10-20 from `perf/recommended` at `f6a4363d0`, checked against `upst
 
 ## Branches
 
-On `origin` (`kevsmith/nautobot`), each based on `upstream/develop` at `72ad4e75c`. None has an issue
-or a PR yet; each carries `changes/XXXX.fixed.md` to be renamed to the issue number, and the branch
+On `origin` (`kevsmith/nautobot`), each based on `upstream/develop` at `72ad4e75c`. None has a PR yet.
+A branch without an issue carries `changes/XXXX.fixed.md`, to be renamed to the issue number, and its
 name gains the issue number once there is one.
 
 | PR | Branch | Head | Commits | Verified on 3.2 |
 |---|---|---|---|---|
-| 1 | `u/kevsmith-device-list-primary-ips` | `b66961dca` | F53. F69 from the plan's PR 1 is not on it yet. | yes: test fails without, passes with; `dcim.tests.test_views` 2,486 OK |
+| 1 | `u/kevsmith-9668-device-list-primary-ips`, issue [#9668](https://github.com/nautobot/nautobot/issues/9668) | `597bf2192` | F53. F69 from the plan's PR 1 is not on it yet. | yes: test fails without, passes with; `dcim.tests.test_views` 2,486 OK |
 | 2 | `u/kevsmith-table-column-per-row-queries` | `2c750e2b8` | F70 `9a2699805`, F71 `9004d443a`, F73 `2c750e2b8` | yes: all 3 tests fail without, pass with; `core.tests.test_tables` 20 OK |
 | 3 | `u/kevsmith-rest-viewset-prefetches` | `45abe0d0f` | F25 `e172d4b6c`, F65 `5957277ef`, F66 `45abe0d0f` | yes: all 4 tests fail without, pass with; `dcim.tests.test_api` 1,692 OK, `extras.tests.test_api` 1,479 OK |
 
