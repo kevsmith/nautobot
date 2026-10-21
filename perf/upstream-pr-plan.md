@@ -25,7 +25,7 @@ name gains the issue number once there is one.
 |---|---|---|---|---|
 | 1 | `u/kevsmith-9668-device-list-primary-ips`, issue [#9668](https://github.com/nautobot/nautobot/issues/9668), PR [#9679](https://github.com/nautobot/nautobot/pull/9679) | `a45e15327` | F53. F69 from the plan's PR 1 is not on it yet. | yes: test fails without, passes with; `dcim.tests.test_views` 2,486 OK |
 | 2 | `u/kevsmith-9680-table-column-per-row-queries`, issue [#9680](https://github.com/nautobot/nautobot/issues/9680) | `38d2b0e7b` | F70 `9a2699805`, F71 `9004d443a`, F73 `38d2b0e7b` | yes: all 3 tests fail without, pass with; `core.tests.test_tables` 20 OK |
-| 3 | `u/kevsmith-rest-viewset-prefetches` | `45abe0d0f` | F25 `e172d4b6c`, F65 `5957277ef`, F66 `45abe0d0f` | yes: all 4 tests fail without, pass with; `dcim.tests.test_api` 1,692 OK, `extras.tests.test_api` 1,479 OK |
+| 3 | `u/kevsmith-9682-rest-viewset-prefetches`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682) | `7d500e2ca` | F25 `0a661d9bd`, F65 `bdf2337cd`, F66 `7d500e2ca` | yes: all 4 tests fail without, pass with; `dcim.tests.test_api` 1,692 OK, `extras.tests.test_api` 1,479 OK |
 
 Each commit pairs a fix with a test that should fail without it. Commits ported from Ken Celenza's fork
 (F65, F66, F70, F71, F73) credit him with `Co-authored-by`. "Verified" means the new tests fail with the
@@ -34,7 +34,8 @@ fixes reverted and pass with them, and the touched test modules pass in full, on
 
 PR 1's `a45e15327` applies review feedback from #9679: a test that matches SQL by table name builds the name
 with `connection.ops.quote_name(Model._meta.db_table)`, since MySQL quotes with backticks and a hard-coded
-`"` never matches there. PR 3's interface test had the same pattern, fixed locally at `64750da48`, not pushed.
+`"` never matches there. PR 3's interface test had the same pattern and now quotes the same way. PR 3's `task_queues` docstring is back to
+one line, with a one-line comment for the change.
 
 A REST test that renders a related object at `?depth=1` has to grant view permission on that model too.
 Without it Nautobot renders the nested object as a brief reference, the per-row query never happens, and
