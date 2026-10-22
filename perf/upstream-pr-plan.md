@@ -24,7 +24,7 @@ name gains the issue number once there is one.
 | PR | Branch | Head | Commits | Verified on 3.2 |
 |---|---|---|---|---|
 | 1 | `u/kevsmith-9668-device-list-primary-ips`, issue [#9668](https://github.com/nautobot/nautobot/issues/9668), PR [#9679](https://github.com/nautobot/nautobot/pull/9679) | `a45e15327` | F53. F69 from the plan's PR 1 is not on it yet. | yes: test fails without, passes with; `dcim.tests.test_views` 2,486 OK |
-| 2 | `u/kevsmith-9680-table-column-per-row-queries`, issue [#9680](https://github.com/nautobot/nautobot/issues/9680) | `ad815c5c2` | F70 `9a2699805`, F71 `9004d443a`, F73 `38d2b0e7b`, test cleanup `ad815c5c2` | yes: all 3 tests fail without, pass with; `core.tests.test_tables` 20 OK |
+| 2 | `u/kevsmith-9680-table-column-per-row-queries`, issue [#9680](https://github.com/nautobot/nautobot/issues/9680), PR [#9681](https://github.com/nautobot/nautobot/pull/9681) | `34bee48aa` | F70 `9a2699805`, F71 `9004d443a`, F73 `38d2b0e7b`, test cleanup `ad815c5c2`, accessor-walk test `34bee48aa` | yes: all 3 tests fail without, pass with; `core.tests.test_tables` 21 OK |
 | 3 | `u/kevsmith-9682-rest-viewset-prefetches`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682) | `7d500e2ca` | F25 `0a661d9bd`, F65 `bdf2337cd`, F66 `7d500e2ca` | yes: all 4 tests fail without, pass with; `dcim.tests.test_api` 1,692 OK, `extras.tests.test_api` 1,479 OK |
 
 Each commit pairs a fix with a test that should fail without it. Commits ported from Ken Celenza's fork
@@ -42,6 +42,12 @@ relationship columns to the table class's `base_columns`, and a test's rollback 
 relationships, so a Relationship created in a test leaks its columns into later tables in the same process. A
 test that creates one deletes it and pops its columns on cleanup. By the same code, a deleted custom field or
 relationship may keep its column in a running worker until restart; not verified, not reported upstream.
+
+PR 2's `34bee48aa` answers review on #9681 asking what the accessor walk produces for each accessor shape.
+A comment above the walk gives examples, and `BaseTableAccessorWalkTestCase` pins the `select_related` and
+`prefetch_related` for nine shapes. Against develop's walk only the two FK-then-to-many cases fail, and they are
+the two this PR changes. A reverse many-to-many hop (`ManyToManyRel`) is still not followed; that predates
+the PR and is left out of scope.
 
 A REST test that renders a related object at `?depth=1` has to grant view permission on that model too.
 Without it Nautobot renders the nested object as a brief reference, the per-row query never happens, and
