@@ -23,7 +23,7 @@ name gains the issue number once there is one.
 
 | PR | Branch | Head | Commits | Verified on 3.2 |
 |---|---|---|---|---|
-| 1 | `u/kevsmith-9668-device-list-primary-ips`, issue [#9668](https://github.com/nautobot/nautobot/issues/9668), PR [#9679](https://github.com/nautobot/nautobot/pull/9679) | `a45e15327` | F53. F69 from the plan's PR 1 is not on it yet. | yes: test fails without, passes with; `dcim.tests.test_views` 2,486 OK |
+| 1 | `u/kevsmith-9668-device-list-primary-ips`, issue [#9668](https://github.com/nautobot/nautobot/issues/9668), PR [#9679](https://github.com/nautobot/nautobot/pull/9679), **closed 2026-10-22 as a duplicate of community PR [#9672](https://github.com/nautobot/nautobot/pull/9672)** | `a45e15327` | F53. F69 moved to PR 1b. | yes: test fails without, passes with; `dcim.tests.test_views` 2,486 OK |
 | 2 | `u/kevsmith-9680-table-column-per-row-queries`, issue [#9680](https://github.com/nautobot/nautobot/issues/9680), PR [#9681](https://github.com/nautobot/nautobot/pull/9681) | `34bee48aa` | F70 `9a2699805`, F71 `9004d443a`, F73 `38d2b0e7b`, test cleanup `ad815c5c2`, accessor-walk test `34bee48aa` | yes: all 3 tests fail without, pass with; `core.tests.test_tables` 21 OK |
 | 3 | `u/kevsmith-9682-rest-viewset-prefetches`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682) | `7d500e2ca` | F25 `0a661d9bd`, F65 `bdf2337cd`, F66 `7d500e2ca` | yes: all 4 tests fail without, pass with; `dcim.tests.test_api` 1,692 OK, `extras.tests.test_api` 1,479 OK |
 
@@ -76,7 +76,8 @@ These establish that the PRs are small, tested and reproducible before anything 
 
 | PR | Change | Findings and commits | Needs | Tests today | Evidence for the description |
 |---|---|---|---|---|---|
-| 1 | Device list primary IPs, LLDP neighbors tab | F53 `c71fbd53a`, F69 `03520cbd7` | - | F53 has one; F69 none | 100 IP-address queries on a 100-row device list from one property; LLDP tab 875 queries on one page, 17.9 per interface |
+| 1 | Device list primary IPs | F53 `c71fbd53a` | - | has one | Closed as a duplicate: #9672 makes the same `select_related("primary_ip4", "primary_ip6")` change for #9668 |
+| 1b | LLDP neighbors tab | F69 `03520cbd7` | - | none | LLDP tab 875 queries on one page, 17.9 per interface (measured on `next`) |
 | 2 | Per-row queries in shared table columns | F70 `792f10d1c`, F71 `d04b27833`, F73 `a0a6e930d` | - | none | 1.000 content-type query per row (ContentTypesColumn); 1.000 per row on to-many accessors; 4.200 per row on relationship columns |
 | 3 | Missing prefetches on REST viewsets | F25 `7603c15af`, F65 `8ea98df5c`, F66 `13032aed5` | - | none | parent_bay join −5.8% on interfaces at depth 1; 1.000 query per row on front/rear-port cable peers and on Job task queues, 0 after |
 | 4 | Home page changelog panel | F56 `f1b1d3a58` | - | has one, which conflicts on develop and needs porting | 25 of the home page's 79 queries are one panel rendering 15 rows |
