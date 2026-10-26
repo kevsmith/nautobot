@@ -17,7 +17,7 @@ Drafted 2026-10-20 from `perf/recommended` at `f6a4363d0`, checked against `upst
 
 ## Branches
 
-On `origin` (`kevsmith/nautobot`), each based on `upstream/develop` at `72ad4e75c`.
+On `origin` (`kevsmith/nautobot`), each based on `upstream/develop` at `72ad4e75c`, except 3a and 3b at `7a00ceaaa`.
 A branch without an issue carries `changes/XXXX.fixed.md`, to be renamed to the issue number, and its
 name gains the issue number once there is one.
 
@@ -26,7 +26,9 @@ name gains the issue number once there is one.
 | 1 | `u/kevsmith-9668-device-list-primary-ips`, issue [#9668](https://github.com/nautobot/nautobot/issues/9668), PR [#9679](https://github.com/nautobot/nautobot/pull/9679), **closed 2026-10-22 as a duplicate of community PR [#9672](https://github.com/nautobot/nautobot/pull/9672)** | `a45e15327` | F53. F69 moved to PR 1b. | yes: test fails without, passes with; `dcim.tests.test_views` 2,486 OK |
 | 2 | `u/kevsmith-9680-table-column-per-row-queries`, issue [#9680](https://github.com/nautobot/nautobot/issues/9680), PR [#9681](https://github.com/nautobot/nautobot/pull/9681) | `34bee48aa` | F70 `9a2699805`, F71 `9004d443a`, F73 `38d2b0e7b`, test cleanup `ad815c5c2`, accessor-walk test `34bee48aa` | yes: all 3 tests fail without, pass with; `core.tests.test_tables` 21 OK |
 | 1b | `u/kevsmith-9692-lldp-neighbors-connected-endpoints`, issue [#9692](https://github.com/nautobot/nautobot/issues/9692) | `79e15adc8` | F69 `03520cbd7`, squashed with its test | yes: test fails without (67, 89, 111 queries for 1-3 cabled interfaces), passes with; `dcim.tests.test_views` 2,486 OK; 1,123 -> 51 queries at 49 cabled interfaces |
-| 3 | `u/kevsmith-9682-rest-viewset-prefetches`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682) | `7d500e2ca` | F25 `0a661d9bd`, F65 `bdf2337cd`, F66 `7d500e2ca` | yes: all 4 tests fail without, pass with; `dcim.tests.test_api` 1,692 OK, `extras.tests.test_api` 1,479 OK |
+| 3 | `u/kevsmith-9682-rest-viewset-prefetches`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682), PR [#9683](https://github.com/nautobot/nautobot/pull/9683), **closed 2026-10-23 and split into 3a and 3b** | `7d500e2ca` | F25 `0a661d9bd`, F65 `bdf2337cd`, F66 `7d500e2ca` | yes: all 4 tests fail without, pass with; `dcim.tests.test_api` 1,692 OK, `extras.tests.test_api` 1,479 OK |
+| 3a | `u/kevsmith-9682-cable-peer-and-job-queue-prefetches`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682), draft PR [#9711](https://github.com/nautobot/nautobot/pull/9711) | `2ac014199` | F65 `25ea33ea4`, F66 `2ac014199` | yes, on `7a00ceaaa`: 12 `test_api` modules and `extras.tests` 5,043 OK once docs are built (27 `test_get_docs_url` fail under `--skip-docs-build` only); `core.tests.test_graphql` 101 OK |
+| 3b | `u/kevsmith-9682-nested-reverse-one-to-one`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682), draft PR [#9712](https://github.com/nautobot/nautobot/pull/9712) | `f0b62de40` | replaces F25 with an optimizer change | yes, on `7a00ceaaa`: both tests fail without (52 and 3 per-row `dcim_devicebay` queries), pass with; all 13 `test_api` modules, 5,320 OK |
 
 Each commit pairs a fix with a test that should fail without it. Commits ported from Ken Celenza's fork
 (F65, F66, F70, F71, F73) credit him with `Co-authored-by`. "Verified" means the new tests fail with the
@@ -37,6 +39,15 @@ PR 1's `a45e15327` applies review feedback from #9679: a test that matches SQL b
 with `connection.ops.quote_name(Model._meta.db_table)`, since MySQL quotes with backticks and a hard-coded
 `"` never matches there. PR 3's interface test had the same pattern and now quotes the same way. PR 3's `task_queues` docstring is back to
 one line, with a one-line comment for the change.
+
+PR 3 was closed after review on #9683 asked why only the interfaces viewset joined `device__parent_bay`, and
+whether it could check the request depth. Every viewset that nests a Device at `?depth=1` has the same per-row
+query, as F25's own note said. PR 3b fixes it in `ModelViewSetMixin.get_queryset()`: for a nested serializer it
+also joins each reverse one-to-one that serializer includes. A nested serializer exists only at depth > 0, so the
+join does too. PR 3a carries F65 and F66 unchanged. Both are partial fixes for #9682 and reference each other.
+3a's changelog fragment is `changes/9682.fixed.md` and 3b's is `changes/9682.fixed.1.md`; towncrier 25.8.0 lists
+all three lines under #9682. Both were verified on a 3.2 image rebuilt on albert, 2026-10-26, after upstream
+bumped `opentelemetry-api` to 1.45.1.
 
 PR 2's `ad815c5c2` fixes a CI failure in `TableTestCase.test_base_table_apis`. `BaseTable.__init__` adds
 relationship columns to the table class's `base_columns`, and a test's rollback does not invalidate the cached
