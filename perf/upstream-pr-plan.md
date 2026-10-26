@@ -25,7 +25,7 @@ name gains the issue number once there is one.
 |---|---|---|---|---|
 | 1 | `u/kevsmith-9668-device-list-primary-ips`, issue [#9668](https://github.com/nautobot/nautobot/issues/9668), PR [#9679](https://github.com/nautobot/nautobot/pull/9679), **closed 2026-10-22 as a duplicate of community PR [#9672](https://github.com/nautobot/nautobot/pull/9672)** | `a45e15327` | F53. F69 moved to PR 1b. | yes: test fails without, passes with; `dcim.tests.test_views` 2,486 OK |
 | 2 | `u/kevsmith-9680-table-column-per-row-queries`, issue [#9680](https://github.com/nautobot/nautobot/issues/9680), PR [#9681](https://github.com/nautobot/nautobot/pull/9681), **merged 2026-10-23 as `c418be992`** | `34bee48aa` | F70 `9a2699805`, F71 `9004d443a`, F73 `38d2b0e7b`, test cleanup `ad815c5c2`, accessor-walk test `34bee48aa` | yes: all 3 tests fail without, pass with; `core.tests.test_tables` 21 OK |
-| 1b | `u/kevsmith-9692-lldp-neighbors-connected-endpoints`, issue [#9692](https://github.com/nautobot/nautobot/issues/9692), PR [#9693](https://github.com/nautobot/nautobot/pull/9693) | `79e15adc8` | F69 `03520cbd7`, squashed with its test | yes: test fails without (67, 89, 111 queries for 1-3 cabled interfaces), passes with; `dcim.tests.test_views` 2,486 OK; 1,123 -> 51 queries at 49 cabled interfaces |
+| 1b | `u/kevsmith-9692-lldp-neighbors-connected-endpoints`, issue [#9692](https://github.com/nautobot/nautobot/issues/9692), PR [#9693](https://github.com/nautobot/nautobot/pull/9693) | `31cbea2c5` | F69 `03520cbd7`, squashed with its test; review fix `31cbea2c5` | yes, on a 3.2 image rebuilt 2026-10-26: test fails on develop (79, 113, 147 queries over 3 steps) and on `79e15adc8` (54, 56, 58), passes with; `dcim.tests.test_views` 2,486 OK; 1,123 -> 47 queries at 49 cabled interfaces |
 | 3 | `u/kevsmith-9682-rest-viewset-prefetches`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682), PR [#9683](https://github.com/nautobot/nautobot/pull/9683), **closed 2026-10-23 and split into 3a and 3b** | `7d500e2ca` | F25 `0a661d9bd`, F65 `bdf2337cd`, F66 `7d500e2ca` | yes: all 4 tests fail without, pass with; `dcim.tests.test_api` 1,692 OK, `extras.tests.test_api` 1,479 OK |
 | 3a | `u/kevsmith-9682-cable-peer-and-job-queue-prefetches`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682), PR [#9711](https://github.com/nautobot/nautobot/pull/9711) | `2ac014199` | F65 `25ea33ea4`, F66 `2ac014199` | yes, on `7a00ceaaa`: 12 `test_api` modules and `extras.tests` 5,043 OK once docs are built (27 `test_get_docs_url` fail under `--skip-docs-build` only); `core.tests.test_graphql` 101 OK |
 | 3b | `u/kevsmith-9682-nested-reverse-one-to-one`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682), PR [#9712](https://github.com/nautobot/nautobot/pull/9712) | `f0b62de40` | replaces F25 with an optimizer change | yes, on `7a00ceaaa`: both tests fail without (52 and 3 per-row `dcim_devicebay` queries), pass with; all 13 `test_api` modules, 5,320 OK |
@@ -48,6 +48,14 @@ join does too. PR 3a carries F65 and F66 unchanged. Both are partial fixes for #
 3a's changelog fragment is `changes/9682.fixed.md` and 3b's is `changes/9682.fixed.1.md`; towncrier 25.8.0 lists
 all three lines under #9682. Both were verified on a 3.2 image rebuilt on albert, 2026-10-26, after upstream
 bumped `opentelemetry-api` to 1.45.1.
+
+PR 1b's `31cbea2c5` answers review on #9693: the tab rendered a peer's virtual chassis name and a circuit's
+provider, and the shared connection prefetch joined neither, so each still cost a query per row. `Interface` now
+overrides `connection_destination_querysets()`, as `ConsolePort` and `PowerPort` do, and the tab uses
+`connection_destination_prefetch()`. The test's peer is a virtual chassis member and each step adds a circuit;
+removing either join fails it (49, 50, 51). The prefetch also skips the breakout data the template never reads,
+so the tab runs 47 queries, 4 fewer than `79e15adc8`. It squashes an unpushed view-local `GenericPrefetch`
+commit, `7f3c4e1ce`, from an earlier session.
 
 PR 2's `ad815c5c2` fixes a CI failure in `TableTestCase.test_base_table_apis`. `BaseTable.__init__` adds
 relationship columns to the table class's `base_columns`, and a test's rollback does not invalidate the cached
