@@ -31,7 +31,7 @@ name gains the issue number once there is one.
 | 1b | `u/kevsmith-9692-lldp-neighbors-connected-endpoints`, issue [#9692](https://github.com/nautobot/nautobot/issues/9692), PR [#9693](https://github.com/nautobot/nautobot/pull/9693) | `421e76dac` | F69 `c782a4bc2`, squashed with its test; review fix `f127d0d89`; two review suggestions applied on GitHub | yes, on a 3.2 image rebuilt 2026-10-26: test fails on develop (79, 113, 147 queries over 3 steps) and on `79e15adc8` (54, 56, 58), passes with; `dcim.tests.test_views` 2,486 OK; 1,123 -> 47 queries at 49 cabled interfaces |
 | 3 | `u/kevsmith-9682-rest-viewset-prefetches`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682), PR [#9683](https://github.com/nautobot/nautobot/pull/9683), **closed 2026-10-23 and split into 3a and 3b** | `7d500e2ca` | F25 `0a661d9bd`, F65 `bdf2337cd`, F66 `7d500e2ca` | yes: all 4 tests fail without, pass with; `dcim.tests.test_api` 1,692 OK, `extras.tests.test_api` 1,479 OK |
 | 3a | `u/kevsmith-9682-cable-peer-and-job-queue-prefetches`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682), PR [#9711](https://github.com/nautobot/nautobot/pull/9711) | `c21f5c269` | F65 `6d246f8bb`, F66 `c21f5c269` | yes, on `7a00ceaaa`: 12 `test_api` modules and `extras.tests` 5,043 OK once docs are built (27 `test_get_docs_url` fail under `--skip-docs-build` only); `core.tests.test_graphql` 101 OK |
-| 3b | `u/kevsmith-9682-nested-reverse-one-to-one`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682), PR [#9712](https://github.com/nautobot/nautobot/pull/9712) | `4b96caf48` | replaces F25 with an optimizer change, `efea5e343`; batched review suggestions `4b96caf48` | yes, on `7a00ceaaa`: both tests fail without (52 and 3 per-row `dcim_devicebay` queries), pass with; all 13 `test_api` modules, 5,320 OK |
+| 3b | `u/kevsmith-9682-nested-reverse-one-to-one`, issue [#9682](https://github.com/nautobot/nautobot/issues/9682), PR [#9712](https://github.com/nautobot/nautobot/pull/9712) | `796e4befb` | replaces F25 with an optimizer change, `efea5e343`; batched review suggestions `4b96caf48`; review fixes `8bcb67b10`, `796e4befb` | yes, on `7a00ceaaa`: both tests fail without (52 and 3 per-row `dcim_devicebay` queries), pass with; all 13 `test_api` modules, 5,320 OK. Review fixes on `14d0be00d`, 2026-10-27: the device test fails at both depths without the `OneToOneRel` join (6 per-row queries each), passes with; all 13 `test_api` modules, 5,320 OK at `2b601ba67`, `DeviceTest` 43 OK at `796e4befb` |
 
 Each commit pairs a fix with a test that should fail without it. Commits ported from Ken Celenza's fork
 (F65, F66, F70, F71, F73) credit him with `Co-authored-by`. "Verified" means the new tests fail with the
@@ -59,6 +59,16 @@ overrides `connection_destination_querysets()`, as `ConsolePort` and `PowerPort`
 removing either join fails it (49, 50, 51). The prefetch also skips the breakout data the template never reads,
 so the tab runs 47 queries, 4 fewer than `79e15adc8`. It squashes an unpushed view-local `GenericPrefetch`
 commit, `7f3c4e1ce`, from an earlier session.
+
+PR 3b's `8bcb67b10` and `796e4befb` answer Glenn Matthews's review on #9712. The nested-serializer check is
+narrowed to `ModelSerializer`, which every depth > 0 nested serializer is. He also asked whether the prefetch tuple
+should include `OneToOneRel`. It already matches, as a `ManyToOneRel` subclass, but that branch sees only many-valued
+fields. The gap was the single-valued branch, which joined only a `ForeignKey`, so a reverse one-to-one on the
+viewset's own model was never joined; `DeviceViewSet` named `parent_bay` by hand. The check is now
+`(ForeignKey, OneToOneRel)` and Device's hand-written join is gone. Upstream's
+`DeviceTest.test_list_query_count_with_device_bays` did not guard it: `AssertNoRepeatedQueries` allows 10 repeats
+and the test lists 6 devices, so it passed with no join at all. It now checks for the per-row `installed_device_id`
+query directly, at depth 0 and depth 1. `2b601ba67` differs from `796e4befb` in that test only.
 
 PR 2's `ad815c5c2` fixes a CI failure in `TableTestCase.test_base_table_apis`. `BaseTable.__init__` adds
 relationship columns to the table class's `base_columns`, and a test's rollback does not invalidate the cached
