@@ -1,8 +1,8 @@
 ---
 seq: 67
 id: null
-commit: 1ace3ab00
-recommended_commit: 372616eca
+commit: 9cfd3eb45
+recommended_commit: ae9528392
 status: accepted
 basis: 'attribution: 1,031 reversals on a 100-row page, 9.9 per row, 78.2ms of reverse()'
 behaviour: A

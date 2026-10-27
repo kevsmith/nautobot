@@ -1,8 +1,8 @@
 ---
 seq: 73
 id: null
-commit: f12749dcd
-recommended_commit: a0a6e930d
+commit: 447029f5d
+recommended_commit: 07910a8d9
 status: accepted
 basis: 'attribution: 4.200 queries per rendered row on one relationship column'
 behaviour: A

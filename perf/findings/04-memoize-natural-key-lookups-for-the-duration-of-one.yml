@@ -1,8 +1,8 @@
 ---
 seq: 4
 id: F-04
-commit: d03584bc5
-recommended_commit: 7b0e72a7f
+commit: 39b8b81bc
+recommended_commit: f219de2bb
 status: accepted
 behaviour: B1
 migration: '-'

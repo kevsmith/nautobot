@@ -1,8 +1,8 @@
 ---
 seq: 25
 id: null
-commit: bc94d3f24
-recommended_commit: 7603c15af
+commit: 066843f69
+recommended_commit: 703a3f50b
 status: accepted
 behaviour: A
 migration: '-'

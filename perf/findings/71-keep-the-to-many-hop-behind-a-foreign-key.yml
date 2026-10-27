@@ -1,8 +1,8 @@
 ---
 seq: 71
 id: null
-commit: f21127885
-recommended_commit: d04b27833
+commit: ec6fffd27
+recommended_commit: 29e356d67
 status: accepted
 basis: 'attribution: 1.000 q/row on the one affected column, 0.000 after'
 behaviour: A

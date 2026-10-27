@@ -1,8 +1,8 @@
 ---
 seq: 51
 id: null
-commit: 16e825045
-recommended_commit: 2c7324e59
+commit: 20e9e00ad
+recommended_commit: 9e6cad9cc
 status: accepted
 basis: −23.1% on a chrome-only response; 146 URL reversals per page become 23
 behaviour: B2
