@@ -84,6 +84,7 @@ from nautobot.dcim.models import (
     VirtualChassis,
     VirtualDeviceContext,
 )
+from nautobot.dcim.signals import rebuild_paths
 from nautobot.extras.models import ConfigContextSchema, ExternalIntegration, Role, SecretsGroup, Status
 from nautobot.ipam.models import IPAddress, Namespace, Prefix, VLAN, VLANGroup
 from nautobot.tenancy.models import Tenant
@@ -4071,6 +4072,61 @@ class CableTest(Mixins.BaseComponentTestMixin):
         self.assertEqual(len(rows), 2)
         self.assertEqual({r.cable_end for r in rows}, {"A", "B"})
         self.assertEqual({r.interface_id for r in rows}, {free_ifaces[0].pk, free_ifaces[1].pk})
+
+    def test_cable_terminations_payload_rebuilds_paths_once(self):
+        """Creating a cable with a two-ended `terminations` payload rebuilds its paths once, not once for each row."""
+        self.add_permissions(
+            "dcim.add_cable",
+            "dcim.change_cable",
+            "dcim.add_cabletocabletermination",
+            "dcim.change_cabletocabletermination",
+            "dcim.view_cable",
+            "dcim.view_interface",
+            "extras.view_status",
+        )
+        free_ifaces = list(
+            Interface.objects.filter(cable_termination__isnull=True).exclude(type__in=NONCONNECTABLE_IFACE_TYPES)[:4]
+        )
+        cable_status = Status.objects.get_for_model(Cable).get(name="Connected")
+
+        with self.subTest("create"):
+            with mock.patch("nautobot.dcim.signals.rebuild_paths", wraps=rebuild_paths) as mock_rebuild_paths:
+                response = self.client.post(
+                    reverse("dcim-api:cable-list"),
+                    {
+                        "status": cable_status.pk,
+                        "label": "Cable rebuilt once",
+                        "terminations": {
+                            "a1": {"object_type": "dcim.interface", "id": str(free_ifaces[0].pk)},
+                            "b1": {"object_type": "dcim.interface", "id": str(free_ifaces[1].pk)},
+                        },
+                    },
+                    format="json",
+                    **self.header,
+                )
+            self.assertHttpStatus(response, status.HTTP_201_CREATED)
+            self.assertEqual(mock_rebuild_paths.call_count, 1)
+            self.assertEqual(free_ifaces[0].connected_endpoint, free_ifaces[1])
+            self.assertEqual(free_ifaces[1].connected_endpoint, free_ifaces[0])
+
+        with self.subTest("replace both ends"):
+            # The rows' rebuilds are deferred to the end of the update too, so the paths must reflect both new ends.
+            response = self.client.patch(
+                reverse("dcim-api:cable-detail", kwargs={"pk": response.json()["id"]}),
+                {
+                    "terminations": {
+                        "a1": {"object_type": "dcim.interface", "id": str(free_ifaces[2].pk)},
+                        "b1": {"object_type": "dcim.interface", "id": str(free_ifaces[3].pk)},
+                    },
+                },
+                format="json",
+                **self.header,
+            )
+            self.assertHttpStatus(response, status.HTTP_200_OK)
+            self.assertIsNone(free_ifaces[0].connected_endpoint)
+            self.assertIsNone(free_ifaces[1].connected_endpoint)
+            self.assertEqual(free_ifaces[2].connected_endpoint, free_ifaces[3])
+            self.assertEqual(free_ifaces[3].connected_endpoint, free_ifaces[2])
 
     def test_patch_cable_terminations_add_replace_delete(self):
         """PATCH with `terminations` replaces specified slots, deletes those set to null, and leaves others alone."""
